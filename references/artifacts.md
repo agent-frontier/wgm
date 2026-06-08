@@ -1,14 +1,14 @@
 # Artifacts — formats & placement
 
-wgm uses three on-disk artifacts as durable state. They survive context resets and let any agent
+wgm uses several on-disk artifacts as durable state. They survive context resets and let any agent
 continue the work. Fill them from the templates in `assets/`.
 
 ## Placement & safety rules
 - **Greenfield/empty repo:** write artifacts at the project root (`IMPLEMENTATION_PLAN.md`,
-  `specs/`, `AGENTS.md`).
+  `specs/`, `scenarios/`, `AGENTS.md`).
 - **Existing project** that already has any of `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, or `specs/`:
   write wgm's artifacts under **`.wgm/`** instead — `.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/`,
-  `.wgm/AGENTS.md` — to avoid clobbering the project's files.
+  `.wgm/scenarios/`, `.wgm/AGENTS.md` — to avoid clobbering the project's files.
 - **Never overwrite an existing `AGENTS.md`.** Touch root `AGENTS.md` only with explicit approval.
 - Decide root vs `.wgm/` **once, in Triage**, and stay consistent for the whole run.
 
@@ -24,6 +24,13 @@ One spec per coherent slice of work. Source from `assets/spec.template.md`. Must
   non-goals for this pass.
 
 Let the format flex per project, but keep these sections present.
+
+## `scenarios/*.yaml` — the holdout acceptance set
+User-journey acceptance specs used as a **holdout set**: the Implement step never reads them; only
+Validate/Review (the judge) does. This prevents teaching-to-the-test. Source from
+`assets/scenario.template.yaml`. Authored during Grill/Plan, independent of the implementation. Each
+carries a difficulty **tier** (1–3) for stratified validation. Full discipline + schema in
+`references/scenarios.md`; scoring in `references/scoring.md`.
 
 ## `IMPLEMENTATION_PLAN.md` — the shared state
 A prioritized task list — the memory of the loop. Source from

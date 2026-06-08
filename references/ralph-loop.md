@@ -43,6 +43,9 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 - Only when no deterministic check can exist (UX feel, copy, aesthetics) fall back to an
   LLM-as-judge with a binary pass/fail; record its prompt and verdict, and accept that it varies
   run to run.
+- For holistic/holdout judgment, an LLM-as-judge **satisfaction score (0–100)** against holdout
+  scenarios can augment binary checks; converge to a threshold (default 95). Deterministic checks
+  still gate "done." See `scoring.md` and `scenarios.md`.
 - "Important: when authoring code and docs, capture the *why* — and the test that proves it."
 
 ## Context-hygiene gate (every iteration)
@@ -53,8 +56,9 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 
 ## Stop / regenerate conditions
 - All must-have tasks are `done` → ship/handoff.
-- The same task fails ~3 times → record the blocker, stop, ask or regenerate the plan. Regenerating
-  the plan is cheap; a loop going in circles is not.
+- The same task fails ~3 times, or the satisfaction score stalls → first run a **wonder/reflect**
+  recovery and consider model escalation (`stall-recovery.md`); if still stuck, record the blocker,
+  stop, ask or regenerate the plan. Regenerating the plan is cheap; a loop going in circles is not.
 - The trajectory is clearly wrong (building the wrong thing, duplicating work) → stop and re-plan.
 
 ## Keep AGENTS.md lean

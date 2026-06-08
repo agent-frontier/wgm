@@ -20,6 +20,11 @@
 |---|---|
 | <criterion> | <`npm test ...` / `pytest ...` / curl probe / type-check / LLM-judge> |
 
+## Holdout scenarios
+- **Files:** <`scenarios/*.yaml` (or `.wgm/scenarios/`) that verify this slice from the user's seat>
+- **Holdout rule:** authored here, but the Implement step must NOT read them — only Validate/Review
+  judges against them. Tier them 1–3 for stratified validation. See `references/scenarios.md`.
+
 ## Assumptions
 - <Recommended assumption made during grilling, to be confirmed if it proves wrong>
 

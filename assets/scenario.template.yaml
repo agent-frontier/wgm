@@ -1,0 +1,25 @@
+# Scenario — a holdout acceptance journey (judged in Validate/Review; never read during Implement).
+# One coherent user journey per file. Save under scenarios/ (or .wgm/scenarios/).
+# See references/scenarios.md for the full schema and discipline.
+
+name: <short-id>
+description: <one line summary of the journey and why it matters>
+
+# Difficulty tier — 1 = smoke/happy-path, 2 = normal, 3 = hard/edge. Drives stratified validation.
+tier: 1
+
+# How to reach the running software (optional; omit for pure library/unit journeys).
+target:
+  kind: <http | cli | tui>
+  start: <command or URL that starts or serves the app>
+
+# Optional preconditions to establish before the steps run.
+setup:
+  - <seed data / env var / fixture the journey needs>
+
+# The journey: each step is a user action and the observable outcome the judge scores (0-100).
+steps:
+  - action: <what the user does, e.g. POST /items with a name>
+    expect: <observable outcome, e.g. 201 with a JSON body containing an id>
+  - action: <what the user does next, e.g. GET /items>
+    expect: <observable outcome, e.g. 200 and the created item appears in the list>

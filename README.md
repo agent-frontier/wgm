@@ -23,23 +23,52 @@ steps instead of one hopeful mega-edit.
 
 ## Install
 
-A skill is just a folder containing `SKILL.md`. Put this `wgm` folder where your agent looks for
-skills:
+A skill is just a folder containing `SKILL.md`. Install it **once for your user** (global — the
+default) or **per project**, on Linux, macOS, Windows, or WSL.
 
-| Client | Skills directory |
-|---|---|
-| VS Code (Copilot agent mode) | `.agents/skills/wgm/` (per project) |
-| Claude Code | `.claude/skills/wgm/` (project) or `~/.claude/skills/wgm/` (personal) |
-| Other clients | See your client's docs for its skills directory |
-
-For example, in a project that uses VS Code:
+### One-line install
 
 ```bash
-git clone https://github.com/agent-frontier/wgm .agents/skills/wgm
-# or copy the folder:  cp -r wgm .agents/skills/wgm
+# Linux / macOS / WSL
+curl -fsSL https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.sh | bash
 ```
 
-Then in an agent session, confirm it's discoverable (e.g. `/skills` in VS Code) and invoke it.
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.ps1 | iex
+```
+
+Both default to a **user-level** install into the cross-client `~/.agents/skills/wgm`, plus any
+client dirs they detect (`~/.claude`, `~/.copilot`). For flags, clone the repo and run the script.
+
+### From a clone (full control)
+
+```bash
+git clone https://github.com/agent-frontier/wgm && cd wgm
+./scripts/install.sh                 # user-level, auto-detect clients (default)
+./scripts/install.sh --project       # into ./.agents/skills (+ ./.claude)
+./scripts/install.sh --client all    # agents + claude + copilot
+./scripts/install.sh --dry-run       # preview; change nothing
+./scripts/install.sh --uninstall     # remove it again
+```
+
+```powershell
+pwsh scripts/install.ps1 -Client all
+powershell -File scripts\install.ps1 -Project
+pwsh scripts/install.ps1 -Uninstall
+```
+
+### Where it lands
+
+| Scope | Cross-client (default) | Claude | Copilot CLI |
+|---|---|---|---|
+| **User** (`~` / `%USERPROFILE%`) | `~/.agents/skills/wgm` | `~/.claude/skills/wgm` | `~/.copilot/skills/wgm` |
+| **Project** (`./`) | `./.agents/skills/wgm` | `./.claude/skills/wgm` | via `.agents/skills` |
+
+> **WSL vs Windows** have separate home dirs — run the installer in each environment you use.
+
+Then confirm it's discoverable in your agent (e.g. `/skills`) and invoke `/wgm`. To install by hand,
+just copy the `wgm/` folder into any skills dir your client scans.
 
 ## Use it
 
@@ -76,6 +105,41 @@ continues forward. A leading word counts as a mode only if it's a known keyword 
 files, it writes its own under `.wgm/` instead (`.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/`,
 `.wgm/AGENTS.md`). Greenfield repos use the root directly.
 
+## Capabilities
+
+wgm fuses grilling + the Ralph loop with **holdout-scenario judging** (after
+[octopusgarden](https://github.com/foundatron/octopusgarden)), so a build converges on genuinely
+correct software instead of teaching to the test.
+
+```mermaid
+flowchart LR
+  G[Grill] --> P[Plan and scenarios]
+  P --> F{Preflight ready?}
+  F -- no --> G
+  F -- yes --> A
+  subgraph Loop
+    direction LR
+    A[Analyze] --> I[Implement] --> V[Validate and judge] --> R[Review] --> Rec[Record]
+  end
+  V -- score below target --> W[Wonder, Reflect, escalate]
+  W --> A
+  Rec -- target met and checks green --> S[Ship]
+```
+
+- **Holdout scenarios** — YAML user-journeys graded blind; the build never reads them
+  (`references/scenarios.md`).
+- **Satisfaction scoring** — an LLM judge scores 0–100; converge to a threshold (default 95)
+  (`references/scoring.md`).
+- **Preflight** — a readiness gate (≥ 80) before any code is written.
+- **Stratified validation** — converge tier 1 → 2 → 3 so easy passes can't hide hard failures.
+- **Wonder / reflect + model escalation** — structured stall recovery; start frugal, escalate on a
+  stall (`references/stall-recovery.md`).
+- **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
+- **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
+  container (`references/validation-env.md`).
+
+Full design docs live in [`docs/`](docs/), split by **operator** and **agent** concerns.
+
 ## Optional: the real Ralph loop (`scripts/loop.sh`)
 
 In a single agent session, context accumulates — the opposite of what makes Ralph strong. For
@@ -87,13 +151,17 @@ bundled adapter. It's host-agnostic: you tell it how to invoke your agent.
 export WGM_AGENT='claude --dangerously-skip-permissions -p'   # prompt appended as last arg
 ./scripts/loop.sh plan --request "build a small CLI todo app"  # one planning pass
 ./scripts/loop.sh build 20            # up to 20 build iterations, fresh context each time
+./scripts/loop.sh build 20 --threshold 95 --stratified --container podman
+export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on a stall
+./scripts/loop.sh extract --source ../exemplar  # gene transfusion from an exemplar repo
 ./scripts/loop.sh build only          # exactly one iteration
 ./scripts/loop.sh build --dry-run     # preview the prompt/command; run nothing
 # …or pass the agent argv after `--` (invoked without eval — safest):
 ./scripts/loop.sh build -- claude -p
 ```
 
-- Modes match the skill: `grill | analyze | plan | build | review` (plus `only` for a single pass).
+- Modes match the skill: `grill | analyze | plan | preflight | build | review | extract` (plus
+  `only` for a single pass).
 - `build`/`review` refuse to run without an `IMPLEMENTATION_PLAN.md`.
 - No automatic commits or pushes unless you pass `--commit` — but the agent **does** edit files
   during a normal (non-dry) run.
@@ -110,9 +178,10 @@ export WGM_AGENT='claude --dangerously-skip-permissions -p'   # prompt appended 
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling.md · ralph-loop.md · artifacts.md
-├── assets/           # spec / IMPLEMENTATION_PLAN / AGENTS templates
-└── scripts/loop.sh   # optional external Ralph loop
+├── references/       # grilling · ralph-loop · artifacts · scenarios · scoring · stall-recovery · gene-transfusion · validation-env
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · genes templates
+├── scripts/          # loop.sh (Ralph loop) · install.sh · install.ps1
+└── docs/             # operator/ and agent/ guides (Mermaid diagrams)
 ```
 
 ## Credits & license

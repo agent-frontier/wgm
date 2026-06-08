@@ -2,20 +2,23 @@
 name: wgm
 description: Autonomous build skill that turns a rough request into working software through a relentless requirements interview (grill), a persistent plan, and a Ralph-style build loop (analyze → implement → validate → review → record). Use when the user runs /wgm, or asks to build, implement, prototype, or ship a feature or app from rough intent; when a task is ambiguous and needs requirements interrogation before coding; or for multi-step feature work that benefits from a planned, test-validated iterative loop. Supports phase modes grill, analyze, plan, build, and review, with an optional "only" qualifier to run a single phase (e.g. "/wgm analyze only"). Not for trivial one-file edits, pure debugging, or research-only questions.
 license: MIT
+compatibility: Optional Podman or Docker (OCI) for containerized scenario validation; none otherwise.
 metadata:
   author: Agent Frontier Store
-  version: "0.1"
+  version: "0.2"
 ---
 
 # wgm
 
 Turn a rough request into working software. `wgm` runs a disciplined lifecycle:
 
-`Triage → Grill → Plan → Loop(Analyze → Implement → Validate → Review → Record) → Ship/Handoff`
+`Triage → Grill → Plan → Preflight → Loop(Analyze → Implement → Validate → Review → Record) → Ship/Handoff`
 
-It marries two ideas: **grill-me** (interview the human relentlessly until alignment) and the
+It marries three ideas: **grill-me** (interview the human relentlessly until alignment), the
 **Ralph loop** (one task per iteration, persistent plan as shared state, steered by deterministic
-backpressure). This file is the protocol. Follow it like a state machine — do not skip gates.
+backpressure), and **holdout-scenario judging** (after octopusgarden): an LLM judge scores
+satisfaction against scenarios the build never sees, so a high score can't be gamed. This file is
+the protocol. Follow it like a state machine — do not skip gates.
 
 ## Invocation & modes
 
@@ -72,6 +75,8 @@ the artifact, or stop with a recorded blocker. Gates are not advisory.
      context is the stronger mode; in-session work must compensate with strict persistence.
 3. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything.
+4. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
+   to seed the build in the house style (`references/gene-transfusion.md`).
 
 ## Phase 1 — Grill (align)
 Read `references/grilling.md`. Core rules:
@@ -95,6 +100,9 @@ Read `references/grilling.md`. Core rules:
 Read `references/artifacts.md`. Produce, using `assets/` templates:
 - `specs/*` — one per coherent slice. Each spec must include a **magic moment**, a **demo path**,
   and the **smallest end-to-end slice** that proves value (see `assets/spec.template.md`).
+- `scenarios/*` — holdout acceptance journeys (YAML), tiered 1–3, that verify the spec from the
+  user's seat. The build must **not** read these; they're judged in Validate/Review
+  (`assets/scenario.template.yaml`, `references/scenarios.md`).
 - `IMPLEMENTATION_PLAN.md` — prioritized task list; this is the **shared state** across iterations.
 - `AGENTS.md` — lean operational "how to build & validate" guide (only if absent; never clobber).
 
@@ -105,6 +113,16 @@ Read `references/artifacts.md`. Produce, using `assets/` templates:
 - [ ] If no validation signal exists yet, the **first task is "create a validation signal."**
 - [ ] The plan includes a final **demo-validation task** that runs the spec's smallest end-to-end
       demo path; it must pass before Ship/Handoff.
+- [ ] The spec's demo path is covered by at least one **tier-1 holdout scenario**.
+
+## Phase 2.5 — Preflight (readiness gate)
+Before looping, score the plan's readiness **0–100** (goal/JTBD clarity · observable success
+criteria · scenario coverage of the demo path · each acceptance criterion mapped to backpressure ·
+scope edges). See `references/scoring.md`.
+
+**Preflight-exit gate:**
+- [ ] Readiness ≥ **80** (recommended). Below it, return to Grill/Plan and fix the weakest dimension
+      first — do not start building.
 
 ## Phase 3 — Loop (build)
 Read `references/ralph-loop.md`. Run iterations until the plan's must-have tasks are `done` or a
@@ -113,13 +131,20 @@ stop condition fires. **One task per iteration.** Each iteration:
 1. **Analyze** — read only what you need: `IMPLEMENTATION_PLAN.md`, the relevant spec, and the
    files for this one task. Pick the single most important `pending` task ("let Ralph Ralph").
 2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
-   slice over many half-built parts.
+   slice over many half-built parts. **Holdout rule:** do not open scenario files while implementing.
 3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
-   creating one **is** this iteration's task. No green signal → not done.
+   creating one **is** this iteration's task. No green signal → not done. Then **judge satisfaction
+   (0–100)** against this slice's holdout scenarios, converging by tier (stratified); run the app in
+   a container if a scenario needs a live service (`references/scoring.md`,
+   `references/validation-env.md`). Deterministic checks still gate "done."
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
    actually prove the task (not just "didn't crash")?
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone.
+
+**On a stall** (satisfaction flat ~2 iterations, or a task failing its check repeatedly): stop
+generating and run **wonder → reflect**, and consider **model escalation**, before recording a
+blocker (`references/stall-recovery.md`).
 
 **Context hygiene:** advance exactly one task per iteration. If context feels bloated, stop and
 hand off through the plan (Phase 4) rather than pushing on with a polluted context. In Ralph-full
@@ -130,9 +155,10 @@ validation command was run and **exited 0** · result recorded · diff reviewed 
 acceptance · plan updated · exactly one task advanced. A task may be marked `done` **only if its
 validation command exited 0**; otherwise set it `blocked` (with a note) or leave it `pending`.
 
-**Stop conditions:** all must-have tasks `done` (including the demo-validation task); or the same
-task fails ~3 times (record the blocker, stop, ask for help or regenerate the plan); or context is
-too bloated to continue safely.
+**Stop conditions:** all must-have tasks `done` (including the demo-validation task) **and overall
+satisfaction ≥ threshold (default 95)**; or a stall persists after wonder/reflect + escalation (~3
+recovery cycles — record the blocker, stop, ask or regenerate the plan); or context is too bloated
+to continue safely.
 
 ## Phase 4 — Ship / Handoff
 - Summarize what was built, how to run/validate it, and what the demo path is.
@@ -155,10 +181,17 @@ criteria to a runnable command (test, type-check, build, lint, HTTP probe). If t
 such signal, your first job is to create one. Only for subjective criteria (UX feel, copy,
 aesthetics) where no deterministic check can exist, fall back to an LLM-as-judge check with a
 binary pass/fail, and record its prompt and verdict. Re-run the signal until green before declaring
-a task done.
+a task done. For holistic, end-to-end confidence, augment with **holdout-scenario satisfaction
+scoring** (`references/scoring.md`) — but deterministic checks remain the hard gate.
 
 ## References
 - `references/grilling.md` — the interview discipline.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
-- `references/artifacts.md` — formats + placement rules for specs, plan, and AGENTS.md.
-- `assets/` — fill-in templates. `scripts/loop.sh` — optional external Ralph loop.
+- `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, and AGENTS.md.
+- `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
+- `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
+- `references/stall-recovery.md` — wonder/reflect + model escalation on a stall.
+- `references/gene-transfusion.md` — seed the build from an exemplar codebase.
+- `references/validation-env.md` — OCI/Podman-first containerized validation.
+- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `genes`).
+- `scripts/loop.sh` — optional external Ralph loop. `scripts/install.sh` / `install.ps1` — installers.

@@ -4,12 +4,18 @@
 > task. Update every iteration so a fresh agent could resume from this file alone.
 > Status values: `pending | in_progress | done | blocked`.
 
+## Convergence
+- **Satisfaction threshold:** <default 95> — overall holdout-scenario score to reach before Ship.
+- **Stratified order:** converge tier 1 → 2 → 3 (see `references/scoring.md`).
+- **Scenarios:** <`scenarios/` or `.wgm/scenarios/`> (judged in Validate/Review; never read in Implement).
+
 ## Now (next up)
 
 ### T1 — <objective in one sentence>
 - **files/areas:** <where the change likely lives>
 - **validation:** <command that proves it, e.g. `npm test -- t1` / `pytest -k t1`>
 - **acceptance:** <what "done" means for this task>
+- **scenarios/tier:** <holdout scenario(s) this advances, + tier 1–3 — optional>
 - **status:** pending
 - **notes:** <results, blockers, links — filled in as you go>
 
