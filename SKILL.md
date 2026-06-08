@@ -1,0 +1,164 @@
+---
+name: wgm
+description: Autonomous build skill that turns a rough request into working software through a relentless requirements interview (grill), a persistent plan, and a Ralph-style build loop (analyze → implement → validate → review → record). Use when the user runs /wgm, or asks to build, implement, prototype, or ship a feature or app from rough intent; when a task is ambiguous and needs requirements interrogation before coding; or for multi-step feature work that benefits from a planned, test-validated iterative loop. Supports phase modes grill, analyze, plan, build, and review, with an optional "only" qualifier to run a single phase (e.g. "/wgm analyze only"). Not for trivial one-file edits, pure debugging, or research-only questions.
+license: MIT
+metadata:
+  author: Agent Frontier Store
+  version: "0.1"
+---
+
+# wgm
+
+Turn a rough request into working software. `wgm` runs a disciplined lifecycle:
+
+`Triage → Grill → Plan → Loop(Analyze → Implement → Validate → Review → Record) → Ship/Handoff`
+
+It marries two ideas: **grill-me** (interview the human relentlessly until alignment) and the
+**Ralph loop** (one task per iteration, persistent plan as shared state, steered by deterministic
+backpressure). This file is the protocol. Follow it like a state machine — do not skip gates.
+
+## Invocation & modes
+
+Invoked as `/wgm [<mode>] [only] [<request>]` — or activated whenever the user asks to build /
+implement / prototype something from rough intent.
+
+**Parse the input first:**
+
+1. Look at the first word. It is a **mode** only if it is exactly one of
+   `grill | analyze | plan | build | loop | review` AND it is followed by end-of-input, the word
+   `only`, or a `:` separator. (`loop` is an alias of `build`.)
+2. Otherwise the entire input is the `<request>` and you run the **full lifecycle**. This is the
+   disambiguation rule: `/wgm build the auth module` is a request — not `build` mode.
+3. **Single-phase modes** — `grill`, `analyze`, `plan`, `review` — run that one phase, then
+   **hard-stop at its exit gate**. Report and wait; do not roll forward into the next phase.
+4. **`build`** runs the build loop (it loads an existing `IMPLEMENTATION_PLAN.md`). `build only`
+   runs exactly one iteration, then stops.
+5. The optional trailing `only` is accepted on any mode for emphasis and always hard-stops after
+   the named phase (redundant for the single-phase modes; meaningful for `build only`).
+6. A `:` lets a mode carry a request/scope, e.g. `/wgm plan: add OAuth login`.
+7. No input → operate on the current conversation context; begin at Triage.
+
+| Invocation | Behavior |
+|---|---|
+| `/wgm <request>` | Full lifecycle on the request |
+| `/wgm grill only` | Just the alignment interview; stop at Grill-exit |
+| `/wgm analyze only` | Explore code + requirements, report findings/specs; do not implement |
+| `/wgm plan: <request>` | Write specs + `IMPLEMENTATION_PLAN.md`; stop at Plan-exit |
+| `/wgm build` | Run the build loop from the existing plan (`build only` = one iteration) |
+| `/wgm review` | Review current diff against acceptance criteria; no new code |
+
+## Use this when
+- Building or implementing a feature/app/prototype from rough or ambiguous intent.
+- Multi-step work that benefits from a plan + iterative, test-validated execution.
+- The user explicitly runs `/wgm`.
+
+## Do NOT use this when
+- Trivial one-file edits or formatting-only changes — just do them.
+- Pure debugging of a specific bug — a dedicated diagnose discipline fits better.
+- Research-only / "explain this" questions with no build intent.
+- The task already has complete, unambiguous step-by-step instructions.
+
+## How gates work (enforcement)
+The lifecycle is a state machine. At the end of each phase, **print a `Gate check:` block listing
+every gate item as PASS or FAIL.** If any item is FAIL, do **not** advance — ask one question, fix
+the artifact, or stop with a recorded blocker. Gates are not advisory.
+
+## Phase 0 — Triage (always first)
+1. Parse the mode (above). Confirm this skill applies; if not, say so and stop.
+2. Decide loop mode:
+   - **Ralph-lite** (default): run the loop in-session for small/medium work.
+   - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration —
+     recommend `scripts/loop.sh` or restarting with a clean context between iterations. Fresh
+     context is the stronger mode; in-session work must compensate with strict persistence.
+3. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
+   writing anything.
+
+## Phase 1 — Grill (align)
+Read `references/grilling.md`. Core rules:
+- Ask **one question at a time**. For every question, **state your recommended answer**.
+- **Explore the codebase to self-answer before asking.** A question you can resolve by reading code
+  is not a question for the user.
+- **Ask vs assume:** only ask when the answer would materially change architecture, UX, data model,
+  security, deployment, or acceptance criteria. Otherwise record a recommended assumption in the
+  spec and proceed.
+- **Cap interrogation:** after ~5 consecutive questions, summarize current assumptions and offer
+  "proceed with defaults." Never let grilling become interrogation theater.
+
+**Grill-exit gate** (all must hold before planning):
+- [ ] Goal is known.
+- [ ] User-visible success criteria are known.
+- [ ] Major constraints are known.
+- [ ] Each unknown is answered, explored from code, or recorded as an explicit assumption.
+- [ ] User said "go" OR remaining ambiguity is immaterial.
+
+## Phase 2 — Plan
+Read `references/artifacts.md`. Produce, using `assets/` templates:
+- `specs/*` — one per coherent slice. Each spec must include a **magic moment**, a **demo path**,
+  and the **smallest end-to-end slice** that proves value (see `assets/spec.template.md`).
+- `IMPLEMENTATION_PLAN.md` — prioritized task list; this is the **shared state** across iterations.
+- `AGENTS.md` — lean operational "how to build & validate" guide (only if absent; never clobber).
+
+**Plan-exit gate:**
+- [ ] `IMPLEMENTATION_PLAN.md` exists.
+- [ ] Every task has: objective · files/areas · **validation command** · acceptance criteria · status.
+- [ ] The first task is small enough for one iteration.
+- [ ] If no validation signal exists yet, the **first task is "create a validation signal."**
+- [ ] The plan includes a final **demo-validation task** that runs the spec's smallest end-to-end
+      demo path; it must pass before Ship/Handoff.
+
+## Phase 3 — Loop (build)
+Read `references/ralph-loop.md`. Run iterations until the plan's must-have tasks are `done` or a
+stop condition fires. **One task per iteration.** Each iteration:
+
+1. **Analyze** — read only what you need: `IMPLEMENTATION_PLAN.md`, the relevant spec, and the
+   files for this one task. Pick the single most important `pending` task ("let Ralph Ralph").
+2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
+   slice over many half-built parts.
+3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
+   creating one **is** this iteration's task. No green signal → not done.
+4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
+   actually prove the task (not just "didn't crash")?
+5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
+   tasks. Write enough that a **fresh agent could continue** from the file alone.
+
+**Context hygiene:** advance exactly one task per iteration. If context feels bloated, stop and
+hand off through the plan (Phase 4) rather than pushing on with a polluted context. In Ralph-full
+mode, clear/refresh context between iterations.
+
+**Iteration-exit gate** (print PASS/FAIL for each): implementation done · the task's exact
+validation command was run and **exited 0** · result recorded · diff reviewed for scope creep +
+acceptance · plan updated · exactly one task advanced. A task may be marked `done` **only if its
+validation command exited 0**; otherwise set it `blocked` (with a note) or leave it `pending`.
+
+**Stop conditions:** all must-have tasks `done` (including the demo-validation task); or the same
+task fails ~3 times (record the blocker, stop, ask for help or regenerate the plan); or context is
+too bloated to continue safely.
+
+## Phase 4 — Ship / Handoff
+- Summarize what was built, how to run/validate it, and what the demo path is.
+- List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
+- Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
+
+## Artifact safety (hard rules)
+- **Never overwrite or edit an existing `AGENTS.md` by default** — use `.wgm/AGENTS.md` instead.
+  Touch the project's root `AGENTS.md` only with explicit approval that names the file and the
+  scope of edits.
+- If the project root already contains `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, or `specs/`, write
+  wgm's artifacts under **`.wgm/`** instead: `.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/`,
+  `.wgm/AGENTS.md`.
+- A greenfield/empty repo may use the root directly.
+- Decide root vs `.wgm/` once, in Triage, and stay consistent.
+
+## Backpressure is the skill
+A loop without a deterministic pass/fail signal is just hoping. Every task must map its acceptance
+criteria to a runnable command (test, type-check, build, lint, HTTP probe). If the project has no
+such signal, your first job is to create one. Only for subjective criteria (UX feel, copy,
+aesthetics) where no deterministic check can exist, fall back to an LLM-as-judge check with a
+binary pass/fail, and record its prompt and verdict. Re-run the signal until green before declaring
+a task done.
+
+## References
+- `references/grilling.md` — the interview discipline.
+- `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
+- `references/artifacts.md` — formats + placement rules for specs, plan, and AGENTS.md.
+- `assets/` — fill-in templates. `scripts/loop.sh` — optional external Ralph loop.

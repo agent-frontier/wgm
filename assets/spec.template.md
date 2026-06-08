@@ -1,0 +1,27 @@
+# Spec: <slice name>
+
+> One spec per coherent slice. Keep these sections; flex the rest per project.
+
+## JTBD (job to be done)
+<What job is the user hiring this to do, and for whom?>
+
+## User-visible success criteria
+- <Observable "done" #1>
+- <Observable "done" #2>
+
+## Magic moment
+- **The whoa:** <the single thing that should impress the user>
+- **Demo path:** <the exact steps to experience it>
+- **Smallest end-to-end slice:** <the minimal vertical slice that proves the value>
+- **Merely functional vs magical:** <what would make this feel flat, so we avoid it>
+
+## Acceptance criteria → backpressure
+| Criterion | How it's verified (command/check) |
+|---|---|
+| <criterion> | <`npm test ...` / `pytest ...` / curl probe / type-check / LLM-judge> |
+
+## Assumptions
+- <Recommended assumption made during grilling, to be confirmed if it proves wrong>
+
+## Out of scope (this pass)
+- <Explicit non-goal>
