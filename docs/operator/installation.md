@@ -30,6 +30,30 @@ curl -fsSL https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/ins
 irm https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.ps1 | iex
 ```
 
+The one-liner needs the repo to be **public** (it's an unauthenticated fetch). The piped script has
+no local checkout, so it **self-fetches**: it downloads the repo into a temp dir, installs from
+there, then cleans up. No `git` needed — it uses the same `curl`/tarball the one-liner already
+implies (Windows uses `Invoke-WebRequest` + `Expand-Archive`), falling back to a shallow `git clone`.
+
+```mermaid
+flowchart TD
+  S[install.sh / install.ps1 starts] --> Q{SKILL.md next to the script?}
+  Q -- yes --> C[Clone mode: install from disk]
+  Q -- no --> F["Bootstrap: download repo archive (curl+tar / IWR+Expand-Archive)"]
+  F -- ok --> T[extract to temp dir]
+  F -- fails --> G["git clone --depth 1 (fallback)"]
+  G --> T
+  T --> I[install into your skills dirs]
+  I --> X[remove temp dir on exit]
+```
+
+Pin a branch, tag, or commit with `--ref` / `-Ref` (or `WGM_REF`); point at a fork with `WGM_REPO`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.sh \
+  | WGM_REF=v1.0 bash
+```
+
 ## From a clone (full control)
 
 ```bash
@@ -62,9 +86,14 @@ pwsh scripts/install.ps1 -Uninstall
 | `--dry-run` / `-DryRun` | Print actions; change nothing. |
 | `--uninstall` / `-Uninstall` | Remove the installed skill. |
 | `--force` / `-Force` | Overwrite an existing install. |
+| `--ref REF` / `-Ref REF` | Git ref (branch/tag/sha) to self-fetch when piped (default `main`). |
 
 `auto` always includes the cross-client `.agents/skills` location and adds `~/.claude` or
 `~/.copilot` when those client homes already exist.
+
+**Self-fetch overrides** (for piped installs): `WGM_REF` (branch/tag/sha, same as `--ref`/`-Ref`),
+`WGM_REPO` (`owner/name` of a fork), and `WGM_TARBALL_URL` (an explicit `.zip`/`.tar.gz` URL, e.g. a
+`file://` path for offline installs).
 
 ## Where it lands
 

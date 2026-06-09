@@ -39,7 +39,9 @@ irm https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.ps
 ```
 
 Both default to a **user-level** install into the cross-client `~/.agents/skills/wgm`, plus any
-client dirs they detect (`~/.claude`, `~/.copilot`). For flags, clone the repo and run the script.
+client dirs they detect (`~/.claude`, `~/.copilot`). The piped script self-fetches the repo (so it
+must be **public**); pin a branch/tag with `WGM_REF` / `--ref`. For all flags, clone the repo and
+run the script.
 
 ### From a clone (full control)
 

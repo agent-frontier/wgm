@@ -11,9 +11,16 @@ Common issues when installing or running wgm, and how to fix them.
 - Restart the agent session so it re-scans skills.
 - For project scope, make sure you started the agent from that project's root.
 
-**"Cannot find SKILL.md in …" from the installer.**
-- Run the installer from inside the cloned repo (`./scripts/install.sh`). It resolves the source as
-  the parent of the `scripts/` directory, so the repo must be intact.
+**The `curl … | bash` one-liner does nothing, or prints a 404.**
+- The repo must be **public** for the unauthenticated one-liner to fetch. Until then, install from a
+  clone instead (`git clone … && ./scripts/install.sh`).
+- `curl -f` exits silently on a 404, so a piped install can look like a no-op. Re-run the raw URL
+  without `-f` to see the HTTP status.
+
+**"Failed to fetch wgm (…)" from the installer.**
+- When piped (no local checkout) the installers self-fetch the repo. This message means both the
+  tarball download and the `git clone` fallback failed — check connectivity, the `--ref` you passed,
+  and `WGM_REPO`/`WGM_REF`. Or install from a clone. See [installation.md](installation.md).
 
 **WSL vs Windows confusion.**
 - They have separate homes. Install in each environment where you run an agent. The bash installer
