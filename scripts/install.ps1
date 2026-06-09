@@ -34,6 +34,14 @@
 .PARAMETER Force
   Overwrite/replace an existing install.
 
+.PARAMETER Ref
+  Git ref (branch/tag/sha) to self-fetch when run piped via `irm … | iex` (default: main).
+
+.NOTES
+  Self-fetch: when run via `irm … | iex` (no local checkout) the script downloads the repo itself.
+  Override the source with env vars: WGM_REPO (default agent-frontier/wgm), WGM_REF (default main;
+  same as -Ref), WGM_TARBALL_URL (explicit .zip/.tar.gz URL; advanced/offline, e.g. file://…).
+
 .EXAMPLE
   pwsh scripts/install.ps1 -Client all
 
@@ -54,7 +62,8 @@ param(
   [string]$Method = 'copy',
   [switch]$DryRun,
   [switch]$Uninstall,
-  [switch]$Force
+  [switch]$Force,
+  [string]$Ref
 )
 
 Set-StrictMode -Version Latest
@@ -62,12 +71,78 @@ $ErrorActionPreference = 'Stop'
 
 $scope = if ($Project) { 'project' } else { 'user' }
 
+$repo = if ($env:WGM_REPO) { $env:WGM_REPO } else { 'agent-frontier/wgm' }
+$ref = if ($Ref) { $Ref } elseif ($env:WGM_REF) { $env:WGM_REF } else { 'main' }
+$tarballUrl = $env:WGM_TARBALL_URL
+
 # ----- resolve source (repo root = parent of this script's dir) -------------
-$scriptDir = Split-Path -Parent $PSCommandPath
-$srcDir = (Resolve-Path (Join-Path $scriptDir '..')).Path
-if (-not (Test-Path (Join-Path $srcDir 'SKILL.md'))) {
-  Write-Error "Cannot find SKILL.md in $srcDir - run from the wgm repo (scripts/install.ps1)."
+# Clone mode: SKILL.md sits next to this script. When run via `irm … | iex` there is no script file
+# ($PSCommandPath is empty), so SRC stays unresolved and we self-fetch into a temp dir ("bootstrap").
+$srcDir = $null
+if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
+  $candidate = (Resolve-Path (Join-Path (Split-Path -Parent $PSCommandPath) '..')).Path
+  if (Test-Path (Join-Path $candidate 'SKILL.md')) { $srcDir = $candidate }
+}
+
+function Get-WgmSource {
+  param([string]$Dest)
+  $url = if ($tarballUrl) { $tarballUrl } else { "https://codeload.github.com/$repo/zip/$ref" }
+  Write-Host "  fetching: $repo@$ref"
+  $ok = $false
+  try {
+    $isTar = $url -match '\.tar\.gz$|\.tgz$'
+    $archive = Join-Path $Dest ($(if ($isTar) { 'wgm.tar.gz' } else { 'wgm.zip' }))
+    if ($url -like 'file://*' -or (Test-Path -LiteralPath $url -ErrorAction SilentlyContinue)) {
+      Copy-Item -LiteralPath ($url -replace '^file://', '') -Destination $archive -Force
+    }
+    else {
+      Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing
+    }
+    if ($isTar) {
+      if (Get-Command tar -ErrorAction SilentlyContinue) { tar -xzf $archive -C $Dest; $ok = $true }
+    }
+    else {
+      Expand-Archive -Path $archive -DestinationPath $Dest -Force; $ok = $true
+    }
+  }
+  catch {
+    Write-Warning "  archive fetch failed: $($_.Exception.Message)"
+  }
+  if ($ok) {
+    # A GitHub codeload archive unpacks to a single <repo>-<ref>/ wrapper dir.
+    $inner = Get-ChildItem -LiteralPath $Dest -Directory -ErrorAction SilentlyContinue |
+      Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') } | Select-Object -First 1
+    if ($inner) { return $inner.FullName }
+    if (Test-Path (Join-Path $Dest 'SKILL.md')) { return $Dest }
+  }
+  if (Get-Command git -ErrorAction SilentlyContinue) {
+    Write-Host "  archive fetch unavailable - trying git clone"
+    $clone = Join-Path $Dest 'clone'
+    & git clone --depth 1 --branch $ref "https://github.com/$repo" $clone 2>$null
+    if (Test-Path (Join-Path $clone 'SKILL.md')) { return $clone }
+  }
+  if (Test-Path $Dest) { Remove-Item -Recurse -Force $Dest -ErrorAction SilentlyContinue }
+  Write-Error "Failed to fetch wgm ($repo@$ref). Tried $url. Install from a clone: git clone https://github.com/$repo"
   exit 1
+}
+
+# ----- resolve / fetch source ----------------------------------------------
+$bootstrap = $false
+$tmpFetch = $null
+if (-not $srcDir -and -not $Uninstall) {
+  $bootstrap = $true
+  if ($Method -eq 'symlink') {
+    Write-Warning "  -Method symlink ignored in bootstrap mode (no local checkout) - using copy."
+    $Method = 'copy'
+  }
+  if ($DryRun) {
+    $srcDir = "<fetched $repo@$ref>"   # preview only - no network in a dry run
+  }
+  else {
+    $tmpFetch = Join-Path ([System.IO.Path]::GetTempPath()) ('wgm-install-' + [System.IO.Path]::GetRandomFileName())
+    New-Item -ItemType Directory -Force -Path $tmpFetch | Out-Null
+    $srcDir = Get-WgmSource -Dest $tmpFetch
+  }
 }
 
 $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } elseif ($HOME) { $HOME } else { (Resolve-Path '~').Path }
@@ -163,8 +238,10 @@ function Uninstall-One {
 }
 
 # ----- run ------------------------------------------------------------------
+try {
 Write-Host "wgm installer"
-Write-Host "  source : $srcDir"
+if ($srcDir) { Write-Host "  source : $srcDir" } else { Write-Host "  source : (none - uninstall)" }
+if ($bootstrap) { Write-Host "  fetched: $repo@$ref" }
 Write-Host "  scope  : $scope"
 Write-Host "  client : $Client"
 Write-Host "  method : $Method"
@@ -185,3 +262,7 @@ Write-Host "Done. Targets:"
 foreach ($t in $targets) { Write-Host "  - $t" }
 Write-Host ""
 Write-Host "Verify your agent can see it (e.g. /skills), then invoke /wgm."
+}
+finally {
+  if ($tmpFetch -and (Test-Path $tmpFetch)) { Remove-Item -Recurse -Force $tmpFetch -ErrorAction SilentlyContinue }
+}

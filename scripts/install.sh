@@ -20,7 +20,14 @@
 #   --dry-run         print what would happen; change nothing
 #   --uninstall       remove the wgm skill from the resolved targets
 #   --force           overwrite/replace an existing install
+#   --ref REF         git ref (branch/tag/sha) to self-fetch when piped (default: main)
 #   -h | --help       show this help
+#
+# Self-fetch: when run via `curl … | bash` with no local checkout, the script downloads the repo
+# itself. Override the source with env vars:
+#   WGM_REPO          owner/name to fetch        (default: agent-frontier/wgm)
+#   WGM_REF           branch/tag/sha to fetch    (default: main; same as --ref)
+#   WGM_TARBALL_URL   explicit .tar.gz URL       (advanced/offline; e.g. file://…)
 #
 # Supported OS: Linux, macOS, and WSL. On native Windows PowerShell, use scripts/install.ps1.
 
@@ -29,8 +36,15 @@ set -euo pipefail
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
 # ----- resolve source (repo root = parent of this script's dir) -------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# In "clone mode" the skill tree sits next to this script. When piped (curl … | bash) there is no
+# local file, so SRC_DIR stays empty and we self-fetch later ("bootstrap mode").
+SRC_DIR=""
+_self="${BASH_SOURCE[0]:-}"
+if [[ -n "$_self" && -f "$_self" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "$_self")" && pwd)"
+  _candidate="$(cd "$SCRIPT_DIR/.." && pwd)"
+  [[ -f "$_candidate/SKILL.md" ]] && SRC_DIR="$_candidate"
+fi
 
 # ----- defaults -------------------------------------------------------------
 SCOPE="user"
@@ -40,6 +54,9 @@ METHOD="copy"
 DRY_RUN=0
 UNINSTALL=0
 FORCE=0
+WGM_REPO="${WGM_REPO:-agent-frontier/wgm}"
+WGM_REF="${WGM_REF:-main}"
+WGM_TARBALL_URL="${WGM_TARBALL_URL:-}"
 
 # ----- parse args -----------------------------------------------------------
 while [[ $# -gt 0 ]]; do
@@ -52,6 +69,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)   DRY_RUN=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --force)     FORCE=1; shift ;;
+    --ref)       [[ $# -ge 2 ]] || { echo "--ref requires a value" >&2; exit 2; }; WGM_REF="$2"; shift 2 ;;
     -h|--help)   usage; exit 0 ;;
     *)           echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -60,10 +78,64 @@ done
 case "$CLIENT" in agents|claude|copilot|all|auto) ;; *) echo "Invalid --client: $CLIENT" >&2; exit 2 ;; esac
 case "$METHOD" in copy|symlink) ;; *) echo "Invalid --method: $METHOD" >&2; exit 2 ;; esac
 
-# ----- verify source --------------------------------------------------------
-if [[ ! -f "$SRC_DIR/SKILL.md" ]]; then
-  echo "Cannot find SKILL.md in $SRC_DIR — run this script from the wgm repo (scripts/install.sh)." >&2
+# ----- resolve / fetch source ----------------------------------------------
+BOOTSTRAP=0
+TMP_FETCH=""
+_cleanup_fetch() { [[ -n "$TMP_FETCH" && -d "$TMP_FETCH" ]] && rm -rf "$TMP_FETCH"; }
+
+fetch_source() {
+  # Download the wgm repo into $1 and set SRC_DIR to the extracted skill root (the dir with SKILL.md).
+  local dest="$1"
+  local url="${WGM_TARBALL_URL:-https://codeload.github.com/$WGM_REPO/tar.gz/$WGM_REF}"
+  printf '%s\n' "  fetching: $WGM_REPO@$WGM_REF" >&2
+  local got=0
+  if command -v tar >/dev/null 2>&1; then
+    if command -v curl >/dev/null 2>&1; then
+      if curl -fsSL "$url" | tar -xz -C "$dest"; then got=1; fi
+    elif command -v wget >/dev/null 2>&1; then
+      if wget -qO- "$url" | tar -xz -C "$dest"; then got=1; fi
+    fi
+  fi
+  if [[ "$got" -eq 1 ]]; then
+    # A GitHub codeload tarball unpacks to a single <repo>-<ref>/ wrapper dir.
+    local d
+    for d in "$dest"/*/; do
+      [[ -d "$d" ]] || continue
+      if [[ -f "${d}SKILL.md" ]]; then SRC_DIR="${d%/}"; return 0; fi
+    done
+    if [[ -f "$dest/SKILL.md" ]]; then SRC_DIR="$dest"; return 0; fi
+  fi
+  # Fallback: shallow git clone (handles odd tarball layouts or a missing curl/tar).
+  if command -v git >/dev/null 2>&1; then
+    printf '%s\n' "  tarball fetch unavailable — trying git clone" >&2
+    if git clone --depth 1 --branch "$WGM_REF" "https://github.com/$WGM_REPO" "$dest/clone" >/dev/null 2>&1; then
+      if [[ -f "$dest/clone/SKILL.md" ]]; then SRC_DIR="$dest/clone"; return 0; fi
+    fi
+  fi
+  echo "Failed to fetch wgm ($WGM_REPO@$WGM_REF)." >&2
+  echo "  tried tarball: $url" >&2
+  echo "Install from a clone instead: git clone https://github.com/$WGM_REPO && cd \"\${WGM_REPO##*/}\" && ./scripts/install.sh" >&2
   exit 1
+}
+
+if [[ -n "$SRC_DIR" ]]; then
+  : # clone mode — local skill tree found next to this script
+elif [[ "$UNINSTALL" -eq 1 ]]; then
+  : # uninstall removes target dirs only; no source tree needed
+else
+  # Bootstrap mode: piped (e.g. curl … | bash) with no local checkout — self-fetch the repo.
+  BOOTSTRAP=1
+  if [[ "$METHOD" == "symlink" ]]; then
+    echo "note: --method symlink ignored in bootstrap mode (no local checkout) — using copy." >&2
+    METHOD="copy"
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    SRC_DIR="<fetched $WGM_REPO@$WGM_REF>"   # preview only — no network in a dry run
+  else
+    trap _cleanup_fetch EXIT
+    TMP_FETCH="$(mktemp -d "${TMPDIR:-/tmp}/wgm-install.XXXXXX")"
+    fetch_source "$TMP_FETCH"
+  fi
 fi
 
 # ----- environment ----------------------------------------------------------
@@ -164,7 +236,8 @@ uninstall_one() {
 
 # ----- run ------------------------------------------------------------------
 say "wgm installer"
-say "  source : $SRC_DIR"
+if [[ -n "$SRC_DIR" ]]; then say "  source : $SRC_DIR"; else say "  source : (none — uninstall)"; fi
+[[ "$BOOTSTRAP" -eq 1 ]] && say "  fetched: $WGM_REPO@$WGM_REF"
 say "  scope  : $SCOPE"
 say "  client : $CLIENT"
 say "  method : $METHOD"
