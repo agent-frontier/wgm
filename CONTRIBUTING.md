@@ -58,4 +58,10 @@ pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 
 Use the issue templates (bug report / feature request). For anything security-sensitive, follow
 [`SECURITY.md`](SECURITY.md) instead of opening a public issue.
 
+## Learning from users
+
+If you want wgm to learn from a failure pattern or a surprising outcome, please use the
+`Heuristic / learning report` issue template. Share only sanitized traces, and include enough
+context that maintainers can turn the report into a better heuristic, doc note, or holdout scenario.
+
 By contributing, you agree your contributions are licensed under the project's [MIT License](LICENSE).

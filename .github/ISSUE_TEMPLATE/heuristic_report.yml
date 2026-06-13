@@ -1,0 +1,66 @@
+name: Heuristic / learning report
+description: Share a sanitized trace so wgm can improve docs, heuristics, or scenarios.
+title: "[learn]: "
+labels: ["enhancement", "learning"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve wgm.
+
+        Please share only sanitized content — no secrets, tokens, private URLs, or personal data.
+        For security-sensitive issues, use the [Security policy](../../SECURITY.md) instead.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+      description: Describe the user goal or request in plain language.
+      placeholder: I asked wgm to ...
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What did wgm do?
+      description: Describe the behavior, surprise, or failure you want us to learn from.
+      placeholder: wgm ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+      description: What would have been a better response, heuristic, or outcome?
+    validations:
+      required: true
+  - type: textarea
+    id: trace
+    attributes:
+      label: Sanitized trace or transcript
+      description: Paste a short sanitized snippet if it would help us reproduce the pattern.
+      render: shell
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - SKILL.md / lifecycle protocol
+        - references/
+        - scripts/loop.sh (Ralph loop)
+        - scripts/install.sh or install.ps1 (installer)
+        - docs/
+        - Other / not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Sharing this report
+      description: Confirm that the report is sanitized and may be used to improve wgm.
+      options:
+        - label: I have removed secrets, tokens, personal data, and any sensitive code.
+          required: true
+        - label: You may use this report to improve wgm's docs, heuristics, or scenarios.
+          required: true
