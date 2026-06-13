@@ -20,6 +20,8 @@
 #   --dry-run         print what would happen; change nothing
 #   --uninstall       remove the wgm skill from the resolved targets
 #   --force           overwrite/replace an existing install
+#   --no-windows      (WSL only) do NOT mirror into your Windows home
+#   --windows-home P  (WSL only) mirror into Windows home P (default: auto-detect via /mnt)
 #   --ref REF         git ref (branch/tag/sha) to self-fetch when piped (default: main)
 #   -h | --help       show this help
 #
@@ -28,6 +30,13 @@
 #   WGM_REPO          owner/name to fetch        (default: agent-frontier/wgm)
 #   WGM_REF           branch/tag/sha to fetch    (default: main; same as --ref)
 #   WGM_TARBALL_URL   explicit .tar.gz URL       (advanced/offline; e.g. file://…)
+#   WGM_WINDOWS_HOME  WSL: Windows home to mirror into (same as --windows-home)
+#
+# WSL bridge: inside WSL this ALSO mirrors the skill into your Windows home (reachable at
+# /mnt/c/Users/…) so native-Windows agents see wgm too. Re-running updates a prior wgm install in
+# place (no --force needed) and adds the mirror. Disable with --no-windows. Advanced/testing
+# overrides: WGM_FORCE_WSL=0|1 (force WSL detection) and WGM_WIN_AUTODETECT=0|1 (toggle Windows-home
+# autodetect).
 #
 # Supported OS: Linux, macOS, and WSL. On native Windows PowerShell, use scripts/install.ps1.
 
@@ -54,6 +63,9 @@ METHOD="copy"
 DRY_RUN=0
 UNINSTALL=0
 FORCE=0
+NO_WINDOWS=0
+WINDOWS_HOME="${WGM_WINDOWS_HOME:-}"
+WIN_UNRESOLVED=0
 WGM_REPO="${WGM_REPO:-agent-frontier/wgm}"
 WGM_REF="${WGM_REF:-main}"
 WGM_TARBALL_URL="${WGM_TARBALL_URL:-}"
@@ -69,6 +81,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run)   DRY_RUN=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --force)     FORCE=1; shift ;;
+    --no-windows)   NO_WINDOWS=1; shift ;;
+    --windows-home) [[ $# -ge 2 ]] || { echo "--windows-home requires a path" >&2; exit 2; }; WINDOWS_HOME="$2"; shift 2 ;;
     --ref)       [[ $# -ge 2 ]] || { echo "--ref requires a value" >&2; exit 2; }; WGM_REF="$2"; shift 2 ;;
     -h|--help)   usage; exit 0 ;;
     *)           echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -141,9 +155,48 @@ fi
 # ----- environment ----------------------------------------------------------
 HOME_DIR="${HOME:-$(cd ~ && pwd)}"
 IS_WSL=0
-if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+if [[ -n "${WGM_FORCE_WSL:-}" ]]; then
+  IS_WSL="${WGM_FORCE_WSL}"          # explicit override (advanced/testing)
+elif grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
   IS_WSL=1
 fi
+
+# Resolve the WSL path to the Windows user profile so we can mirror the skill there. Echoes the path
+# on success, or nothing if it can't be resolved. Order: explicit override → cmd.exe → wslvar → scan.
+resolve_win_home() {
+  local up="" wp="" drive rest d base
+  if [[ -n "$WINDOWS_HOME" ]]; then printf '%s' "${WINDOWS_HOME%/}"; return 0; fi
+  [[ "${WGM_WIN_AUTODETECT:-1}" == "0" ]] && return 0
+  if command -v cmd.exe >/dev/null 2>&1; then
+    up="$( { cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %USERPROFILE%'; } 2>/dev/null | tr -d '\r\n' || true )"
+  fi
+  if [[ -z "$up" ]] && command -v wslvar >/dev/null 2>&1; then
+    up="$( wslvar USERPROFILE 2>/dev/null | tr -d '\r\n' || true )"
+  fi
+  if [[ -n "$up" ]]; then
+    if command -v wslpath >/dev/null 2>&1; then
+      wp="$( wslpath -u "$up" 2>/dev/null || true )"
+    else
+      drive="$( printf '%s' "$up" | cut -c1 | tr '[:upper:]' '[:lower:]' )"
+      rest="$( printf '%s' "$up" | cut -c3- | tr '\134' '/' )"
+      wp="/mnt/${drive}${rest}"
+    fi
+  fi
+  if [[ -z "$wp" || ! -d "$wp" ]]; then
+    wp=""
+    if [[ -d /mnt/c/Users ]]; then
+      for d in /mnt/c/Users/*/; do
+        base="$( basename "$d" )"
+        case "$base" in Public|Default|"Default User"|"All Users"|defaultuser0) continue ;; esac
+        if [[ "$base" == "${USER:-}" || -d "${d}.agents" || -d "${d}.claude" || -d "${d}.copilot" ]]; then
+          wp="${d%/}"; break
+        fi
+      done
+    fi
+  fi
+  [[ -n "$wp" && -d "$wp" ]] && printf '%s' "${wp%/}"
+  return 0
+}
 
 # ----- resolve client list --------------------------------------------------
 CLIENTS=()
@@ -179,6 +232,32 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# ----- compute Windows-mirror targets (WSL only, user scope) ----------------
+WIN_TARGETS=()
+WIN_HOME=""
+if [[ -z "$EXPLICIT_DIR" && "$SCOPE" == "user" && "$IS_WSL" -eq 1 && "$NO_WINDOWS" -eq 0 ]]; then
+  WIN_HOME="$(resolve_win_home)"
+  if [[ -n "$WIN_HOME" ]]; then
+    WIN_CLIENTS=()
+    case "$CLIENT" in
+      agents)  WIN_CLIENTS=(agents) ;;
+      claude)  WIN_CLIENTS=(claude) ;;
+      copilot) WIN_CLIENTS=(copilot) ;;
+      all)     WIN_CLIENTS=(agents claude copilot) ;;
+      auto)
+        WIN_CLIENTS=(agents)
+        [[ -d "$WIN_HOME/.claude"  ]] && WIN_CLIENTS+=(claude)
+        [[ -d "$WIN_HOME/.copilot" ]] && WIN_CLIENTS+=(copilot)
+        ;;
+    esac
+    for c in "${WIN_CLIENTS[@]}"; do
+      WIN_TARGETS+=("$WIN_HOME/.$c/skills/wgm")
+    done
+  else
+    WIN_UNRESOLVED=1
+  fi
+fi
+
 # ----- helpers --------------------------------------------------------------
 say() { printf '%s\n' "$*"; }
 
@@ -193,13 +272,23 @@ copy_tree() {
   fi
 }
 
+is_wgm_install() {
+  # True if $1 already holds a wgm skill (its SKILL.md frontmatter says name: wgm). Follows symlinks.
+  [[ -f "$1/SKILL.md" ]] || return 1
+  grep -qE '^[[:space:]]*name:[[:space:]]*wgm[[:space:]]*$' "$1/SKILL.md" 2>/dev/null
+}
+
 install_one() {
   local target="$1"
+  local method="${2:-$METHOD}"
   local parent
   parent="$(dirname "$target")"
   if [[ -e "$target" || -L "$target" ]]; then
     if [[ "$FORCE" -eq 1 ]]; then
       say "  replacing existing: $target"
+      [[ "$DRY_RUN" -eq 1 ]] || rm -rf "$target"
+    elif is_wgm_install "$target"; then
+      say "  updating existing wgm install: $target"
       [[ "$DRY_RUN" -eq 1 ]] || rm -rf "$target"
     else
       say "  exists — skipping (use --force to replace): $target"
@@ -207,12 +296,12 @@ install_one() {
     fi
   fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    if [[ "$METHOD" == "symlink" ]]; then say "  would symlink: $target -> $SRC_DIR"
+    if [[ "$method" == "symlink" ]]; then say "  would symlink: $target -> $SRC_DIR"
     else say "  would copy:    $SRC_DIR -> $target (excluding .git)"; fi
     return 0
   fi
   mkdir -p "$parent"
-  if [[ "$METHOD" == "symlink" ]]; then
+  if [[ "$method" == "symlink" ]]; then
     ln -sfn "$SRC_DIR" "$target"
   else
     copy_tree "$SRC_DIR" "$target"
@@ -241,20 +330,37 @@ if [[ -n "$SRC_DIR" ]]; then say "  source : $SRC_DIR"; else say "  source : (no
 say "  scope  : $SCOPE"
 say "  client : $CLIENT"
 say "  method : $METHOD"
-[[ "$IS_WSL" -eq 1 ]] && say "  note   : WSL detected — WSL and Windows have separate homes; installing into the Linux/WSL home."
+if [[ "$IS_WSL" -eq 1 ]]; then
+  if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
+    say "  note   : WSL detected — also mirroring into your Windows home ($WIN_HOME) so Windows-side agents see wgm (use --no-windows to skip)."
+  elif [[ "$NO_WINDOWS" -eq 1 ]]; then
+    say "  note   : WSL detected — Windows mirror disabled (--no-windows); installing into the Linux/WSL home only."
+  elif [[ "$WIN_UNRESOLVED" -eq 1 ]]; then
+    say "  note   : WSL detected — could not resolve your Windows home; installing on the Linux side only (pass --windows-home PATH to mirror to Windows)."
+  fi
+fi
 [[ "$DRY_RUN" -eq 1 ]] && say "  (dry run — no changes will be made)"
 say ""
 
 if [[ "$UNINSTALL" -eq 1 ]]; then
   say "Uninstalling wgm from:"
   for t in "${TARGETS[@]}"; do uninstall_one "$t"; done
+  if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
+    for t in "${WIN_TARGETS[@]}"; do uninstall_one "$t"; done
+  fi
 else
   say "Installing wgm to:"
-  for t in "${TARGETS[@]}"; do install_one "$t"; done
+  for t in "${TARGETS[@]}"; do install_one "$t" "$METHOD"; done
+  if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
+    for t in "${WIN_TARGETS[@]}"; do install_one "$t" copy; done
+  fi
 fi
 
 say ""
 say "Done. Targets:"
 for t in "${TARGETS[@]}"; do say "  - $t"; done
+if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
+  for t in "${WIN_TARGETS[@]}"; do say "  - $t  (windows mirror)"; done
+fi
 say ""
 say "Verify your agent can see it (e.g. /skills in VS Code or Copilot CLI), then invoke /wgm."
