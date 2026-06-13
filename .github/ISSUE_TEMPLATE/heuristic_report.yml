@@ -1,5 +1,5 @@
 name: Heuristic / learning report
-description: Share a sanitized trace so wgm can improve docs, heuristics, or scenarios.
+description: Share a sanitized trace so wgm can improve docs, heuristics, or scenarios, including dogfood runs.
 title: "[learn]: "
 labels: ["enhancement", "learning"]
 body:

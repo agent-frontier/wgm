@@ -193,7 +193,7 @@ wgm/
 - [CONTRIBUTING.md](CONTRIBUTING.md) — How to contribute, development prerequisites, and the backpressure suite.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Our community standards and enforcement.
 - [SECURITY.md](SECURITY.md) — How to report security vulnerabilities and our safety model.
-- [Heuristic / learning report](.github/ISSUE_TEMPLATE/heuristic_report.yml) — Share a sanitized trace so wgm can improve its heuristics and docs.
+- [Heuristic / learning report](.github/ISSUE_TEMPLATE/heuristic_report.yml) — Share a sanitized trace so wgm can improve its heuristics and docs, including our own dogfood runs.
 
 ## Credits & license
 

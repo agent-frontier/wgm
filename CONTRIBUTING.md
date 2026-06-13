@@ -63,5 +63,6 @@ Use the issue templates (bug report / feature request). For anything security-se
 If you want wgm to learn from a failure pattern or a surprising outcome, please use the
 `Heuristic / learning report` issue template. Share only sanitized traces, and include enough
 context that maintainers can turn the report into a better heuristic, doc note, or holdout scenario.
+This is the path we should use for our own dogfood runs too.
 
 By contributing, you agree your contributions are licensed under the project's [MIT License](LICENSE).
