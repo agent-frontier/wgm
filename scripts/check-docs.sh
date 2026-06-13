@@ -11,7 +11,8 @@
 #   5. No leftover <placeholder> or TODO markers remain in docs/.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
-# Scope: docs/**/*.md plus README.md (which links into docs/ and embeds Mermaid).
+# Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
+# SECURITY.md, CODE_OF_CONDUCT.md, and launch-facing GitHub templates.
 
 set -uo pipefail
 
@@ -46,7 +47,7 @@ done
 # Gather the Markdown files to lint (docs/ + README.md).
 mapfile -t MD < <(
   find docs references -name '*.md' 2>/dev/null | sort
-  for f in README.md SKILL.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md; do
+  for f in README.md SKILL.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/*.yml; do
     [[ -f "$f" ]] && echo "$f"
   done
 )

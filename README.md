@@ -74,6 +74,9 @@ pwsh scripts/install.ps1 -Uninstall
 Then confirm it's discoverable in your agent (e.g. `/skills`) and invoke `/wgm`. To install by hand,
 just copy the `wgm/` folder into any skills dir your client scans.
 
+If it does not appear right away, restart or reload your agent client; many clients rescan skills on
+startup or workspace reload.
+
 ## Use it
 
 Invoke as a slash command with an optional **mode** and a request:
@@ -194,6 +197,15 @@ wgm/
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Our community standards and enforcement.
 - [SECURITY.md](SECURITY.md) — How to report security vulnerabilities and our safety model.
 - [Heuristic / learning report](.github/ISSUE_TEMPLATE/heuristic_report.yml) — Share a sanitized trace so wgm can improve its heuristics and docs, including our own dogfood runs.
+
+## Releases
+
+- `main` is the canonical release line.
+- The `SKILL.md` frontmatter version is the public skill version; tags should track that version
+  (`vX.Y.Z`).
+- Pin installs with `WGM_REF` / `--ref` when you want a specific release or commit instead of the
+  moving `main` branch.
+- CI validates every push and pull request before release promotion.
 
 ## Credits & license
 

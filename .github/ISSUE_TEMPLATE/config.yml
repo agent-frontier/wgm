@@ -3,6 +3,9 @@ contact_links:
   - name: Report a security vulnerability (private)
     url: https://github.com/agent-frontier/wgm/security/advisories/new
     about: Please report security issues privately — do not open a public issue.
+  - name: Report a conduct issue (private)
+    url: https://github.com/agent-frontier/wgm/security/advisories/new
+    about: Use this private channel for Code of Conduct or moderation concerns until we publish a dedicated moderation contact.
   - name: Share a heuristic / learning report
     url: https://github.com/agent-frontier/wgm/issues/new?template=heuristic_report.yml
     about: Use this template to share a sanitized trace that can improve docs, heuristics, or scenarios, including our own dogfood runs.

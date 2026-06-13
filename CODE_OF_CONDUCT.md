@@ -59,7 +59,7 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement using GitHub's private vulnerability reporting: [Report a vulnerability](https://github.com/agent-frontier/wgm/security/advisories/new).
+reported privately using the repository's private reporting links in [SECURITY.md](SECURITY.md).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

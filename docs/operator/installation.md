@@ -17,6 +17,8 @@ flowchart TD
 
 - **User (default):** available in every project you open. Best for personal use.
 - **Project:** committed with a repo so collaborators share it. Use `--project`.
+  For Copilot, the project install still lands in the shared `.agents/skills` tree; there is no
+  separate `./.copilot` project mirror.
 
 ## One-line install
 
@@ -78,6 +80,9 @@ pwsh scripts/install.ps1 -Client all
 powershell -File scripts\install.ps1 -Project
 pwsh scripts/install.ps1 -Uninstall
 ```
+
+After installing, restart or reload your agent client before checking `/skills`; many clients only
+rescan skills on startup or workspace reload.
 
 ## Flags
 

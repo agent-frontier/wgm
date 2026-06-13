@@ -12,6 +12,12 @@ vulnerability reporting:
 We'll acknowledge the report, investigate, and coordinate a fix and disclosure with you. Thanks for
 helping keep users safe.
 
+## Reporting a conduct issue
+
+For Code of Conduct or moderation concerns, use the same private reporting channel above for now.
+Please include enough context for us to investigate, and avoid posting the issue publicly so the
+report stays confidential.
+
 ## Supported versions
 
 wgm is distributed as an Agent Skill and is rolling-released from `main`. Security fixes land on
@@ -32,5 +38,7 @@ control in your hands:
   unless you pass `--commit`. Stop it any time with `Ctrl+C` or by creating a `STOP` / `.wgm/STOP`
   sentinel file.
 
-The installers and loop avoid `eval` on untrusted input and never transmit your code to third
-parties. If you find a case where that's not true, report it as above.
+The installers and loop avoid `eval` on untrusted input. The loop does send prompts and selected repo
+context to whichever agent provider you configure, so do not include secrets or private data unless
+that provider is approved for the workflow. If you find a case where that isn't true, report it as
+above.
