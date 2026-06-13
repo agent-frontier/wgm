@@ -57,15 +57,15 @@ flowchart TD
 
 | Task | Objective | Validation | Status |
 |---|---|---|---|
-| issue-templates | `.github/ISSUE_TEMPLATE/` bug + feature forms + config | YAML parses; files exist | pending |
-| pr-template | `.github/PULL_REQUEST_TEMPLATE.md` | file exists; CONTRIBUTING link resolves | pending |
-| code-of-conduct | Contributor Covenant 2.1 + private report channel | link check resolves | pending |
-| harden-check-docs | broaden link/fence checks to all launch-facing md | `check-docs.sh` GREEN | pending |
-| readme-polish | community pointer + governance files surfaced | link check green | pending |
-| repo-metadata | topics + description via `gh` | `gh repo view` reflects them | pending |
-| full-backpressure | whole suite green after changes | every check exits 0 | pending |
-| commit-push | grouped commits pushed to `origin/main` | pushed at milestones | pending |
-| launch-checklist | Ship summary + operator launch checklist | this doc + handoff | pending |
+| issue-templates | `.github/ISSUE_TEMPLATE/` bug + feature forms + config | YAML parses; files exist | done |
+| pr-template | `.github/PULL_REQUEST_TEMPLATE.md` | file exists; CONTRIBUTING link resolves | done |
+| code-of-conduct | Contributor Covenant 2.1 + private report channel | link check resolves | done |
+| harden-check-docs | broaden link/fence checks to all launch-facing md | `check-docs.sh` GREEN | done |
+| readme-polish | community pointer + governance files surfaced | link check green | done |
+| repo-metadata | topics + description via `gh` | `gh repo view` reflects them | done |
+| full-backpressure | whole suite green after changes | every check exits 0 | done |
+| commit-push | grouped commits pushed to `origin/main` | pushed at milestones | done |
+| launch-checklist | Ship summary + operator launch checklist | this doc + handoff | done |
 
 ## Validation (backpressure)
 
