@@ -22,9 +22,21 @@ Common issues when installing or running wgm, and how to fix them.
   tarball download and the `git clone` fallback failed — check connectivity, the `--ref` you passed,
   and `WGM_REPO`/`WGM_REF`. Or install from a clone. See [installation.md](installation.md).
 
-**WSL vs Windows confusion.**
-- They have separate homes. Install in each environment where you run an agent. The bash installer
-  prints a note when it detects WSL.
+**The Windows side didn't get wgm after a WSL install.**
+- The mirror runs for **user-scope** installs only (not `--project` or `--dir`) and is skipped by
+  `--no-windows`. Check the installer's note line: if it says it "could not resolve your Windows
+  home", pass `--windows-home PATH` (e.g. `--windows-home /mnt/c/Users/you`).
+- The mirror is a real copy under `/mnt/c/Users/you/.agents/skills/wgm`; confirm your Windows agent
+  scans `%USERPROFILE%\.agents\skills\wgm`.
+
+**`install.ps1` unexpectedly ran inside WSL.**
+- On Windows with a WSL distro present, a user-scope `install.ps1` delegates to the bash installer in
+  WSL on purpose (so both homes are covered). Pass `-NoWsl` for a native-Windows install, or
+  `-WslDistro NAME` to pick a distro.
+
+**How do I update an existing install?**
+- Just re-run the installer (same one-liner). wgm refreshes a directory it recognizes as its own in
+  place — no `--force` — and adds the Windows mirror if it was missing.
 
 **PowerShell symlink/junction fails.**
 - Creating a junction can need privileges. `install.ps1` falls back to a copy automatically and warns

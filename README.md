@@ -67,7 +67,9 @@ pwsh scripts/install.ps1 -Uninstall
 | **User** (`~` / `%USERPROFILE%`) | `~/.agents/skills/wgm` | `~/.claude/skills/wgm` | `~/.copilot/skills/wgm` |
 | **Project** (`./`) | `./.agents/skills/wgm` | `./.claude/skills/wgm` | via `.agents/skills` |
 
-> **WSL vs Windows** have separate home dirs — run the installer in each environment you use.
+> **WSL ⇄ Windows:** inside WSL the installer also mirrors into your Windows home so Windows-side
+> agents see wgm (skip with `--no-windows`); on Windows with WSL present, `install.ps1` hands off to
+> the bash installer in WSL (`-NoWsl` to install natively). Re-run to update an existing install.
 
 Then confirm it's discoverable in your agent (e.g. `/skills`) and invoke `/wgm`. To install by hand,
 just copy the `wgm/` folder into any skills dir your client scans.

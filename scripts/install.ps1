@@ -37,7 +37,17 @@
 .PARAMETER Ref
   Git ref (branch/tag/sha) to self-fetch when run piped via `irm … | iex` (default: main).
 
+.PARAMETER NoWsl
+  Do not delegate to WSL even if a distro is detected; perform a native-Windows install.
+
+.PARAMETER WslDistro
+  When delegating to WSL, use this distro (default: your default WSL distro).
+
 .NOTES
+  WSL bridge: on Windows with a WSL distro present, a user-scope install is delegated to the bash
+  installer inside WSL (the "linux-y way"), which installs into the WSL home AND mirrors into your
+  Windows home — so both sides are covered no matter which installer you launch. Use -NoWsl to force
+  a native-Windows install.
   Self-fetch: when run via `irm … | iex` (no local checkout) the script downloads the repo itself.
   Override the source with env vars: WGM_REPO (default agent-frontier/wgm), WGM_REF (default main;
   same as -Ref), WGM_TARBALL_URL (explicit .zip/.tar.gz URL; advanced/offline, e.g. file://…).
@@ -63,7 +73,9 @@ param(
   [switch]$DryRun,
   [switch]$Uninstall,
   [switch]$Force,
-  [string]$Ref
+  [string]$Ref,
+  [switch]$NoWsl,
+  [string]$WslDistro
 )
 
 Set-StrictMode -Version Latest
@@ -82,6 +94,60 @@ $srcDir = $null
 if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
   $candidate = (Resolve-Path (Join-Path (Split-Path -Parent $PSCommandPath) '..')).Path
   if (Test-Path (Join-Path $candidate 'SKILL.md')) { $srcDir = $candidate }
+}
+
+# ----- WSL delegation (Windows host with a WSL distro) ----------------------
+# On Windows, if WSL is present, hand a user-scope install to the bash installer inside WSL: it
+# installs into the WSL home AND mirrors into the Windows home, so both sides end up covered.
+function Test-WslAvailable {
+  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) { return $false }
+  try {
+    $raw = (& wsl.exe -l -q 2>$null) -join "`n"
+    $raw = $raw -replace "`0", ''                       # wsl -l -q can emit UTF-16 with NULs
+    $distros = @($raw -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    return ($distros.Count -gt 0)
+  }
+  catch { return $false }
+}
+
+function Invoke-WslDelegation {
+  # Returns $true if the install was handled inside WSL (caller should exit), else $false.
+  $bashArgs = @()
+  if ($scope -eq 'project') { $bashArgs += '--project' } else { $bashArgs += '--user' }
+  $bashArgs += @('--client', $Client, '--method', $Method, '--ref', $ref)
+  if ($DryRun) { $bashArgs += '--dry-run' }
+  if ($Uninstall) { $bashArgs += '--uninstall' }
+  if ($Force) { $bashArgs += '--force' }
+
+  $distroArgs = @()
+  if ($WslDistro) { $distroArgs = @('-d', $WslDistro) }
+
+  Write-Host "  WSL detected - delegating to the bash installer inside WSL (use -NoWsl for a native-Windows install)."
+
+  $shWin = if ($PSCommandPath) { Join-Path (Split-Path -Parent $PSCommandPath) 'install.sh' } else { $null }
+  try {
+    if ($shWin -and (Test-Path $shWin)) {
+      $shWsl = ((& wsl.exe @distroArgs wslpath -u "$shWin") -join '') -replace "`0", ''
+      & wsl.exe @distroArgs bash "$($shWsl.Trim())" @bashArgs
+    }
+    else {
+      $rawUrl = "https://raw.githubusercontent.com/$repo/$ref/scripts/install.sh"
+      $joined = ($bashArgs | ForEach-Object { "'" + ($_ -replace "'", "'\''") + "'" }) -join ' '
+      $cmd = "curl -fsSL '$rawUrl' | WGM_REPO='$repo' WGM_REF='$ref' bash -s -- $joined"
+      & wsl.exe @distroArgs bash -lc $cmd
+    }
+  }
+  catch {
+    Write-Warning "  WSL delegation failed: $($_.Exception.Message). Falling back to a native-Windows install."
+    return $false
+  }
+  if ($LASTEXITCODE -eq 0) { return $true }
+  Write-Warning "  WSL delegation exited $LASTEXITCODE. Falling back to a native-Windows install."
+  return $false
+}
+
+if (-not $NoWsl -and -not $Dir -and $scope -eq 'user' -and (Test-WslAvailable)) {
+  if (Invoke-WslDelegation) { exit 0 }
 }
 
 function Get-WgmSource {
@@ -188,11 +254,23 @@ function Copy-Tree {
   if (Test-Path $git) { Remove-Item -Recurse -Force $git }
 }
 
+function Test-WgmInstall {
+  # True if $Path already holds a wgm skill (its SKILL.md frontmatter says name: wgm).
+  param([string]$Path)
+  $skill = Join-Path $Path 'SKILL.md'
+  if (-not (Test-Path $skill)) { return $false }
+  return ((Get-Content -Raw $skill) -match '(?m)^\s*name:\s*wgm\s*$')
+}
+
 function Install-One {
   param([string]$Target)
   if (Test-Path $Target) {
     if ($Force) {
       Write-Host "  replacing existing: $Target"
+      if (-not $DryRun) { Remove-Item -Recurse -Force $Target }
+    }
+    elseif (Test-WgmInstall $Target) {
+      Write-Host "  updating existing wgm install: $Target"
       if (-not $DryRun) { Remove-Item -Recurse -Force $Target }
     }
     else {
