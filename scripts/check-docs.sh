@@ -44,7 +44,12 @@ for f in "${REQUIRED[@]}"; do
 done
 
 # Gather the Markdown files to lint (docs/ + README.md).
-mapfile -t MD < <(find docs -name '*.md' 2>/dev/null | sort; [[ -f README.md ]] && echo README.md)
+mapfile -t MD < <(
+  find docs references -name '*.md' 2>/dev/null | sort
+  for f in README.md SKILL.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md; do
+    [[ -f "$f" ]] && echo "$f"
+  done
+)
 
 # 3 — balanced Mermaid / code fences, and at least one Mermaid diagram in docs.
 MERMAID_TOTAL=0

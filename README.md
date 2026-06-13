@@ -188,6 +188,12 @@ wgm/
 └── docs/             # operator/ and agent/ guides (Mermaid diagrams)
 ```
 
+## Community
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — How to contribute, development prerequisites, and the backpressure suite.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Our community standards and enforcement.
+- [SECURITY.md](SECURITY.md) — How to report security vulnerabilities and our safety model.
+
 ## Credits & license
 
 Inspired by Matt Pocock's [`grill-me`](https://github.com/mattpocock/skills) and Geoffrey
