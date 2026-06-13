@@ -35,9 +35,7 @@ bad() { printf 'FAIL: %s\n' "$*" >&2; FAIL=$((FAIL + 1)); }
 contains() { printf '%s\n' "$1" | grep -qF -- "$2"; }   # contains HAYSTACK NEEDLE
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/wgm-test.XXXXXX")"
-# shellcheck disable=SC2329  # invoked indirectly via the EXIT trap below
-cleanup() { rm -rf "$WORK"; }
-trap cleanup EXIT
+trap 'rm -rf "$WORK"' EXIT
 
 WGM="wgm"   # installed dir basename
 SUB=".agents/skills/$WGM"
