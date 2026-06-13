@@ -7,7 +7,7 @@ Copilot, Claude Code, OpenAI Codex, VS Code agent mode) can load. Point it at a 
 and it runs a disciplined lifecycle:
 
 ```
-Triage → Grill → Plan → Loop(Analyze → Implement → Validate → Review → Record) → Ship/Handoff
+Triage → Grill → Plan → Preflight → Loop(Analyze → Implement → Validate → Review → Record) → Ship/Handoff
 ```
 
 It fuses two proven ideas:

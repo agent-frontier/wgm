@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in the wgm skill, installers, or docs behaves incorrectly.
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. For anything security-sensitive, please use the
+        [Security policy](../../SECURITY.md) instead of a public issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: I ran ... and expected ... but got ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of wgm is involved?
+      options:
+        - SKILL.md / lifecycle protocol
+        - references/
+        - scripts/loop.sh (Ralph loop)
+        - scripts/install.sh or install.ps1 (installer)
+        - docs/
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Agent client
+      description: Which agent loaded the skill (and version, if known)?
+      placeholder: GitHub Copilot CLI / Claude Code / VS Code agent mode / Codex
+    validations:
+      required: false
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Linux / macOS / Windows / WSL
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or the request you gave the skill.
+      placeholder: |
+        1. /wgm ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: signal
+    attributes:
+      label: Backpressure / check output
+      description: Relevant output from the failing check, if any (it will be formatted as code).
+      render: shell
+    validations:
+      required: false

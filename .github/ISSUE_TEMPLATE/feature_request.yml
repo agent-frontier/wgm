@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an improvement to the wgm lifecycle, backpressure discipline, or docs.
+title: "[feat]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas that sharpen the lifecycle, the backpressure discipline, or the docs are very welcome.
+        Please skim [`CONTRIBUTING.md`](../../CONTRIBUTING.md) first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What is awkward, missing, or fragile today? What job are you trying to get done?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What would you like wgm to do instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - SKILL.md / lifecycle protocol
+        - references/
+        - scripts/loop.sh (Ralph loop)
+        - scripts/install.sh or install.ps1 (installer)
+        - docs/
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, and why this one is better.
+    validations:
+      required: false

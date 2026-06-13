@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate skill, docs & installers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh
+
+      - name: Bash syntax check
+        run: |
+          for s in scripts/*.sh; do bash -n "$s"; done
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install skills-ref
+        run: pip install "git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref"
+
+      - name: Validate skill
+        # skills-ref needs the skill dir basename to equal the skill name ("wgm"),
+        # so validate from the parent of the checked-out repo directory.
+        run: |
+          cd ..
+          skills-ref validate wgm
+
+      - name: Docs backpressure check
+        run: bash scripts/check-docs.sh
+
+      - name: Install harness (bash)
+        run: bash scripts/test-install.sh
+
+      - name: Install scripts (PowerShell)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/install.ps1), [ref]$null, [ref]$null) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/test-install.ps1), [ref]$null, [ref]$null) | Out-Null
+          ./scripts/test-install.ps1

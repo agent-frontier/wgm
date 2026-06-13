@@ -1,0 +1,16 @@
+# wgm runtime artifacts — generated when the skill is dogfooded inside this repo.
+# The repo ships *templates* (assets/*.template.*), never live plans/specs/scenarios,
+# so these root paths should never be committed by accident.
+/.wgm/
+/STOP
+/IMPLEMENTATION_PLAN.md
+/specs/
+/scenarios/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
