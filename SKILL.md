@@ -178,7 +178,7 @@ to continue safely.
 ## Backpressure is the skill
 A loop without a deterministic pass/fail signal is just hoping. Every task must map its acceptance
 criteria to a runnable command (test, type-check, build, lint, HTTP probe). If the project has no
-such signal, your first job is to create one. Only for subjective criteria (UX feel, copy,
+such signal, your first job is to create one. **For native apps, games, GUIs, or engines** — where there is no natural unit test — building that harness (headless automation, output capture, state probes, crash soaks) *is* the first task; see `references/hard-to-test-domains.md`. Only for subjective criteria (UX feel, copy,
 aesthetics) where no deterministic check can exist, fall back to an LLM-as-judge check with a
 binary pass/fail, and record its prompt and verdict. Re-run the signal until green before declaring
 a task done. For holistic, end-to-end confidence, augment with **holdout-scenario satisfaction
@@ -191,6 +191,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
 - `references/stall-recovery.md` — wonder/reflect + model escalation on a stall.
+- `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
 - `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `genes`).

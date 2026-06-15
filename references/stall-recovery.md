@@ -37,6 +37,24 @@ One hypothesis, one change, one re-check.
 - In a skill this is operator guidance; `scripts/loop.sh` exposes a frugal agent and an escalation
   agent (`WGM_FRUGAL_AGENT` + escalation) so a fresh-context loop can switch automatically.
 
+## Destabilizing fix while unattended → preserve, revert, hand off
+Sometimes the *correct* fix makes things temporarily worse: a test goes red, or it **exposes a
+deeper latent fault** (enabling real behaviour reaches code paths that were previously dead). If you
+**cannot fully validate it right now** — you're unattended, it needs human sign-off, or it carries
+save-format / data-migration risk — do **not** ship a red suite and do **not** paper over it with a
+guess. Instead:
+- **Preserve** the work on a clearly-named WIP branch (push it) and/or a patch artifact, so nothing
+  is lost.
+- **Revert** the working tree to the last green baseline; re-run the suite to confirm it's green
+  again.
+- **Hand off** with a precise root-cause note: what's *proven* to work, what's broken, the **exact
+  repro**, and the **acceptance test** that will confirm the eventual fix.
+
+A separate **low-risk hardening track** (e.g. defensive bounds-guards), validated by that *same*
+acceptance test, often de-risks or outright unblocks the high-risk fix on the next pass. This keeps
+the headline progress (the work exists, reviewable) without trading away a stable, shippable
+baseline. See [`hard-to-test-domains.md`](hard-to-test-domains.md).
+
 ## Where it slots in the loop
 `Analyze → Implement → Validate → Review → (stall? wonder → reflect → re-Validate) → Record`.
 Recovery happens after a failing Validate/Review on a stall, before you Record or stop.
@@ -47,4 +65,4 @@ record the blocker in `IMPLEMENTATION_PLAN.md` and regenerate the plan or ask th
 the plan is cheap; a loop going in circles is not.
 
 ## Cross-links
-`references/ralph-loop.md` · `references/scoring.md` · `scripts/loop.sh`
+`references/ralph-loop.md` · `references/scoring.md` · `references/hard-to-test-domains.md` · `scripts/loop.sh`
