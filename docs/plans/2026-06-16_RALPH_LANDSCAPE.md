@@ -48,8 +48,8 @@ on **discipline** (grill → governed plan → holdout-judged loop), not on bein
 | ralph-claude-code | Claude loop: exit detection, rate-limit, circuit breaker | Host-agnostic; governance stack | **Circuit-breaker** beyond idle-timeout; rate-limit handling |
 | choo-choo-ralph | Beads 5-phase; compounding knowledge | Holdout judging; one-file portability | **Beads-style** structured knowledge (vs flat `memories.md`) |
 | ralph-starter | CLI; GitHub/Linear/Notion; presets; cost tracking | Skill + judge; governed plan | **Cost / token tracking**; task-tracker integrations |
-| ralph-wiggum-cursor | Cursor; token tracking; context rotation at 80k | Runs on any agent, not just Cursor | **Context rotation / summarization** at a token threshold |
-| opencode-ralph-wiggum | OpenCode; mid-loop injection; struggle detection | Holdout judge; governance | **Struggle detection** (auto stall trip) |
+| ralph-wiggum-cursor | Cursor; token tracking; context rotation at 80k | Runs on any agent; **context rotation + summarize-forward now in-protocol** | Token-budget *enforcement* baked into `loop.sh` |
+| opencode-ralph-wiggum | OpenCode; mid-loop injection; struggle detection | Holdout judge; **named struggle signals auto-trip recovery** | A mid-loop context *injection* hook |
 | Goose Ralph Loop | Cross-model review; recipes | Two-stage subagent review already shipped | Cross-**model** (not just role) review |
 | multi-agent-ralph-loop | Parallel multi-agent streams | Sequenced subagent roles + backpressure | **Parallel worktree** loops |
 
@@ -100,17 +100,21 @@ layered/compaction-surviving memory and the dissent-preserving review.
   and **governance stack** (constitution · consistency gate · no-placeholder · scale-adaptive
   tracks · two-stage subagent review) run deeper than the ecosystem norm.
 - **Where wgm already matches the field:** fresh-context loop, signs and gates, `wgm.yml`
-  backpressure gates, loop limits (runtime / idle / checkpoint), memories, model escalation, and a
-  host-agnostic `loop.sh`.
-- **Watchlist (borrow next):** cost / token tracking (ralph-starter, cursor) · context
-  rotation / summarization at a token threshold (cursor at 80k, vercel) · automated struggle /
-  circuit-breaker detection (opencode, ralph-claude-code) · task-tracker integrations
+  backpressure gates, loop limits (runtime / idle / checkpoint), memories with an **upstream
+  promotion flow**, **context rotation / summarize-forward** at a token budget, **named struggle
+  signals**, model escalation, and a host-agnostic `loop.sh`.
+- **Shipped since the last survey:** context rotation / summarize-forward + named struggle signals
+  (this cycle) · the memory **promotion flow** (the growth flywheel) · scale-adaptive tracks ·
+  two-stage subagent review · the six-role swarm.
+- **Watchlist (borrow next):** cost / token tracking (ralph-starter, cursor) · a **circuit-breaker**
+  beyond idle-timeout + rate-limit handling (ralph-claude-code) · task-tracker integrations
   (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
-  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop) · a
-  compaction-surviving memory promotion flow + dissent-preserving review (elves).
+  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop) ·
+  dissent-preserving review (elves).
 
 ## How this was tracked
-Surveyed on 2026-06-16, re-run periodically against two complementary sources:
+Surveyed on 2026-06-16 (re-run the same day to refresh the gap analysis against the latest field),
+against two complementary sources:
 - [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) — a hand-curated list (the projects above).
 - [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) — the **live GitHub topic
   feed**; new repos tagged `ralph-loop` surface here first (e.g. Claude-Code orchestration frameworks
