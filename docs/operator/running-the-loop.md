@@ -91,10 +91,25 @@ flowchart LR
 
 See [stall-recovery.md](../agent/stall-recovery.md) for what the agent does inside an escalation.
 
+## Operational limits & lifecycle hooks
+
+Guardrails for long autonomous runs — all **off by default**, so existing behavior is unchanged:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--max-runtime-seconds N` | 0 (off) | Hard wall-clock cap; the loop stops before the iteration that would exceed it. |
+| `--idle-timeout N` | 0 (off) | Stop if the plan file makes no progress for N seconds — a stuck-loop circuit breaker. |
+| `--checkpoint-interval N` | 0 (off) | `git add -A && commit` every N build iterations, so a crash never loses work. |
+| `--notify "CMD"` | — | Run `CMD` on lifecycle events with `$WGM_EVENT` (`start`/`complete`/`error`) and `$WGM_ITER` set. |
+
+`--notify` is shell-evaluated like `--agent`, so set it only to a command you trust; its own failure
+never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`.
+
 ## Stopping the loop
 
 - `Ctrl+C` at any time.
 - Create a `STOP` (or `.wgm/STOP`) sentinel to end after the current iteration.
+- Cap the run up front with `--max-runtime-seconds` or `--idle-timeout` (see above).
 - In `build` mode the agent drops that sentinel itself when no must-have task remains, so the loop
   self-terminates.
 

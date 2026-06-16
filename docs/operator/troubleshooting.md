@@ -62,8 +62,9 @@ Common issues when installing or running wgm, and how to fix them.
   `review`, and `preflight` need a plan on disk.
 
 **The loop never stops.**
-- `build` defaults to unlimited iterations. Pass a max (`build 20`), create a `STOP` / `.wgm/STOP`
-  sentinel, or `Ctrl+C`. The agent should drop the sentinel itself when no must-have task remains.
+- `build` defaults to unlimited iterations. Pass a max (`build 20`), cap it with
+  `--max-runtime-seconds` / `--idle-timeout`, create a `STOP` / `.wgm/STOP` sentinel, or `Ctrl+C`.
+  The agent should drop the sentinel itself when no must-have task remains.
 
 **Model escalation isn't kicking in.**
 - It only engages when **both** `--frugal-agent` and a main `--agent` are set. Check

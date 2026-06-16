@@ -45,6 +45,9 @@ jobs:
       - name: Install harness (bash)
         run: bash scripts/test-install.sh
 
+      - name: Loop harness (bash)
+        run: bash scripts/test-loop.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |

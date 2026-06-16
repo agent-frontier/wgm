@@ -37,6 +37,11 @@
 #   --source DIR         exemplar dir for `extract` (gene transfusion)
 #   --escalate-after N   consecutive no-progress iterations before escalating (default: 2)
 #   --downgrade-after N  consecutive progressing iterations before downgrading to frugal (default: 5)
+#   --max-runtime-seconds N  hard wall-clock cap for the whole loop; 0 = unlimited (default: 0)
+#   --idle-timeout N     stop if the plan makes no progress for N seconds; 0 = disabled (default: 0)
+#   --checkpoint-interval N  git add -A && commit every N build iterations; 0 = off (default: 0)
+#   --notify "CMD"       run CMD (shell) on lifecycle events with $WGM_EVENT (start|complete|error)
+#                        and $WGM_ITER set; best-effort — its failure never fails the loop
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             git add -A && git commit after each build iteration (off by default)
 #   -h | --help          show this help
@@ -69,6 +74,10 @@ CONTAINER="podman"
 SOURCE_DIR=""
 ESCALATE_AFTER=2
 DOWNGRADE_AFTER=5
+MAX_RUNTIME=0
+IDLE_TIMEOUT=0
+CHECKPOINT_INTERVAL=0
+NOTIFY=""
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -89,6 +98,10 @@ while [[ $# -gt 0 ]]; do
     --source) [[ $# -ge 2 ]] || { echo "--source requires a dir" >&2; exit 2; }; SOURCE_DIR="$2"; shift 2 ;;
     --escalate-after) [[ $# -ge 2 ]] || { echo "--escalate-after requires a number" >&2; exit 2; }; ESCALATE_AFTER="$2"; shift 2 ;;
     --downgrade-after) [[ $# -ge 2 ]] || { echo "--downgrade-after requires a number" >&2; exit 2; }; DOWNGRADE_AFTER="$2"; shift 2 ;;
+    --max-runtime-seconds) [[ $# -ge 2 ]] || { echo "--max-runtime-seconds requires a number" >&2; exit 2; }; MAX_RUNTIME="$2"; shift 2 ;;
+    --idle-timeout) [[ $# -ge 2 ]] || { echo "--idle-timeout requires a number" >&2; exit 2; }; IDLE_TIMEOUT="$2"; shift 2 ;;
+    --checkpoint-interval) [[ $# -ge 2 ]] || { echo "--checkpoint-interval requires a number" >&2; exit 2; }; CHECKPOINT_INTERVAL="$2"; shift 2 ;;
+    --notify) [[ $# -ge 2 ]] || { echo "--notify requires a command" >&2; exit 2; }; NOTIFY="$2"; shift 2 ;;
     --)        shift; AGENT_ARGV=("$@"); break ;;
     --*)       echo "Unknown flag: $1" >&2; exit 2 ;;
     *)         POSITIONAL+=("$1"); shift ;;
@@ -107,7 +120,7 @@ case "$MODE" in
 esac
 
 case "$CONTAINER" in podman|docker) ;; *) echo "Invalid --container: $CONTAINER (podman|docker)" >&2; exit 2 ;; esac
-for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER"; do
+for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$CHECKPOINT_INTERVAL"; do
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "expected a non-negative integer, got: $n" >&2; exit 2; }
 done
 
@@ -172,6 +185,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "== wgm loop (dry run) =="
   echo "mode=${MODE} max_iterations=${MAX_ITERS} plan=${PLAN_REF} commit=${DO_COMMIT}"
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
+  echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
   echo "--- prompt ---"; printf '%s\n' "$PROMPT"
@@ -211,6 +225,11 @@ plan_hash() {
   fi
 }
 
+notify() {  # $1 = lifecycle event; best-effort, its failure never breaks the loop
+  [[ -n "$NOTIFY" ]] || return 0
+  WGM_EVENT="$1" WGM_ITER="${ITER:-0}" bash -c "$NOTIFY" || true
+}
+
 # Model escalation engages only when BOTH a frugal and a main agent are available.
 HAVE_MAIN=0
 [[ ${#AGENT_ARGV[@]} -gt 0 || -n "$AGENT" ]] && HAVE_MAIN=1
@@ -223,33 +242,51 @@ ITER=0
 COMPLETED=0
 NOPROG=0
 PROG=0
+START_TS=$(date +%s)
+LAST_PROG_TS=$START_TS
+notify start
 while :; do
   ITER=$((ITER + 1))
   if [[ "$MAX_ITERS" -ne 0 && "$ITER" -gt "$MAX_ITERS" ]]; then
     echo "Reached max iterations ($MAX_ITERS)."; break
+  fi
+  if [[ "$MAX_RUNTIME" -ne 0 && $(( $(date +%s) - START_TS )) -ge "$MAX_RUNTIME" ]]; then
+    echo "Reached max runtime (${MAX_RUNTIME}s)."; break
   fi
   if [[ -f "$STOP_FILE" ]]; then echo "Stop sentinel '$STOP_FILE' found; ending."; break; fi
 
   echo ""
   echo "==================== wgm ${MODE} (${ACTIVE}) — iteration ${ITER} ===================="
   HASH_BEFORE="$(plan_hash)"
-  run_current || { echo "Agent exited non-zero on iteration ${ITER}; stopping." >&2; exit 1; }
+  run_current || { echo "Agent exited non-zero on iteration ${ITER}; stopping." >&2; notify error; exit 1; }
   COMPLETED=$((COMPLETED + 1))
 
-  if [[ "$MODE" == "build" && "$DO_COMMIT" -eq 1 ]]; then
-    git add -A && git commit -m "wgm: build iteration ${ITER}" || echo "(nothing to commit)"
+  if [[ "$MODE" == "build" ]]; then
+    DO_CP=0
+    [[ "$DO_COMMIT" -eq 1 ]] && DO_CP=1
+    [[ "$CHECKPOINT_INTERVAL" -ne 0 && $(( ITER % CHECKPOINT_INTERVAL )) -eq 0 ]] && DO_CP=1
+    if [[ "$DO_CP" -eq 1 ]]; then
+      git add -A && git commit -m "wgm: build iteration ${ITER}" || echo "(nothing to commit)"
+    fi
   fi
 
-  # Model escalation (build only, when enabled): plan-file change is the progress proxy.
-  if [[ "$MODE" == "build" && "$ESC_ENABLED" -eq 1 ]]; then
-    if [[ "$(plan_hash)" != "$HASH_BEFORE" ]]; then PROG=$((PROG + 1)); NOPROG=0
-    else NOPROG=$((NOPROG + 1)); PROG=0; fi
-    if [[ "$ACTIVE" == "frugal" && "$NOPROG" -ge "$ESCALATE_AFTER" ]]; then
-      ACTIVE="main"; NOPROG=0; PROG=0
-      echo "↑ escalating to main agent (no progress for ${ESCALATE_AFTER} iteration(s))."
-    elif [[ "$ACTIVE" == "main" && "$PROG" -ge "$DOWNGRADE_AFTER" ]]; then
-      ACTIVE="frugal"; NOPROG=0; PROG=0
-      echo "↓ downgrading to frugal agent (${DOWNGRADE_AFTER} progressing iteration(s))."
+  # Progress proxy (build): did this iteration change the plan file? Drives idle-timeout + escalation.
+  if [[ "$MODE" == "build" ]]; then
+    HASH_AFTER="$(plan_hash)"
+    [[ "$HASH_AFTER" != "$HASH_BEFORE" ]] && LAST_PROG_TS=$(date +%s)
+    if [[ "$IDLE_TIMEOUT" -ne 0 && $(( $(date +%s) - LAST_PROG_TS )) -ge "$IDLE_TIMEOUT" ]]; then
+      echo "Idle timeout: no plan progress for ${IDLE_TIMEOUT}s; ending."; break
+    fi
+    if [[ "$ESC_ENABLED" -eq 1 ]]; then
+      if [[ "$HASH_AFTER" != "$HASH_BEFORE" ]]; then PROG=$((PROG + 1)); NOPROG=0
+      else NOPROG=$((NOPROG + 1)); PROG=0; fi
+      if [[ "$ACTIVE" == "frugal" && "$NOPROG" -ge "$ESCALATE_AFTER" ]]; then
+        ACTIVE="main"; NOPROG=0; PROG=0
+        echo "↑ escalating to main agent (no progress for ${ESCALATE_AFTER} iteration(s))."
+      elif [[ "$ACTIVE" == "main" && "$PROG" -ge "$DOWNGRADE_AFTER" ]]; then
+        ACTIVE="frugal"; NOPROG=0; PROG=0
+        echo "↓ downgrading to frugal agent (${DOWNGRADE_AFTER} progressing iteration(s))."
+      fi
     fi
   fi
 
@@ -257,4 +294,5 @@ while :; do
   [[ "$MODE" != "build" ]] && break
 done
 
+notify complete
 echo "wgm loop finished (${COMPLETED} iteration(s))."
