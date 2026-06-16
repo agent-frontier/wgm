@@ -1,6 +1,6 @@
 # wgm vs the Ralph ecosystem — competitive landscape
 
-**Date:** 2026-06-16 · **Source:** [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) (snwfdhmp)
+**Date:** 2026-06-16 · **Sources:** [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) (curated list) · [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) (live topic feed)
 
 > A companion to [the roadmap](2026-06-16_PLAN.md). That doc compared wgm to the spec-driven crowd
 > (Spec Kit, BMAD, Superpowers…); this one tracks wgm against **the Ralph ecosystem itself** — the
@@ -71,7 +71,26 @@ quadrantChart
   ralph-claude-code: [0.44, 0.22]
   ralph-starter: [0.4, 0.34]
   Goose Ralph: [0.52, 0.24]
+  elves: [0.7, 0.85]
 ```
+
+## The nearest rival: elves
+
+[elves](https://github.com/aigorahub/elves) (Aigora) is the one entrant that, like wgm, is a
+**portable Agent Skill** rather than a loop runner — so it shares wgm's top-right quadrant. It wraps
+a standard Ralph harness in heavy narrative and a persona layer (Cobbler / Council), but three ideas
+are genuinely worth tracking:
+
+- **Compaction-surviving layered memory:** Plan · Survival Guide · Learnings · Execution Log ·
+  `.ai-docs/`, with a promotion flow (log → learnings → durable docs) and "strategic forgetting"
+  (archive old entries, keep the brief lean) — richer than wgm's flat `.wgm/memories.md`.
+- **Dissent preservation:** its review synthesis always surfaces the *strongest dissent*, not just a
+  verdict — a useful upgrade to wgm's two-stage subagent review.
+- **Morning-after run report** generated from the durable docs + live PR/CI state (not agent memory).
+
+**wgm's edge over elves:** holdout-scenario judging + deterministic backpressure as the hard gate,
+the grill interview, and a leaner one-file protocol (no persona layer). **elves' edge:** the
+layered/compaction-surviving memory and the dissent-preserving review.
 
 ## Read-out
 
@@ -87,9 +106,16 @@ quadrantChart
   rotation / summarization at a token threshold (cursor at 80k, vercel) · automated struggle /
   circuit-breaker detection (opencode, ralph-claude-code) · task-tracker integrations
   (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
-  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop).
+  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop) · a
+  compaction-surviving memory promotion flow + dissent-preserving review (elves).
 
 ## How this was tracked
-Surveyed from [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) on 2026-06-16. The
-positioning is qualitative (a read of each project's README), meant to be re-run and refreshed as
-the ecosystem moves — not a precise score.
+Surveyed on 2026-06-16, re-run periodically against two complementary sources:
+- [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) — a hand-curated list (the projects above).
+- [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) — the **live GitHub topic
+  feed**; new repos tagged `ralph-loop` surface here first (e.g. Claude-Code orchestration frameworks
+  with MemPalace-style layered memory and parallel agent teams). Scan it when refreshing the table
+  and watchlist.
+
+The positioning is qualitative (a read of each project's README), meant to be refreshed as the
+ecosystem moves — not a precise score.
