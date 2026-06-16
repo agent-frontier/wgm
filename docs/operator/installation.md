@@ -1,5 +1,17 @@
 # Installation (operator)
 
+## Executive overview
+
+- **For:** anyone setting up wgm for the first time on Linux, macOS, Windows, or WSL.
+- **You'll get:** wgm placed where your agent scans for skills — user-level (global) by default.
+- **Fastest path:** the one-line installer (`curl … | bash`, or `irm … | iex` on Windows).
+- **Mental model:** a skill is just a `wgm/` folder containing `SKILL.md`; "installing" only copies
+  that folder into a skills directory your client reads.
+- **Watch out:** WSL and Windows have separate homes (install in each); the piped one-liner needs the
+  repo to be public.
+- **Next:** [running-the-loop.md](running-the-loop.md) to drive it ·
+  [troubleshooting.md](troubleshooting.md) if it doesn't appear.
+
 wgm is an [Agent Skill](https://agentskills.io): a folder containing `SKILL.md` that a
 skills-compatible agent loads on demand. "Installing" it just means placing the `wgm/` folder into a
 skills directory your client scans. The bundled installers do this for you — **user-level (global)

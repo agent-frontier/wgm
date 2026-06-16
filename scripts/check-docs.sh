@@ -9,6 +9,7 @@
 #   3. Every ```mermaid code fence is balanced (opened and closed).
 #   4. Internal relative Markdown links resolve to real files.
 #   5. No leftover <placeholder> or TODO markers remain in docs/.
+#   6. Every operator doc (docs/operator/*) opens with an "## Executive overview" section.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md plus README.md (which links into docs/ and embeds Mermaid).
@@ -24,6 +25,7 @@ ok()   { printf 'ok:   %s\n' "$*"; }
 
 REQUIRED=(
   "docs/README.md"
+  "docs/operator/README.md"
   "docs/operator/installation.md"
   "docs/operator/running-the-loop.md"
   "docs/operator/containers.md"
@@ -83,6 +85,21 @@ for f in "${MD[@]}"; do
   [[ "$f" == docs/* ]] || continue
   if grep -nE '<[a-z][a-z0-9 _/-]*>|TODO|FIXME' "$f" >/dev/null 2>&1; then
     note "leftover placeholder/TODO in $f"
+  fi
+done
+
+# 6 — every operator doc carries an executive overview to orient the reader.
+OPERATOR_DOCS=(
+  "docs/operator/README.md"
+  "docs/operator/installation.md"
+  "docs/operator/running-the-loop.md"
+  "docs/operator/containers.md"
+  "docs/operator/troubleshooting.md"
+)
+for f in "${OPERATOR_DOCS[@]}"; do
+  [[ -f "$f" ]] || continue   # a missing file is already reported by check 2
+  if ! grep -qE '^##[[:space:]]+Executive overview' "$f"; then
+    note "operator doc lacks an '## Executive overview' section: $f"
   fi
 done
 

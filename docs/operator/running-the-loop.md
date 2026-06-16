@@ -1,5 +1,18 @@
 # Running the loop (operator)
 
+## Executive overview
+
+- **For:** operators running large or ambiguous builds who want Ralph's strongest mode.
+- **The choice:** `/wgm` runs in-session (Ralph-lite); `scripts/loop.sh` gives the agent a fresh
+  context every iteration (Ralph-full).
+- **Fastest path:** set `WGM_AGENT`, then `./scripts/loop.sh build 20`.
+- **Key knobs:** `--threshold` (satisfaction target), `--stratified` (converge tier 1 → 2 → 3),
+  `--container`, plus frugal ↔ powerful model escalation.
+- **Safety:** non-destructive by default — no commits or pushes without `--commit`; stop anytime
+  with `Ctrl+C` or a `STOP` sentinel.
+- **Next:** [containers.md](containers.md) for live-service scenarios ·
+  [troubleshooting.md](troubleshooting.md).
+
 wgm runs in-session when you invoke `/wgm`, but its strongest mode gives the agent a **fresh context
 every iteration** via [`scripts/loop.sh`](../../scripts/loop.sh). This is the operator's guide to
 driving that loop.

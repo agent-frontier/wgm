@@ -1,5 +1,17 @@
 # Validation containers (operator)
 
+## Executive overview
+
+- **For:** operators whose acceptance scenarios need the software **actually running** — an HTTP
+  API, a CLI, or a TUI.
+- **What it is:** throwaway OCI containers, **Podman-first** with a Docker fallback.
+- **When to reach for it:** only when a scenario needs a live service; if a fast local test or HTTP
+  probe suffices, skip the container.
+- **Golden rules:** run rootless, bind localhost on a free port, never bake in secrets, always
+  clean up.
+- **Next:** [running-the-loop.md](running-the-loop.md) (`--container`) ·
+  [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
+
 Some acceptance scenarios can only be judged against the software **actually running** — an HTTP
 API, a CLI, or a TUI. wgm runs those in a throwaway **OCI container**, **Podman-first** (Docker is a
 drop-in fallback). Containers are optional: reach for one only when a scenario needs a live service.
