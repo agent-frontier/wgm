@@ -212,6 +212,11 @@ to continue safely.
 - Summarize what was built, how to run/validate it, and what the demo path is.
 - List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
 - Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
+- **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` for a lesson that is durable,
+  cross-project, and sanitized (about wgm's behavior — never the host's code or secrets). If upstream
+  reporting is enabled for this project (opt-in — explicit ask, dogfood run, or project setting), file
+  it to `agent-frontier/wgm` as a `[learn]` heuristic report, de-duping open issues first. This is how
+  wgm grows from every codebase (`references/self-improvement.md`).
 
 ## Artifact safety (hard rules)
 - **Never overwrite or edit an existing `AGENTS.md` by default** — use `.wgm/AGENTS.md` instead.
@@ -243,5 +248,6 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
+- `references/self-improvement.md` — the growth flywheel: harvest lessons, report them upstream, and promote durable ones; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`), plus `state.template.toon` — compact agent-only state.
 - `scripts/loop.sh` — optional external Ralph loop. `scripts/install.sh` / `install.ps1` — installers.

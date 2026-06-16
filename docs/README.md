@@ -57,6 +57,8 @@ flowchart TD
   prioritized improvement roadmap (Tiers 1–2 shipped; Tier 3 underway).
 - [2026-06-16 — wgm vs the Ralph ecosystem](plans/2026-06-16_RALPH_LANDSCAPE.md) — tracking wgm
   against the loop runners and orchestrators catalogued in awesome-ralph ("wgm vs the world").
+- [2026-06-16 — the growth flywheel](plans/2026-06-16_GROWTH_LOOP.md) — how wgm harvests lessons
+  from every codebase, reports them upstream, and promotes the durable ones back into the skill.
 
 ## Provenance
 

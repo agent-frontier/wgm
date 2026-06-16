@@ -66,6 +66,8 @@ Fresh context per iteration is Ralph's strength, but it also forgets. A small, t
 - **Recall in Analyze:** read it first so you don't re-hit a known gotcha or re-walk a dead end.
 - **Append in Record:** add the one-line lesson from this iteration (a fix that worked, a gotcha, a
   stall's cause). Keep it within ~2000 tokens — trim the oldest when over.
+- **Promote at handoff:** a lesson that is durable and cross-project can graduate upstream — a
+  sanitized `[learn]` report that lands in the shared skill's ledger (`references/self-improvement.md`).
 - It is **not** `AGENTS.md` (curated how-to) or `IMPLEMENTATION_PLAN.md` (task state); it is the raw
   lessons log. See `references/artifacts.md`.
 
