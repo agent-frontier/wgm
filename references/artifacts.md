@@ -24,6 +24,21 @@ non-negotiables. Source from `assets/constitution.template.md`.
 - **Placement** follows the same root vs `.wgm/` rule as the other artifacts —
   `specs/CONSTITUTION.md` or `.wgm/specs/CONSTITUTION.md`.
 
+## `specs/CONTEXT.md` — domain glossary (ubiquitous language)
+The project's vocabulary: each domain term, its precise meaning, and the **one canonical name** to
+use everywhere (code, specs, UI, commits). It keeps naming consistent across fresh-context iterations
+and cuts tokens — a term defined once here need not be re-derived each loop. Source from
+`assets/context.template.md`.
+
+- **Started in Grill, refined in Plan.** Add a term the moment it is ambiguous, overloaded, or easy
+  to confuse with a near-synonym. Skip the file for trivial builds with no special vocabulary.
+- **Consulted in the loop's Analyze step** (token-budgeted, like memories) so each iteration uses the
+  canonical term instead of inventing a synonym.
+- **Vocabulary only** — not the constitution (principles) and not a spec (behavior); keep those out
+  of it. Budget it lean (about 1500 tokens) and prune dead terms.
+- **Placement** follows the same root vs `.wgm/` rule as the other artifacts —
+  `specs/CONTEXT.md` or `.wgm/specs/CONTEXT.md`.
+
 ## `specs/*.md` — what to build and why
 One spec per coherent slice of work. Source from `assets/spec.template.md`. Must capture:
 - **JTBD** — the job, and who it's for.
@@ -83,16 +98,35 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
 
 ## Token economy — keep reloaded state cheap
 `IMPLEMENTATION_PLAN.md` and `.wgm/memories.md` are reloaded **every iteration**, so they are a token
-hotspot that grows over a long build. Keep them lean:
-- **Declare keys once.** For a long task list, a compact tabular block (one header row of field
-  names, then a row of values per task) costs far fewer tokens than repeating verbose keys on every
-  item.
-- **Terse keys.** Short field names beat sentences. The extreme is one-token keys — e.g. Smith's
-  kanji-keyed task files (`題` = title, `態` = status, `優` = priority) shrink a field to a single
-  character. That maximizes savings but trades away human readability, so reserve cryptic keys for
-  hosts that render/translate them; wgm's plan is human-facing, so favor **compact-but-readable**.
+hotspot that grows over a long build. Two registers, two rules:
+
+```mermaid
+flowchart LR
+  H["Human-facing: plan, specs, CONSTITUTION.md, CONTEXT.md — compact-but-readable"] --> R["reloaded every iteration"]
+  A[".wgm/ agent-only: memories, scores, state — single-token keys + legend"] --> R
+```
+
+- **Declare keys once (the structural win).** For a long task list, a compact tabular block — one
+  header row of field names, then a row of values per item — costs far fewer tokens than repeating
+  verbose keys on every item. Applies to both registers.
+- **Human-facing artifacts → compact-but-readable.** The plan, specs, the constitution, and
+  `CONTEXT.md` are read by people; use short field names and tables, never cryptic keys.
+- **Agent-only artifacts → single-token keys.** Files only wgm reads — `.wgm/memories.md`,
+  `.wgm/scores.md`, and any agent-only planning/state — can min-max context by choosing keys and
+  status markers your **model's tokenizer encodes as exactly one token**, serialized as TOON
+  (`assets/state.template.toon`). The idea is *one token per key* — whatever character achieves it,
+  not a specific alphabet. Smith's kanji keys (`題`=title, `態`=status, `優`=priority, `常`=standing)
+  are the maximal form **when the tokenizer charges one token per glyph**.
+  - **Verify — single-token-ness is model-specific.** A glyph that is one token for one model can be
+    two or three for another. Measured: every kanji above is **1 token in OpenAI o200k** (GPT-4o /
+    o-series), but in **cl100k** (GPT-4 / 3.5) `題`=2, `態`=3, `優`=3 tokens. Short common ASCII
+    tokens (`id`, `s`, `t`, `ok`, `todo`, `done`) are 1 token in **both** and are the portable
+    default; reach for kanji only on a vocabulary (e.g. o200k) that renders them single-token.
+  - **Always embed a one-line legend** mapping each key to its long form so a cold, fresh-context
+    agent can decode the file — compaction must never cost recoverability. Reuse `CONTEXT.md`'s
+    canonical names for the long forms.
 - **Prune, don't accumulate.** Archive or promote stale entries (see *Memory* in
-  `references/ralph-loop.md`) rather than letting either file grow unbounded.
+  `references/ralph-loop.md`) rather than letting any reloaded file grow unbounded.
 
 Deterministic backpressure stays the hard gate either way — this is only about not paying to re-read
 bloat on every loop.

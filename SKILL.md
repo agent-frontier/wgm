@@ -100,6 +100,10 @@ Read `references/grilling.md`. Core rules:
   spec and proceed.
 - **Cap interrogation:** after ~5 consecutive questions, summarize current assumptions and offer
   "proceed with defaults." Never let grilling become interrogation theater.
+- **Keep a domain glossary.** When alignment surfaces a term that is ambiguous, overloaded, or easy
+  to confuse, record it in `specs/CONTEXT.md` with its one canonical name — the project's ubiquitous
+  language, kept separate from the constitution (principles) and specs (behavior). Skip it for
+  trivial builds (`assets/context.template.md`).
 
 **Grill-exit gate** (all must hold before planning):
 - [ ] Goal is known.
@@ -113,6 +117,9 @@ Read `references/artifacts.md`. Produce, using `assets/` templates:
 - `specs/CONSTITUTION.md` — project-wide principles (quality, testing, security, non-negotiables),
   written once and referenced by every spec and task. Create it from
   `assets/constitution.template.md` when absent; never silently contradict it.
+- `specs/CONTEXT.md` *(optional)* — the domain glossary (ubiquitous language) started in Grill;
+  refine it here so every spec, task, and commit uses the canonical term. Vocabulary only, not
+  behavior (`assets/context.template.md`). Omit for trivial builds with no special vocabulary.
 - `specs/*` — one per coherent slice. Each spec must include a **magic moment**, a **demo path**,
   and the **smallest end-to-end slice** that proves value (see `assets/spec.template.md`).
 - `scenarios/*` — holdout acceptance journeys (YAML), tiered 1–3, that verify the spec from the
@@ -161,7 +168,8 @@ stop condition fires. **One task per iteration.** Each iteration:
    **Search before you build:** grep the codebase for an existing implementation first — don't
    assume a feature is missing; duplicating work is a top loop failure mode.
    **Recall first:** if `.wgm/memories.md` exists, read it (token-budgeted) so you don't repeat a
-   past gotcha, stall, or dead end.
+   past gotcha, stall, or dead end. If `specs/CONTEXT.md` exists, consult it so you use each domain
+   term's canonical name — consistent naming, fewer tokens.
 2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
    slice over many half-built parts. **Holdout rule:** do not open scenario files while implementing.
    **Document why each test exists:** when you add a test, note in a comment what behavior it proves,
@@ -177,7 +185,9 @@ stop condition fires. **One task per iteration.** Each iteration:
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone. **Remember:** append
    any durable lesson (a stall's cause + fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,
-   kept lean within a ~2000-token budget (`references/artifacts.md`).
+   kept lean within a ~2000-token budget. **Agent-only files** (`.wgm/` memories, scores, any
+   agent-only state) may min-max context with **single-token keys serialized as TOON + an embedded
+   legend**; human-facing artifacts (the plan, specs) stay readable (`references/artifacts.md`).
 
 **On a stall** (satisfaction flat ~2 iterations, or a task failing its check repeatedly): stop
 generating and run **wonder → reflect**, and consider **model escalation**, before recording a
@@ -233,5 +243,5 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
-- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `memories`, `genes`).
+- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`), plus `state.template.toon` — compact agent-only state.
 - `scripts/loop.sh` — optional external Ralph loop. `scripts/install.sh` / `install.ps1` — installers.
