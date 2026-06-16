@@ -148,6 +148,9 @@ flowchart LR
   stall (`references/stall-recovery.md`).
 - **Standing loop guardrails** — search-before-implement (no duplicate work) and
   document-why-each-test (no orphan deletions) on every iteration (`references/ralph-loop.md`).
+- **Memories** — a token-budgeted `.wgm/memories.md` recalled in Analyze and appended in Record, so
+  fresh-context iterations don't relearn the same gotchas, stalls, or dead ends
+  (`assets/memories.template.md`).
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).

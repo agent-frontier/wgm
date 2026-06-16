@@ -54,7 +54,7 @@ flowchart TD
 
 - [2026-06-16 — competitive analysis & improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
   compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me, with a
-  prioritized roadmap of proposed improvements (deferred to follow-up PRs).
+  prioritized improvement roadmap (Tier 1 + Tier 2 #6–#7 shipped; the rest landing as follow-up PRs).
 
 ## Provenance
 

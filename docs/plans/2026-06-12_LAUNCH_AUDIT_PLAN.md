@@ -1,6 +1,6 @@
 # 2026-06-12 — Public-launch audit & readiness
 
-Status: in progress · Owner: wgm audit loop · Scope: community-health files, docs backpressure, repo
+Status: done · Owner: wgm audit loop · Scope: community-health files, docs backpressure, repo
 metadata, release handoff.
 
 ## Problem
