@@ -70,9 +70,11 @@ the artifact, or stop with a recorded blocker. Gates are not advisory.
 1. Parse the mode (above). Confirm this skill applies; if not, say so and stop.
 2. Decide loop mode:
    - **Ralph-lite** (default): run the loop in-session for small/medium work.
-   - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration —
-     recommend `scripts/loop.sh` or restarting with a clean context between iterations. Fresh
-     context is the stronger mode; in-session work must compensate with strict persistence.
+   - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration — run
+     the bundled loop runner (`scripts/loop.sh` **inside this skill's own directory**, the base dir
+     this `SKILL.md` loads from) **from the target project's root**, or restart with a clean context
+     between iterations. Fresh context is the stronger mode; in-session work must compensate with
+     strict persistence.
 3. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
    load it — its principles govern every later decision.

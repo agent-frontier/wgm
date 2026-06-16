@@ -51,6 +51,24 @@ export WGM_AGENT='copilot -p'
 
 If your agent reads the prompt from stdin, set `WGM_PROMPT_STDIN=1`.
 
+## Run it from another project
+
+`loop.sh` ships **inside the installed skill** and operates on your **current working directory**, so
+one installed copy drives any project — run the skill's copy from your project's root:
+
+```bash
+# from your project's root — the path depends on where wgm installed (see installation.md):
+~/.agents/skills/wgm/scripts/loop.sh build -- copilot -p
+# a handy alias makes it one word from anywhere:
+alias wgm-loop="$HOME/.agents/skills/wgm/scripts/loop.sh"
+wgm-loop build 20 --max-runtime-seconds 3600
+```
+
+It reads and writes `IMPLEMENTATION_PLAN.md` and `.wgm/` **in the directory you launch it from**, never
+in the skill folder, so one install serves every project. The `./scripts/loop.sh` shorthand used
+elsewhere in this guide just means "the loop runner" — substitute your install path when you are not
+inside the wgm repo.
+
 ## Modes
 
 ```bash

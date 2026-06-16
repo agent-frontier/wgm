@@ -90,6 +90,14 @@ else
   fail "notify did not emit both start and complete"
 fi
 
+# 7) portability: run by absolute path from a foreign cwd resolves the plan in THIS dir
+run build --dry-run -- true
+if [[ "$RC" -eq 0 ]] && grep -q "plan=IMPLEMENTATION_PLAN.md" <<<"$OUT" && ! grep -q "none yet" <<<"$OUT"; then
+  pass "runs by absolute path against the current directory (portable across projects)"
+else
+  fail "did not resolve the cwd plan when run by absolute path (rc=$RC)"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "loop harness: GREEN"
   exit 0
