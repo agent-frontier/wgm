@@ -1,5 +1,14 @@
 # Troubleshooting (operator)
 
+## Executive overview
+
+- **For:** anyone hitting a snag installing or running wgm.
+- **How it's organized:** by stage — Install · Running the loop · Validation · Artifacts.
+- **First move:** every wgm gate prints a `Gate check:` block naming the failed item — start there.
+- **Most common fixes:** skill not listed (wrong dir name, or restart the session); `build` refuses
+  to run (no `IMPLEMENTATION_PLAN.md` yet); the loop never stops (pass a max, or drop a `STOP` file).
+- **Next:** back to [installation.md](installation.md) or [running-the-loop.md](running-the-loop.md).
+
 Common issues when installing or running wgm, and how to fix them.
 
 ## Install

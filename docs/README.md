@@ -3,8 +3,8 @@
 Deep docs for **wgm** — the skill that turns a rough request into working software. They are split
 by concern:
 
-- **[operator/](operator/)** — for the human running wgm: install, drive the loop, validation
-  containers, troubleshooting.
+- **[operator/](operator/README.md)** — for the human running wgm: start at the operator overview,
+  then install, drive the loop, validation containers, troubleshooting.
 - **[agent/](agent/)** — for the agent following the skill: the lifecycle state machine, the
   convergence loop, scenarios & scoring, stall recovery, gene transfusion.
 
@@ -39,6 +39,7 @@ flowchart TD
 
 | Audience | Doc | What it covers |
 |---|---|---|
+| Operator | [operator/README.md](operator/README.md) | Operator overview: the journey and where to start |
 | Operator | [installation.md](operator/installation.md) | Install on Linux/macOS/Windows/WSL, user vs project |
 | Operator | [running-the-loop.md](operator/running-the-loop.md) | `loop.sh`, Ralph-lite vs full, thresholds, escalation |
 | Operator | [containers.md](operator/containers.md) | Podman/OCI validation environment |
@@ -48,6 +49,12 @@ flowchart TD
 | Agent | [scenarios-and-scoring.md](agent/scenarios-and-scoring.md) | Holdout scenarios, judging, satisfaction, tiers |
 | Agent | [stall-recovery.md](agent/stall-recovery.md) | Wonder/reflect + model escalation |
 | Agent | [gene-transfusion.md](agent/gene-transfusion.md) | Seeding the build from an exemplar |
+
+## Plans & roadmap
+
+- [2026-06-16 — competitive analysis & improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
+  compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me, with a
+  prioritized roadmap of proposed improvements (deferred to follow-up PRs).
 
 ## Provenance
 
