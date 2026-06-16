@@ -5,7 +5,7 @@ license: MIT
 compatibility: Optional Podman or Docker (OCI) for containerized scenario validation; none otherwise.
 metadata:
   author: Agent Frontier Store
-  version: "0.2"
+  version: "0.3"
 ---
 
 # wgm
@@ -45,7 +45,7 @@ implement / prototype something from rough intent.
 |---|---|
 | `/wgm <request>` | Full lifecycle on the request |
 | `/wgm grill only` | Just the alignment interview; stop at Grill-exit |
-| `/wgm analyze only` | Explore code + requirements, report findings/specs; do not implement |
+| `/wgm analyze only` | Explore code + requirements — or, with a plan present, run the cross-artifact consistency check; report findings; do not implement |
 | `/wgm plan: <request>` | Write specs + `IMPLEMENTATION_PLAN.md`; stop at Plan-exit |
 | `/wgm build` | Run the build loop from the existing plan (`build only` = one iteration) |
 | `/wgm review` | Review current diff against acceptance criteria; no new code |
@@ -74,7 +74,8 @@ the artifact, or stop with a recorded blocker. Gates are not advisory.
      recommend `scripts/loop.sh` or restarting with a clean context between iterations. Fresh
      context is the stronger mode; in-session work must compensate with strict persistence.
 3. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
-   writing anything.
+   writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
+   load it — its principles govern every later decision.
 4. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
    to seed the build in the house style (`references/gene-transfusion.md`).
 
@@ -98,6 +99,9 @@ Read `references/grilling.md`. Core rules:
 
 ## Phase 2 — Plan
 Read `references/artifacts.md`. Produce, using `assets/` templates:
+- `specs/CONSTITUTION.md` — project-wide principles (quality, testing, security, non-negotiables),
+  written once and referenced by every spec and task. Create it from
+  `assets/constitution.template.md` when absent; never silently contradict it.
 - `specs/*` — one per coherent slice. Each spec must include a **magic moment**, a **demo path**,
   and the **smallest end-to-end slice** that proves value (see `assets/spec.template.md`).
 - `scenarios/*` — holdout acceptance journeys (YAML), tiered 1–3, that verify the spec from the
@@ -105,6 +109,12 @@ Read `references/artifacts.md`. Produce, using `assets/` templates:
   (`assets/scenario.template.yaml`, `references/scenarios.md`).
 - `IMPLEMENTATION_PLAN.md` — prioritized task list; this is the **shared state** across iterations.
 - `AGENTS.md` — lean operational "how to build & validate" guide (only if absent; never clobber).
+
+**Consistency check (analyze).** Before Preflight, cross-check the artifacts against each other:
+every spec ↔ `IMPLEMENTATION_PLAN.md` ↔ scenarios ↔ `specs/CONSTITUTION.md`. Flag contradictions,
+ambiguous requirements, and coverage gaps — a requirement with no task, a task with no spec, a demo
+path with no scenario — and fix or record each before scoring readiness. This is what `/wgm analyze`
+runs once a plan exists (`references/artifacts.md`).
 
 **Plan-exit gate:**
 - [ ] `IMPLEMENTATION_PLAN.md` exists.
@@ -114,6 +124,11 @@ Read `references/artifacts.md`. Produce, using `assets/` templates:
 - [ ] The plan includes a final **demo-validation task** that runs the spec's smallest end-to-end
       demo path; it must pass before Ship/Handoff.
 - [ ] The spec's demo path is covered by at least one **tier-1 holdout scenario**.
+- [ ] Every spec and task conforms to `specs/CONSTITUTION.md`, or records an intentional deviation.
+- [ ] **Consistency check passed:** specs, plan, scenarios, and the constitution agree; no
+      requirement lacks a task and no task lacks a spec.
+- [ ] **No placeholders:** no task carries a `to-be-decided` / `implement-later` / `fill-in` marker;
+      every task names exact files/areas and a runnable validation command.
 
 ## Phase 2.5 — Preflight (readiness gate)
 Before looping, score the plan's readiness **0–100** (goal/JTBD clarity · observable success
@@ -130,8 +145,12 @@ stop condition fires. **One task per iteration.** Each iteration:
 
 1. **Analyze** — read only what you need: `IMPLEMENTATION_PLAN.md`, the relevant spec, and the
    files for this one task. Pick the single most important `pending` task ("let Ralph Ralph").
+   **Search before you build:** grep the codebase for an existing implementation first — don't
+   assume a feature is missing; duplicating work is a top loop failure mode.
 2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
    slice over many half-built parts. **Holdout rule:** do not open scenario files while implementing.
+   **Document why each test exists:** when you add a test, note in a comment what behavior it proves,
+   so a fresh context never deletes it as an orphan.
 3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
    creating one **is** this iteration's task. No green signal → not done. Then **judge satisfaction
    (0–100)** against this slice's holdout scenarios, converging by tier (stratified); run the app in
@@ -194,5 +213,5 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
-- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `genes`).
+- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `genes`).
 - `scripts/loop.sh` — optional external Ralph loop. `scripts/install.sh` / `install.ps1` — installers.

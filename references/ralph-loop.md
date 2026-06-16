@@ -48,6 +48,15 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   still gate "done." See `scoring.md` and `scenarios.md`.
 - "Important: when authoring code and docs, capture the *why* — and the test that proves it."
 
+## Standing guardrails
+Inject these into **every** iteration — they prevent the two most common loop failures:
+- **Search before you build.** Before adding code, grep the codebase for an existing implementation
+  (parallel searches help). The classic Ralph failure is re-implementing something that already
+  exists because one quick search came up empty. Don't assume a feature is missing — prove it is.
+- **Document why each test exists.** When you add a test, record in a comment what behavior it proves
+  and why it matters. A fresh context that can't see the rationale may delete the test as an orphan,
+  silently dropping coverage.
+
 ## Context-hygiene gate (every iteration)
 - Read the minimum set, not the whole repo.
 - Advance exactly one task.

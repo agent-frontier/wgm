@@ -120,7 +120,7 @@ correct software instead of teaching to the test.
 
 ```mermaid
 flowchart LR
-  G[Grill] --> P[Plan and scenarios]
+  G[Grill] --> P[Plan plus consistency check]
   P --> F{Preflight ready?}
   F -- no --> G
   F -- yes --> A
@@ -138,9 +138,16 @@ flowchart LR
 - **Satisfaction scoring** — an LLM judge scores 0–100; converge to a threshold (default 95)
   (`references/scoring.md`).
 - **Preflight** — a readiness gate (≥ 80) before any code is written.
+- **Constitution** — project-wide principles (quality, testing, security) every spec and task is
+  checked against at the Plan gate (`assets/constitution.template.md`).
+- **Consistency gate + no-placeholder rigor** — before any code, a cross-artifact check
+  (specs ↔ plan ↔ scenarios ↔ constitution) catches contradictions and requirement↔task gaps, and
+  every task must name exact files and a runnable validation command.
 - **Stratified validation** — converge tier 1 → 2 → 3 so easy passes can't hide hard failures.
 - **Wonder / reflect + model escalation** — structured stall recovery; start frugal, escalate on a
   stall (`references/stall-recovery.md`).
+- **Standing loop guardrails** — search-before-implement (no duplicate work) and
+  document-why-each-test (no orphan deletions) on every iteration (`references/ralph-loop.md`).
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).

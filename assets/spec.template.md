@@ -1,6 +1,7 @@
 # Spec: <slice name>
 
 > One spec per coherent slice. Keep these sections; flex the rest per project.
+> Must conform to `specs/CONSTITUTION.md` — note any intentional deviation under Assumptions.
 
 ## JTBD (job to be done)
 <What job is the user hiring this to do, and for whom?>
