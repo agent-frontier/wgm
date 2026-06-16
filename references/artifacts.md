@@ -81,6 +81,22 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
   curated *how-to*, `.wgm/scores.md` the *numeric* trajectory; memories hold the raw *lessons*.
 - **Placement:** always under `.wgm/` — it is per-build scratch, not a deliverable.
 
+## Token economy — keep reloaded state cheap
+`IMPLEMENTATION_PLAN.md` and `.wgm/memories.md` are reloaded **every iteration**, so they are a token
+hotspot that grows over a long build. Keep them lean:
+- **Declare keys once.** For a long task list, a compact tabular block (one header row of field
+  names, then a row of values per task) costs far fewer tokens than repeating verbose keys on every
+  item.
+- **Terse keys.** Short field names beat sentences. The extreme is one-token keys — e.g. Smith's
+  kanji-keyed task files (`題` = title, `態` = status, `優` = priority) shrink a field to a single
+  character. That maximizes savings but trades away human readability, so reserve cryptic keys for
+  hosts that render/translate them; wgm's plan is human-facing, so favor **compact-but-readable**.
+- **Prune, don't accumulate.** Archive or promote stale entries (see *Memory* in
+  `references/ralph-loop.md`) rather than letting either file grow unbounded.
+
+Deterministic backpressure stays the hard gate either way — this is only about not paying to re-read
+bloat on every loop.
+
 ## Consistency check (analyze)
 Between Plan and Preflight, treat the artifact set as one system and cross-check it — the
 spec-driven equivalent of "unit tests for the plan." Verify:
