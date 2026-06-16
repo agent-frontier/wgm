@@ -98,6 +98,24 @@ else
   fail "did not resolve the cwd plan when run by absolute path (rc=$RC)"
 fi
 
+# 8) wgm.yml gates are auto-detected, parsed, and injected into the build prompt
+printf 'gates:\n  - echo gate-a\n  - echo gate-b\n' > wgm.yml
+run build --dry-run -- true
+if [[ "$RC" -eq 0 ]] && grep -q "gates=wgm.yml (2)" <<<"$OUT" && grep -q "Project gates" <<<"$OUT"; then
+  pass "wgm.yml gates are auto-detected and injected"
+else
+  fail "wgm.yml gates not detected/injected (rc=$RC)"
+fi
+
+# 9) a missing --gates file is rejected before running
+run build --gates does-not-exist.yml --dry-run -- true
+if [[ "$RC" -eq 2 ]] && grep -q "gates file not found" <<<"$OUT"; then
+  pass "missing --gates file is rejected"
+else
+  fail "missing --gates file not rejected (rc=$RC)"
+fi
+rm -f wgm.yml
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "loop harness: GREEN"
   exit 0

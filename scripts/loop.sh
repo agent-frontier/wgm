@@ -42,6 +42,9 @@
 #   --checkpoint-interval N  git add -A && commit every N build iterations; 0 = off (default: 0)
 #   --notify "CMD"       run CMD (shell) on lifecycle events with $WGM_EVENT (start|complete|error)
 #                        and $WGM_ITER set; best-effort — its failure never fails the loop
+#   --gates FILE         project-wide backpressure: a YAML file with a `gates:` list of commands,
+#                        injected as mandatory checks into every build iteration (default:
+#                        auto-detect wgm.yml or .wgm/gates.yml)
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             git add -A && git commit after each build iteration (off by default)
 #   -h | --help          show this help
@@ -78,6 +81,7 @@ MAX_RUNTIME=0
 IDLE_TIMEOUT=0
 CHECKPOINT_INTERVAL=0
 NOTIFY=""
+GATES_FILE=""
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -102,6 +106,7 @@ while [[ $# -gt 0 ]]; do
     --idle-timeout) [[ $# -ge 2 ]] || { echo "--idle-timeout requires a number" >&2; exit 2; }; IDLE_TIMEOUT="$2"; shift 2 ;;
     --checkpoint-interval) [[ $# -ge 2 ]] || { echo "--checkpoint-interval requires a number" >&2; exit 2; }; CHECKPOINT_INTERVAL="$2"; shift 2 ;;
     --notify) [[ $# -ge 2 ]] || { echo "--notify requires a command" >&2; exit 2; }; NOTIFY="$2"; shift 2 ;;
+    --gates) [[ $# -ge 2 ]] || { echo "--gates requires a file" >&2; exit 2; }; GATES_FILE="$2"; shift 2 ;;
     --)        shift; AGENT_ARGV=("$@"); break ;;
     --*)       echo "Unknown flag: $1" >&2; exit 2 ;;
     *)         POSITIONAL+=("$1"); shift ;;
@@ -147,6 +152,27 @@ if [[ "$DRY_RUN" -eq 0 ]] && [[ "$MODE" == "build" || "$MODE" == "review" || "$M
 fi
 PLAN_REF="${PLAN:-IMPLEMENTATION_PLAN.md (none yet)}"
 
+# ----- project gates (wgm.yml) ---------------------------------------------
+# Optional named backpressure: commands injected as mandatory checks into every build iteration.
+GATES=()
+if [[ -z "$GATES_FILE" ]]; then
+  if [[ -f "wgm.yml" ]]; then GATES_FILE="wgm.yml"
+  elif [[ -f ".wgm/gates.yml" ]]; then GATES_FILE=".wgm/gates.yml"; fi
+fi
+if [[ -n "$GATES_FILE" ]]; then
+  [[ -f "$GATES_FILE" ]] || { echo "gates file not found: $GATES_FILE" >&2; exit 2; }
+  while IFS= read -r _g; do
+    if [[ -n "$_g" ]]; then GATES+=("$_g"); fi
+  done < <(
+    awk '
+      /^[[:space:]]*#/ { next }
+      /^gates:[[:space:]]*$/ { g=1; next }
+      g && /^[[:space:]]*-[[:space:]]+/ { sub(/^[[:space:]]*-[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; next }
+      g && /^[^[:space:]#]/ { g=0 }
+    ' "$GATES_FILE"
+  )
+fi
+
 # ----- build the per-iteration prompt --------------------------------------
 case "$MODE" in
   grill)    TASK="Run ONLY the Grill phase: interview to alignment, then stop at the Grill-exit gate." ;;
@@ -167,6 +193,11 @@ Stratified: validate scenarios by ascending tier (1->2->3); converge a tier befo
   TASK="${TASK}
 If a scenario needs a running service, build and run it with ${CONTAINER} (OCI) per references/validation-env.md.
 On a stall (satisfaction flat ~2 iterations, or a task failing repeatedly), run wonder/reflect and consider model escalation per references/stall-recovery.md."
+  if [[ ${#GATES[@]} -gt 0 ]]; then
+    _gatelist="$(printf '%s; ' "${GATES[@]}")"
+    TASK="${TASK}
+Project gates (from ${GATES_FILE}) — every one MUST exit 0 before a task is 'done': ${_gatelist}"
+  fi
 fi
 
 REQ_LINE=""
@@ -186,6 +217,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "mode=${MODE} max_iterations=${MAX_ITERS} plan=${PLAN_REF} commit=${DO_COMMIT}"
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
   echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
+  echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
   echo "--- prompt ---"; printf '%s\n' "$PROMPT"
