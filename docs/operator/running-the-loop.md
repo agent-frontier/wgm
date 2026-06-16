@@ -123,6 +123,30 @@ Guardrails for long autonomous runs — all **off by default**, so existing beha
 `--notify` is shell-evaluated like `--agent`, so set it only to a command you trust; its own failure
 never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`.
 
+## Project gates (wgm.yml)
+
+A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands
+**every build iteration** must drive to exit 0 before a task is `done`. They are a quality *floor*
+independent of any single task's own check. `loop.sh` auto-detects the file (override with
+`--gates FILE`) and injects the list into each build prompt.
+
+```yaml
+# wgm.yml
+gates:
+  - npm run typecheck
+  - npm test --silent
+  - npm run lint
+```
+
+```bash
+./scripts/loop.sh build --dry-run        # shows: gates=wgm.yml (3) + the injected line
+./scripts/loop.sh build --gates ci/gates.yml
+```
+
+Gates are **shell commands** — use only a file you trust. A starter lives in
+[`assets/wgm.example.yml`](../../assets/wgm.example.yml). Today the loop injects the gates as
+mandatory backpressure into the prompt; having `loop.sh` also run them itself is a planned follow-up.
+
 ## Stopping the loop
 
 - `Ctrl+C` at any time.

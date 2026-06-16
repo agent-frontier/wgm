@@ -47,6 +47,9 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   scenarios can augment binary checks; converge to a threshold (default 95). Deterministic checks
   still gate "done." See `scoring.md` and `scenarios.md`.
 - "Important: when authoring code and docs, capture the *why* — and the test that proves it."
+- **Project-wide gates (a floor):** an optional `wgm.yml` (or `.wgm/gates.yml`) lists commands every
+  iteration must keep green — a backpressure floor independent of each task's own check. `loop.sh`
+  injects them into every build prompt (`--gates FILE` to override).
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent the two most common loop failures:

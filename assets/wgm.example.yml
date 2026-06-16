@@ -1,0 +1,12 @@
+# wgm.yml — project-wide gates.
+#
+# Each entry under `gates:` is a shell command that EVERY build iteration must drive to exit 0
+# before a task is considered done. scripts/loop.sh auto-detects this file (or .wgm/gates.yml, or
+# --gates FILE) and injects the list into each build prompt as mandatory backpressure — a quality
+# floor independent of any single task's own check. Use only commands you trust.
+#
+# Copy to your project root as `wgm.yml` and replace these with your real checks:
+gates:
+  - npm run typecheck
+  - npm test --silent
+  - npm run lint
