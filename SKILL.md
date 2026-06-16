@@ -68,17 +68,26 @@ the artifact, or stop with a recorded blocker. Gates are not advisory.
 
 ## Phase 0 — Triage (always first)
 1. Parse the mode (above). Confirm this skill applies; if not, say so and stop.
-2. Decide loop mode:
+2. **Track (scale-adaptive) — classify the work.** Size the ceremony to the work's scale and risk,
+   **state the chosen track** ("Track: Quick/Standard/Full — …"), and **default to Standard when
+   unsure**. The deterministic backpressure gate is never skipped — only the surrounding ceremony flexes.
+
+   | Track | When | Ceremony |
+   |---|---|---|
+   | **Quick** | Bug fix or small 1–5 file change with an obvious check | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight |
+   | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged |
+   | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation |
+3. Decide loop mode:
    - **Ralph-lite** (default): run the loop in-session for small/medium work.
    - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration — run
      the bundled loop runner (`scripts/loop.sh` **inside this skill's own directory**, the base dir
      this `SKILL.md` loads from) **from the target project's root**, or restart with a clean context
      between iterations. Fresh context is the stronger mode; in-session work must compensate with
      strict persistence.
-3. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
+4. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
    load it — its principles govern every later decision.
-4. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
+5. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
    to seed the build in the house style (`references/gene-transfusion.md`).
 
 ## Phase 1 — Grill (align)
@@ -125,7 +134,8 @@ runs once a plan exists (`references/artifacts.md`).
 - [ ] If no validation signal exists yet, the **first task is "create a validation signal."**
 - [ ] The plan includes a final **demo-validation task** that runs the spec's smallest end-to-end
       demo path; it must pass before Ship/Handoff.
-- [ ] The spec's demo path is covered by at least one **tier-1 holdout scenario**.
+- [ ] **Standard/Full** require at least one **tier-1 holdout scenario** covering the spec's demo
+      path; **Quick** may substitute an inline deterministic check (per the Triage track table).
 - [ ] Every spec and task conforms to `specs/CONSTITUTION.md`, or records an intentional deviation.
 - [ ] **Consistency check passed:** specs, plan, scenarios, and the constitution agree; no
       requirement lacks a task and no task lacks a spec.
@@ -138,8 +148,9 @@ criteria · scenario coverage of the demo path · each acceptance criterion mapp
 scope edges). See `references/scoring.md`.
 
 **Preflight-exit gate:**
-- [ ] Readiness ≥ **80** (recommended). Below it, return to Grill/Plan and fix the weakest dimension
-      first — do not start building.
+- [ ] **Standard/Full:** readiness ≥ **80** (recommended). Below it, return to Grill/Plan and fix the
+      weakest dimension first — do not start building. **Quick may skip Preflight** (per the Triage
+      track table) — its inline deterministic check is the backpressure.
 
 ## Phase 3 — Loop (build)
 Read `references/ralph-loop.md`. Run iterations until the plan's must-have tasks are `done` or a

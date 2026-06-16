@@ -34,7 +34,7 @@ stateDiagram-v2
 
 | Phase | Goal | Exit gate (abridged) |
 |---|---|---|
-| **Triage** | Parse mode; confirm the skill applies; choose Ralph-lite/full; set root vs `.wgm/` | Working dir decided |
+| **Triage** | Parse mode; confirm the skill applies; classify the work into a Quick/Standard/Full track (default Standard; detail in [`SKILL.md`](../../SKILL.md)); choose Ralph-lite/full; set root vs `.wgm/` | Working dir decided; track chosen |
 | **Grill** | Interview to alignment, one question at a time | Goal, success criteria, constraints known or assumed |
 | **Plan** | Write the constitution, specs, scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
 | **Preflight** | Score readiness 0–100 | Readiness ≥ 80 |
