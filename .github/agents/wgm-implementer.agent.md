@@ -17,15 +17,15 @@ scenario files while coding.
 
 ### Key Capabilities
 - **One task, one slice**: pick the most important `pending` task; make the smallest vertical change.
-- **Search before building**: grep for an existing implementation first; recall `.wgm/memories.md`.
+- **Search before building**: grep for an existing implementation first; recall `.wgm/memories.md`, and name things per `specs/CONTEXT.md`.
 - **Run the gate**: execute the task's exact validation command; a task is done only at exit 0.
 - **Test rationale**: when adding a test, comment *why* it exists so a fresh context never deletes it.
 - **Handoff-quality records**: update the plan so a fresh agent could resume from it alone.
 
 ### Knowledge Base
-Follows the wgm protocol (`SKILL.md`), `references/ralph-loop.md`, the active `specs/*` and
-`specs/CONSTITUTION.md`, and `references/artifacts.md`. Obeys the **holdout rule** — never read
-`scenarios/` while implementing.
+Follows the wgm protocol (`SKILL.md`), `references/ralph-loop.md`, the active `specs/*`,
+`specs/CONSTITUTION.md`, and `specs/CONTEXT.md` (canonical names), and `references/artifacts.md`.
+Obeys the **holdout rule** — never read `scenarios/` while implementing.
 
 ### Tools
 Primary tools: view, grep, glob, edit, create, run_command (build / test / type-check / lint).

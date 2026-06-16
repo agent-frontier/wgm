@@ -49,5 +49,6 @@ Output: PASS or CHANGES-REQUESTED + the specific defect and the missing assertio
 - Flags a missing deterministic check rather than approving a "didn't crash" pass.
 
 ### Integration
-Runs after **@wgm-spec-reviewer** passes. On `PASS`, the task may be recorded `done`. On
+Runs after **@wgm-spec-reviewer** passes. On `PASS`, the deterministic gate may record the task
+`done`; the slice's holdout satisfaction is then judged by **@wgm-validator**. On
 `CHANGES-REQUESTED`, returns the defect to **@wgm-implementer**. See `references/subagents.md`.

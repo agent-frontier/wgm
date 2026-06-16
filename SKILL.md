@@ -235,7 +235,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 ## References
 - `references/grilling.md` — the interview discipline.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
-- `references/subagents.md` — role-specialized subagents (implementer + two-stage review) and how the Loop dispatches them ("swarm" mode).
+- `references/subagents.md` — the six role-specialized subagents (griller · implementer · two-stage review · validator · diagnostician) and how the Loop dispatches them ("swarm" mode).
 - `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, and AGENTS.md.
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
