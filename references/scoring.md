@@ -52,8 +52,9 @@ phase of the loop on the next real gap.
 ## Recording
 - Per-iteration: note the overall score, per-tier scores, and the weakest scenario in
   `IMPLEMENTATION_PLAN.md`.
-- Optionally keep an append-only `.wgm/scores.md` (iteration · tier · score · note) so a fresh agent
-  sees the trajectory.
+- Keep an append-only `.wgm/scores.md` (iteration · tier · score · note) so a fresh agent sees the
+  numeric trajectory; record the *prose* lesson behind a jump or drop in `.wgm/memories.md`
+  (`references/artifacts.md`).
 
 ## When the score stalls
 A flat or falling score across ~2 iterations is a **stall**: stop adding code and switch to
