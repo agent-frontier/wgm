@@ -39,7 +39,9 @@ for s in scripts/*.sh; do bash -n "$s"; done  # shell syntax
 ( cd .. && skills-ref validate wgm )          # skill is valid (run from the parent dir)
 bash scripts/check-docs.sh                    # docs structure, links, mermaid, placeholders
 bash scripts/test-install.sh                  # bash installer harness (9 cases)
+bash scripts/test-loop.sh                     # loop.sh limits harness (6 cases)
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 cases)
+actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```
 
 > `skills-ref validate wgm` must be run from the **parent** directory, because the validator requires
@@ -51,7 +53,8 @@ pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 
 2. Make the change; keep edits surgical and scoped.
 3. Run the full backpressure suite above — get it green.
 4. Open a PR using the template. Describe the change and note which checks you ran.
-5. CI (`.github/workflows/ci.yml`) must pass before merge.
+5. CI must pass before merge — both `.github/workflows/ci.yml` (validation) and
+   `.github/workflows/lint.yml` (actionlint).
 
 ## Reporting bugs & ideas
 

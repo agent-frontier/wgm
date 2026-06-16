@@ -1,0 +1,25 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint (workflow files)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run actionlint
+        # Pinned download of a prebuilt binary; actionlint also shellchecks each `run:` block.
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash" -o download-actionlint.bash
+          bash download-actionlint.bash 1.7.7
+          ./actionlint -color
