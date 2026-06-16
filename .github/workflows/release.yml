@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Validate and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check tag matches SKILL.md version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(sed -n 's/^[[:space:]]*version:[[:space:]]*"\([^"]*\)".*/\1/p' SKILL.md | head -n1)"
+          echo "tag=${tag} skill_version=${version}"
+          if [ "${tag}" != "${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} must match SKILL.md version '${version}' (use v${version})."
+            exit 1
+          fi
+
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install skills-ref
+        run: pip install "git+https://github.com/agentskills/agentskills.git@5d4c1fda3f786fff826c7f56b6cb3341e7f3a911#subdirectory=skills-ref"
+
+      - name: Validate skill
+        # skills-ref needs the skill dir basename to equal the skill name ("wgm").
+        run: |
+          cd ..
+          skills-ref validate wgm
+
+      - name: Docs backpressure check
+        run: bash scripts/check-docs.sh
+
+      - name: Package skill tarball
+        run: |
+          mkdir -p dist
+          tar --exclude-vcs --exclude=./dist -czf "dist/wgm-${GITHUB_REF_NAME}.tar.gz" .
+          ls -l dist
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "wgm ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            "dist/wgm-${GITHUB_REF_NAME}.tar.gz"

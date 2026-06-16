@@ -213,8 +213,12 @@ wgm/
 ## Releases
 
 - `main` is the canonical release line.
-- The `SKILL.md` frontmatter version is the public skill version; tags should track that version
-  (`vX.Y.Z`).
+- The `SKILL.md` frontmatter version is the public skill version; a release **tag must match it
+  exactly**, prefixed with `v` (version `0.3` → tag `v0.3`).
+- **To cut a release:** push the matching tag — `git tag v0.3 && git push origin v0.3`.
+  [`.github/workflows/release.yml`](.github/workflows/release.yml) then verifies the tag against
+  `SKILL.md`, re-runs shellcheck + `skills-ref` + the docs check, packages a `wgm-v0.3.tar.gz`, and
+  publishes a GitHub release with auto-generated notes.
 - Pin installs with `WGM_REF` / `--ref` when you want a specific release or commit instead of the
   moving `main` branch.
 - CI validates every push and pull request before release promotion.
