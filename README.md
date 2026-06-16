@@ -138,6 +138,10 @@ flowchart LR
 - **Satisfaction scoring** — an LLM judge scores 0–100; converge to a threshold (default 95)
   (`references/scoring.md`).
 - **Preflight** — a readiness gate (≥ 80) before any code is written.
+- **Scale-adaptive tracks** — Triage right-sizes the ceremony to the work: **Quick** (small fix →
+  inline check, skip holdout scenarios + Preflight), **Standard** (the default — the full lifecycle),
+  or **Full** (large / greenfield / high-risk → adds holdout scenarios, stratified scoring, and
+  containerized validation) (`SKILL.md`).
 - **Constitution** — project-wide principles (quality, testing, security) every spec and task is
   checked against at the Plan gate (`assets/constitution.template.md`).
 - **Consistency gate + no-placeholder rigor** — before any code, a cross-artifact check
