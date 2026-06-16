@@ -4,11 +4,13 @@ The loop's default failure rule is blunt: "same task fails ~3 times → stop." B
 structured recovery borrowed from octopusgarden — **wonder** (diagnose wide), then **reflect** (fix
 narrow) — and escalate the model only when cheap effort plateaus.
 
-## Detecting a stall
-A **stall** is any of:
+## Detecting a stall (struggle signals)
+A **stall** is any of these *struggle signals* — treat them as an automatic trip into recovery, not a
+soft hint:
 - The satisfaction score (`references/scoring.md`) doesn't improve for ~2 consecutive iterations.
 - The same task fails its backpressure ~2–3 times.
 - The diff churns (edit / revert / edit) without moving a signal.
+- The same tool or setup error repeats (a missing dependency, an env issue, a flaky command).
 
 When you detect a stall, **stop generating** and recover.
 

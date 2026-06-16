@@ -77,6 +77,20 @@ Fresh context per iteration is Ralph's strength, but it also forgets. A small, t
 - End by writing handoff-quality state into the plan.
 - If context feels bloated, stop and hand off rather than push on.
 
+## Context rotation (summarize, then refresh)
+Long in-session runs degrade as the window fills — the ecosystem's fix is to **rotate context at a
+token threshold** (e.g. cursor rotates ~80k tokens) and **summarize forward** (Vercel's loop) so no
+progress is lost. wgm's rule:
+- **Set a budget.** Pick a threshold well below the model's window — a practical default is ~50% of
+  it, or a host-configured token cap. Treat crossing it as a stop signal, not a soft suggestion.
+- **Summarize before you rotate.** Write handoff-quality state into `IMPLEMENTATION_PLAN.md` (task
+  statuses + the exact next step) and append durable lessons to `.wgm/memories.md`. The summary —
+  not the transcript — is what survives the rotation.
+- **Rotate to fresh context.** Start the next iteration clean, reloading only the lean plan, the
+  relevant spec, `.wgm/memories.md`, and `specs/CONTEXT.md` — never the old transcript.
+- **Ralph-full already rotates** every iteration (a fresh process per loop); **Ralph-lite** rotates
+  on the threshold. Either way the persistent files are the memory — keep them lean (`artifacts.md`).
+
 ## Stop / regenerate conditions
 - All must-have tasks are `done` → ship/handoff.
 - The same task fails ~3 times, or the satisfaction score stalls → first run a **wonder/reflect**
