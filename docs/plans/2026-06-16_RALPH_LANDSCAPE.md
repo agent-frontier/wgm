@@ -1,6 +1,6 @@
 # wgm vs the Ralph ecosystem — competitive landscape
 
-**Date:** 2026-06-16 · **Source:** [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) (snwfdhmp)
+**Date:** 2026-06-16 · **Sources:** [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) (curated list) · [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) (live topic feed)
 
 > A companion to [the roadmap](2026-06-16_PLAN.md). That doc compared wgm to the spec-driven crowd
 > (Spec Kit, BMAD, Superpowers…); this one tracks wgm against **the Ralph ecosystem itself** — the
@@ -110,6 +110,12 @@ layered/compaction-surviving memory and the dissent-preserving review.
   compaction-surviving memory promotion flow + dissent-preserving review (elves).
 
 ## How this was tracked
-Surveyed from [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) on 2026-06-16. The
-positioning is qualitative (a read of each project's README), meant to be re-run and refreshed as
-the ecosystem moves — not a precise score.
+Surveyed on 2026-06-16, re-run periodically against two complementary sources:
+- [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) — a hand-curated list (the projects above).
+- [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) — the **live GitHub topic
+  feed**; new repos tagged `ralph-loop` surface here first (e.g. Claude-Code orchestration frameworks
+  with MemPalace-style layered memory and parallel agent teams). Scan it when refreshing the table
+  and watchlist.
+
+The positioning is qualitative (a read of each project's README), meant to be refreshed as the
+ecosystem moves — not a precise score.
