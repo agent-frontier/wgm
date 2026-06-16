@@ -71,7 +71,26 @@ quadrantChart
   ralph-claude-code: [0.44, 0.22]
   ralph-starter: [0.4, 0.34]
   Goose Ralph: [0.52, 0.24]
+  elves: [0.7, 0.85]
 ```
+
+## The nearest rival: elves
+
+[elves](https://github.com/aigorahub/elves) (Aigora) is the one entrant that, like wgm, is a
+**portable Agent Skill** rather than a loop runner — so it shares wgm's top-right quadrant. It wraps
+a standard Ralph harness in heavy narrative and a persona layer (Cobbler / Council), but three ideas
+are genuinely worth tracking:
+
+- **Compaction-surviving layered memory:** Plan · Survival Guide · Learnings · Execution Log ·
+  `.ai-docs/`, with a promotion flow (log → learnings → durable docs) and "strategic forgetting"
+  (archive old entries, keep the brief lean) — richer than wgm's flat `.wgm/memories.md`.
+- **Dissent preservation:** its review synthesis always surfaces the *strongest dissent*, not just a
+  verdict — a useful upgrade to wgm's two-stage subagent review.
+- **Morning-after run report** generated from the durable docs + live PR/CI state (not agent memory).
+
+**wgm's edge over elves:** holdout-scenario judging + deterministic backpressure as the hard gate,
+the grill interview, and a leaner one-file protocol (no persona layer). **elves' edge:** the
+layered/compaction-surviving memory and the dissent-preserving review.
 
 ## Read-out
 
@@ -87,7 +106,8 @@ quadrantChart
   rotation / summarization at a token threshold (cursor at 80k, vercel) · automated struggle /
   circuit-breaker detection (opencode, ralph-claude-code) · task-tracker integrations
   (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
-  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop).
+  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop) · a
+  compaction-surviving memory promotion flow + dissent-preserving review (elves).
 
 ## How this was tracked
 Surveyed from [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) on 2026-06-16. The
