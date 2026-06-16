@@ -1,0 +1,32 @@
+# wgm agent-only state — TOON with SINGLE-TOKEN keys. Reloaded every iteration; min-max tokens.
+# ONLY for files no human reads (.wgm/). Human-facing plan/specs stay readable markdown.
+#
+# The idea: each key/marker is ONE token in your model's tokenizer (Claude, OpenAI o200k, ...).
+# Single-token-ness is MODEL-SPECIFIC — verify. The kanji below are 1 token in OpenAI o200k, but
+# several are 2-3 tokens in cl100k (GPT-4/3.5). Short ASCII keys (id/s/t/ok/todo/done) are 1 token
+# almost everywhere and are the portable fallback. Swap the legend to whatever is single-token for you.
+#
+# The legend is REQUIRED so a cold, fresh-context agent can decode every key.
+
+# legend (kanji form — single-token in o200k)
+#   題 task-id    的 objective         証 validate-cmd      受 acceptance
+#   態 status: 待 todo · 行 wip · 済 done · 塞 blocked
+#   優 priority (1=highest)            点 score (0-100)      回 iteration
+#   常 standing rule (applies every iteration)
+
+tasks{題,的,証,態,優,点}:
+  auth,  "user can log in",      "pytest -k auth",   済, 1, 96
+  oauth, "google SSO works",     "pytest -k oauth",  行, 2, 74
+  rate,  "100 req/min per ip",   "pytest -k rate",   待, 3, 0
+
+standing{常}:
+  "search the codebase before implementing — don't assume a feature is missing"
+  "document why each test exists so a fresh context doesn't delete it as an orphan"
+
+scores{回,点}:
+  1, 55
+  2, 74
+  3, 88
+
+# ASCII fallback legend (portable — 1 token in cl100k AND o200k):
+#   id · objective · validate · accept · status(todo/wip/done/blk) · prio · score · iter
