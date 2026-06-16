@@ -147,6 +147,8 @@ stop condition fires. **One task per iteration.** Each iteration:
    files for this one task. Pick the single most important `pending` task ("let Ralph Ralph").
    **Search before you build:** grep the codebase for an existing implementation first — don't
    assume a feature is missing; duplicating work is a top loop failure mode.
+   **Recall first:** if `.wgm/memories.md` exists, read it (token-budgeted) so you don't repeat a
+   past gotcha, stall, or dead end.
 2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
    slice over many half-built parts. **Holdout rule:** do not open scenario files while implementing.
    **Document why each test exists:** when you add a test, note in a comment what behavior it proves,
@@ -159,11 +161,14 @@ stop condition fires. **One task per iteration.** Each iteration:
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
    actually prove the task (not just "didn't crash")?
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
-   tasks. Write enough that a **fresh agent could continue** from the file alone.
+   tasks. Write enough that a **fresh agent could continue** from the file alone. **Remember:** append
+   any durable lesson (a stall's cause + fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,
+   kept lean within a ~2000-token budget (`references/artifacts.md`).
 
 **On a stall** (satisfaction flat ~2 iterations, or a task failing its check repeatedly): stop
 generating and run **wonder → reflect**, and consider **model escalation**, before recording a
-blocker (`references/stall-recovery.md`).
+blocker (`references/stall-recovery.md`). Capture what you learn in `.wgm/memories.md` so the next
+iteration starts ahead of the stall.
 
 **Context hygiene:** advance exactly one task per iteration. If context feels bloated, stop and
 hand off through the plan (Phase 4) rather than pushing on with a polluted context. In Ralph-full
@@ -213,5 +218,5 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
-- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `genes`).
+- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `memories`, `genes`).
 - `scripts/loop.sh` — optional external Ralph loop. `scripts/install.sh` / `install.ps1` — installers.

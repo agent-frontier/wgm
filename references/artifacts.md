@@ -68,6 +68,19 @@ How to build, run, and validate this project, plus durable codebase patterns. So
 go in the plan). A bloated `AGENTS.md` pollutes every future iteration's context. Never clobber an
 existing one.
 
+## `.wgm/memories.md` — token-budgeted lessons
+The build's working memory: durable lessons that should outlive a single iteration — gotchas, the
+cause-and-fix of a stall, patterns that work in this repo, and dead ends not to retry. Source from
+`assets/memories.template.md`.
+
+- **Append-only, token-budgeted.** Keep it within ~2000 tokens; trim the oldest entries when it
+  grows past budget. It is a working log, not an essay.
+- **Read in Analyze, written in Record.** The agent recalls it before picking a task and appends to
+  it after — especially after a wonder/reflect stall recovery.
+- **Distinct from the other artifacts.** `IMPLEMENTATION_PLAN.md` holds task *state*, `AGENTS.md` the
+  curated *how-to*, `.wgm/scores.md` the *numeric* trajectory; memories hold the raw *lessons*.
+- **Placement:** always under `.wgm/` — it is per-build scratch, not a deliverable.
+
 ## Consistency check (analyze)
 Between Plan and Preflight, treat the artifact set as one system and cross-check it — the
 spec-driven equivalent of "unit tests for the plan." Verify:

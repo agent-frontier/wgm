@@ -56,7 +56,8 @@ Recovery happens after a failing Validate/Review on a stall, before you Record o
 
 If wonder/reflect plus escalation still don't improve the signal after ~3 recovery cycles, stop:
 record the blocker in `IMPLEMENTATION_PLAN.md` and regenerate the plan or ask the human. Regenerating
-the plan is cheap; a loop going in circles is not.
+the plan is cheap; a loop going in circles is not. Capture the lesson — what stalled and the cause —
+in `.wgm/memories.md` so the next run starts ahead of it.
 
 See also: [attractor-loop.md](attractor-loop.md) ·
 [scenarios-and-scoring.md](scenarios-and-scoring.md).

@@ -57,6 +57,15 @@ Inject these into **every** iteration — they prevent the two most common loop 
   and why it matters. A fresh context that can't see the rationale may delete the test as an orphan,
   silently dropping coverage.
 
+## Memory (cross-iteration learning)
+Fresh context per iteration is Ralph's strength, but it also forgets. A small, token-budgeted
+`.wgm/memories.md` closes that gap without re-polluting context:
+- **Recall in Analyze:** read it first so you don't re-hit a known gotcha or re-walk a dead end.
+- **Append in Record:** add the one-line lesson from this iteration (a fix that worked, a gotcha, a
+  stall's cause). Keep it within ~2000 tokens — trim the oldest when over.
+- It is **not** `AGENTS.md` (curated how-to) or `IMPLEMENTATION_PLAN.md` (task state); it is the raw
+  lessons log. See `references/artifacts.md`.
+
 ## Context-hygiene gate (every iteration)
 - Read the minimum set, not the whole repo.
 - Advance exactly one task.
