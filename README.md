@@ -182,6 +182,8 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
 - In `build` mode the agent is told to drop a `STOP` sentinel when no must-have task remains, so the
   loop self-terminates. Stop anytime with `Ctrl+C` or by creating `STOP` / `.wgm/STOP`. See
   `./scripts/loop.sh --help`.
+- Guard long autonomous runs with `--max-runtime-seconds`, `--idle-timeout`, `--checkpoint-interval`
+  (auto-commit), and a `--notify "CMD"` lifecycle hook.
 
 > Run the loop only in an environment you're comfortable letting an agent operate in autonomously
 > (a sandbox or disposable workspace). Autonomous loops bypass per-step approvals by design.
