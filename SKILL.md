@@ -172,7 +172,8 @@ stop condition fires. **One task per iteration.** Each iteration:
    a container if a scenario needs a live service (`references/scoring.md`,
    `references/validation-env.md`). Deterministic checks still gate "done."
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
-   actually prove the task (not just "didn't crash")?
+   actually prove the task (not just "didn't crash")? You may split this into **two independent
+   subagents** — spec-compliance then code-quality — for higher-signal review (`references/subagents.md`).
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone. **Remember:** append
    any durable lesson (a stall's cause + fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,
@@ -224,6 +225,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 ## References
 - `references/grilling.md` — the interview discipline.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
+- `references/subagents.md` — role-specialized subagents (implementer + two-stage review) and how the Loop dispatches them ("swarm" mode).
 - `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, and AGENTS.md.
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
