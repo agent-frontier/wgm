@@ -68,4 +68,10 @@ If you want wgm to learn from a failure pattern or a surprising outcome, please 
 context that maintainers can turn the report into a better heuristic, doc note, or holdout scenario.
 This is the path we should use for our own dogfood runs too.
 
+Durable, cross-project lessons graduate into [`references/heuristics.md`](references/heuristics.md) —
+wgm's curated juice ledger — and from there into the protocol. See the
+[growth flywheel](docs/plans/2026-06-16_GROWTH_LOOP.md) and
+[`references/self-improvement.md`](references/self-improvement.md) for how a report becomes a durable
+upgrade.
+
 By contributing, you agree your contributions are licensed under the project's [MIT License](LICENSE).

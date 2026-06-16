@@ -1,0 +1,32 @@
+name: "Copilot Setup Steps"
+
+# Preinstall the wgm skill into the GitHub Copilot coding agent's ephemeral environment, so that
+# when a labelled issue is assigned to Copilot it boots already following the wgm protocol and opens
+# one wgm-disciplined PR ("one thought"). See docs/plans/2026-06-16_GROWTH_LOOP.md.
+#
+# The push/pull_request triggers (scoped to this file) let CI validate the setup is green whenever it
+# changes. The job MUST be named `copilot-setup-steps` or Copilot will not pick it up.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    name: Preinstall wgm for the coding agent
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install the wgm skill (agents + claude + copilot dirs)
+        run: bash scripts/install.sh --user --client all --method copy --force
+
+      - name: Verify wgm is discoverable
+        run: test -f "$HOME/.copilot/skills/wgm/SKILL.md"
