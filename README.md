@@ -187,6 +187,9 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
   `./scripts/loop.sh --help`.
 - Guard long autonomous runs with `--max-runtime-seconds`, `--idle-timeout`, `--checkpoint-interval`
   (auto-commit), and a `--notify "CMD"` lifecycle hook.
+- **Works from any project:** the loop ships with the installed skill and acts on your current
+  directory — run `~/.agents/skills/wgm/scripts/loop.sh` (or your install path) from your project's
+  root. The `./scripts/loop.sh` examples above assume you're inside this repo.
 
 > Run the loop only in an environment you're comfortable letting an agent operate in autonomously
 > (a sandbox or disposable workspace). Autonomous loops bypass per-step approvals by design.

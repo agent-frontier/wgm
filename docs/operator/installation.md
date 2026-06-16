@@ -173,4 +173,8 @@ After installing, open your agent and confirm wgm is listed (e.g. `/skills` in V
 CLI), then invoke `/wgm`. To remove it, re-run the installer with `--uninstall` / `-Uninstall` and
 the same scope/client flags you installed with. In WSL, `--uninstall` also removes the Windows mirror.
 
+**Run the loop from any project:** the installer also places `scripts/loop.sh` inside each target
+above; run that copy from your project's root to drive a fresh-context build there (see
+[running-the-loop.md](running-the-loop.md)).
+
 See also: [running-the-loop.md](running-the-loop.md) · [troubleshooting.md](troubleshooting.md).
