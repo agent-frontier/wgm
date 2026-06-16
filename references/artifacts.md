@@ -12,6 +12,18 @@ continue the work. Fill them from the templates in `assets/`.
 - **Never overwrite an existing `AGENTS.md`.** Touch root `AGENTS.md` only with explicit approval.
 - Decide root vs `.wgm/` **once, in Triage**, and stay consistent for the whole run.
 
+## `specs/CONSTITUTION.md` — project-wide principles
+The governing layer: principles every spec, plan, and task must honor — the code-quality bar, the
+testing standard, security/privacy rules, UX consistency, performance budgets, and hard
+non-negotiables. Source from `assets/constitution.template.md`.
+
+- **Written once**, early (Triage or first Plan), and revised rarely and deliberately.
+- **Loaded first:** if it exists, read it before grilling/planning — it prunes the decision tree.
+- **Checked at the Plan-exit gate:** every spec and task conforms, or records an intentional
+  deviation (date · principle · why · scope) in the constitution's deviations table.
+- **Placement** follows the same root vs `.wgm/` rule as the other artifacts —
+  `specs/CONSTITUTION.md` or `.wgm/specs/CONSTITUTION.md`.
+
 ## `specs/*.md` — what to build and why
 One spec per coherent slice of work. Source from `assets/spec.template.md`. Must capture:
 - **JTBD** — the job, and who it's for.
@@ -46,9 +58,24 @@ Rules:
 - The first task is small enough for one iteration. If no validation signal exists yet, the first
   task is "create a validation signal."
 - Update it **every** iteration so a fresh agent could resume from this file alone.
+- **No placeholders.** Every task names exact files/areas and a runnable validation command. Reject a
+  task that carries a `to-be-decided` / `implement-later` / `fill-in` marker, says "similar to T1", or
+  has no validation command — that is a planning failure, not a task.
 
 ## `AGENTS.md` — lean operational guide
 How to build, run, and validate this project, plus durable codebase patterns. Source from
 `assets/AGENTS.template.md`. Keep it operational and short — **no status/progress notes** (those
 go in the plan). A bloated `AGENTS.md` pollutes every future iteration's context. Never clobber an
 existing one.
+
+## Consistency check (analyze)
+Between Plan and Preflight, treat the artifact set as one system and cross-check it — the
+spec-driven equivalent of "unit tests for the plan." Verify:
+- **No contradictions** across any spec, the plan, the scenarios, and `specs/CONSTITUTION.md`.
+- **Coverage both ways:** every requirement maps to at least one task, and every task traces back to
+  a spec requirement (no orphan work).
+- **Demo path is scenario-backed:** the spec's demo path has a tier-1 holdout scenario.
+- **No ambiguity** in acceptance criteria that a backpressure command or the judge couldn't settle.
+
+Fix or explicitly record each finding before scoring readiness. `/wgm analyze` runs this check when a
+plan already exists — distinct from `/wgm analyze` on a bare repo, which explores code + requirements.

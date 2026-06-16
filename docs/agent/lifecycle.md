@@ -14,7 +14,7 @@ stateDiagram-v2
   [*] --> Triage
   Triage --> Grill
   Grill --> Plan: Grill-exit gate
-  Plan --> Preflight: Plan-exit gate
+  Plan --> Preflight: Plan-exit + consistency
   Preflight --> Grill: readiness < 80
   Preflight --> Loop: readiness >= 80
   state Loop {
@@ -36,7 +36,7 @@ stateDiagram-v2
 |---|---|---|
 | **Triage** | Parse mode; confirm the skill applies; choose Ralph-lite/full; set root vs `.wgm/` | Working dir decided |
 | **Grill** | Interview to alignment, one question at a time | Goal, success criteria, constraints known or assumed |
-| **Plan** | Write specs + scenarios + `IMPLEMENTATION_PLAN.md` | Every task has validation + acceptance; demo path covered by a tier-1 scenario |
+| **Plan** | Write the constitution, specs, scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
 | **Preflight** | Score readiness 0–100 | Readiness ≥ 80 |
 | **Loop** | One task per iteration | Validation exited 0; satisfaction judged; plan updated |
 | **Ship** | Summarize, leave repo resumable | Demo path green; threshold met |
@@ -48,8 +48,9 @@ Details per phase live in the references: [grilling](../../references/grilling.m
 ## Modes are entry points
 
 Invocations like `/wgm grill only` or `/wgm plan: …` enter the machine at one phase and (with `only`)
-hard-stop at its gate. `build` resumes the Loop from an existing plan. The single-phase modes never
-roll forward past their gate — that is what makes wgm safe to drive incrementally.
+hard-stop at its gate. `build` resumes the Loop from an existing plan; `analyze` reports findings on a
+bare repo, or runs the cross-artifact consistency check once a plan exists. The single-phase modes
+never roll forward past their gate — that is what makes wgm safe to drive incrementally.
 
 ## Why gates, not vibes
 
