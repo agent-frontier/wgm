@@ -19,7 +19,8 @@ not just "didn't crash"?* It is the rubber-duck that finds the bug the author ca
 - **Validation audit**: does the task's check actually exercise the behavior, or pass vacuously?
 - **Regression risk**: would this break an adjacent flow the diff doesn't touch?
 - **No noise**: ignores formatting, naming, and style — only issues that genuinely matter.
-- **Binary verdict**: emit `PASS` or `CHANGES-REQUESTED` with the specific defect + why it matters.
+- **Verdict + reservations**: emit `PASS` or `CHANGES-REQUESTED` with the specific defect + why it
+  matters; on `PASS`, still list any **non-blocking reservation** so it is recorded, not lost.
 
 ### Knowledge Base
 Reads the diff, the touched code and its callers, the task's validation command and its output, and
