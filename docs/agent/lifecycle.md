@@ -1,7 +1,8 @@
 # Lifecycle (agent)
 
 This is the state machine the agent follows when running wgm. The authoritative, terse version is
-[`SKILL.md`](../../SKILL.md); this doc explains the shape and the gates.
+[`SKILL.md`](../../SKILL.md); this doc explains the shape and the gates. Operators can read it too,
+to see exactly what `/wgm` will do before they run it.
 
 wgm is deliberately a **state machine, not a checklist**. Each phase ends in a gate that prints every
 item as PASS or FAIL. If any item is FAIL you do not advance — you ask one question, fix the
@@ -34,16 +35,16 @@ stateDiagram-v2
 
 | Phase | Goal | Exit gate (abridged) |
 |---|---|---|
-| **Triage** | Parse mode; confirm the skill applies; classify the work into a Quick/Standard/Full track (default Standard; detail in [`SKILL.md`](../../SKILL.md)); choose Ralph-lite/full; set root vs `.wgm/` | Working dir decided; track chosen |
-| **Grill** | Interview to alignment, one question at a time | Goal, success criteria, constraints known or assumed |
-| **Plan** | Write the constitution, specs, scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
+| **Triage** | Parse mode; confirm the skill applies; classify the work into a Quick/Standard/Full track (default Standard; detail in [`SKILL.md`](../../SKILL.md)); choose Ralph-lite (same session) or Ralph-full (fresh context per iteration via `loop.sh`); set root vs `.wgm/` | Working dir decided; track chosen |
+| **Grill** | Interview to alignment, one question at a time; seed the `CONTEXT.md` glossary | Goal, success criteria, constraints known or assumed |
+| **Plan** | Write the constitution, optional `CONTEXT.md` glossary, specs (EARS-phrased acceptance), scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
 | **Preflight** | Score readiness 0–100 | Readiness ≥ 80 |
-| **Loop** | One task per iteration | Validation exited 0; satisfaction judged; plan updated |
-| **Ship** | Summarize, leave repo resumable | Demo path green; threshold met |
+| **Loop** | One task per iteration (Analyze → Implement → Validate → two-stage review with dissent → Record); rotate context when it fills | Validation exited 0; satisfaction judged; plan updated |
+| **Ship** | Summarize, leave repo resumable; **harvest** a durable lesson (self-improvement) | Demo path green; threshold met |
 
 Details per phase live in the references: [grilling](../../references/grilling.md),
-[artifacts](../../references/artifacts.md), [scoring](../../references/scoring.md), and
-[ralph-loop](../../references/ralph-loop.md).
+[artifacts](../../references/artifacts.md), [scoring](../../references/scoring.md),
+[ralph-loop](../../references/ralph-loop.md), and [subagents](../../references/subagents.md).
 
 ## Modes are entry points
 
@@ -59,4 +60,6 @@ A loop without a deterministic pass/fail signal is just hoping. The gates force 
 in doubt, the gate fails closed.
 
 See also: [attractor-loop.md](attractor-loop.md) ·
-[scenarios-and-scoring.md](scenarios-and-scoring.md).
+[scenarios-and-scoring.md](scenarios-and-scoring.md) ·
+[references/subagents.md](../../references/subagents.md) (the swarm) ·
+[references/self-improvement.md](../../references/self-improvement.md) (the flywheel).

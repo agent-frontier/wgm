@@ -6,7 +6,9 @@ by concern:
 - **[operator/](operator/README.md)** — for the human running wgm: start at the operator overview,
   then install, drive the loop, validation containers, troubleshooting.
 - **[agent/](agent/)** — for the agent following the skill: the lifecycle state machine, the
-  convergence loop, scenarios & scoring, stall recovery, gene transfusion.
+  convergence loop, scenarios & scoring, stall recovery, gene transfusion. The deeper mechanics — the
+  six-subagent **role swarm** and the **self-improvement flywheel** (run at handoff) — live in
+  [`references/`](../references/).
 
 For the quickstart, see the top-level [README](../README.md). The authoritative protocol is
 [`SKILL.md`](../SKILL.md); these docs explain the *why* and the *how* behind it. The terse,
@@ -41,7 +43,7 @@ flowchart TD
 |---|---|---|
 | Operator | [operator/README.md](operator/README.md) | Operator overview: the journey and where to start |
 | Operator | [installation.md](operator/installation.md) | Install on Linux/macOS/Windows/WSL, user vs project |
-| Operator | [running-the-loop.md](operator/running-the-loop.md) | `loop.sh`, Ralph-lite vs full, thresholds, escalation |
+| Operator | [running-the-loop.md](operator/running-the-loop.md) | `loop.sh` + the **swarm** (parallel worktrees), limits, retry/circuit-breaker, the metrics ledger, thresholds, escalation |
 | Operator | [containers.md](operator/containers.md) | Podman/OCI validation environment |
 | Operator | [troubleshooting.md](operator/troubleshooting.md) | Common failures and fixes |
 | Agent | [lifecycle.md](agent/lifecycle.md) | The phase/gate state machine |
@@ -49,12 +51,14 @@ flowchart TD
 | Agent | [scenarios-and-scoring.md](agent/scenarios-and-scoring.md) | Holdout scenarios, judging, satisfaction, tiers |
 | Agent | [stall-recovery.md](agent/stall-recovery.md) | Wonder/reflect + model escalation |
 | Agent | [gene-transfusion.md](agent/gene-transfusion.md) | Seeding the build from an exemplar |
+| Agent | [references/subagents.md](../references/subagents.md) | The six role-specialized subagents (the swarm) + dissent-preserving review |
+| Agent | [references/self-improvement.md](../references/self-improvement.md) | The growth flywheel: harvest → report upstream → promote durable lessons |
 
 ## Plans & roadmap
 
 - [2026-06-16 — competitive analysis & improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
   compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me, with a
-  prioritized improvement roadmap (Tiers 1–2 shipped; Tier 3 underway).
+  prioritized improvement roadmap (**all tiers shipped**).
 - [2026-06-16 — wgm vs the Ralph ecosystem](plans/2026-06-16_RALPH_LANDSCAPE.md) — tracking wgm
   against the loop runners and orchestrators catalogued in awesome-ralph ("wgm vs the world").
 - [2026-06-16 — the growth flywheel](plans/2026-06-16_GROWTH_LOOP.md) — how wgm harvests lessons

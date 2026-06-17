@@ -100,6 +100,14 @@ A trailing `only` runs that single phase and stops; without `only`, a mode start
 continues forward. A leading word counts as a mode only if it's a known keyword followed by `only`,
 `:`, or end of input — so `/wgm build the auth module` is treated as a request, not `build` mode.
 
+**Your first run, end to end** — `/wgm add a dark-mode toggle`:
+1. **Grill** — wgm asks one focused question at a time (e.g. *"persist the choice in `localStorage` —
+   good?"*), each with a recommended answer, so you can often just reply "yes."
+2. **Plan** — it writes `specs/`, blind holdout `scenarios/`, and an `IMPLEMENTATION_PLAN.md` to disk,
+   then self-checks them for gaps before writing any code.
+3. **Build** — it advances **one task per iteration**, running your checks after each, until the plan
+   is done *and* an LLM judge is satisfied — then hands back a clean, buildable repo.
+
 ## What it writes (and how it stays safe)
 
 `wgm` keeps durable state on disk so any fresh agent can resume:
@@ -133,8 +141,8 @@ flowchart LR
   Rec -- target met and checks green --> S[Ship]
 ```
 
-- **Holdout scenarios** — YAML user-journeys graded blind; the build never reads them
-  (`references/scenarios.md`).
+- **Holdout scenarios** — YAML user-journeys graded blind; the **implement step** never reads them
+  (Plan writes them; Validate/Review judge against them) (`references/scenarios.md`).
 - **Satisfaction scoring** — an LLM judge scores 0–100; converge to a threshold (default 95)
   (`references/scoring.md`).
 - **Preflight** — a readiness gate (≥ 80) before any code is written.
@@ -155,6 +163,22 @@ flowchart LR
 - **Memories** — a token-budgeted `.wgm/memories.md` recalled in Analyze and appended in Record, so
   fresh-context iterations don't relearn the same gotchas, stalls, or dead ends
   (`assets/memories.template.md`).
+- **Context rotation** — when the window fills, summarize progress into the plan + memories and
+  **rotate to fresh context** rather than grinding on a degraded one (`references/ralph-loop.md`).
+- **Two-stage subagent review (the role swarm)** — six role-specialized agents (griller · implementer ·
+  spec + quality reviewers · validator · diagnostician); the two reviewers run independently and
+  **preserve dissent** — a minority concern is recorded, never collapsed into a silent PASS
+  (`references/subagents.md`).
+- **EARS acceptance criteria** — *Easy Approach to Requirements Syntax*: phrase each criterion in a
+  testable trigger/state/response shape (e.g. "When X, the system shall Y") so a check or judge can
+  settle it (`references/artifacts.md`).
+- **Domain glossary** — an optional `specs/CONTEXT.md` of canonical names keeps naming consistent
+  across fresh-context iterations (`assets/context.template.md`).
+- **Token economy** — human-facing artifacts stay readable, while agent-only state may use
+  single-token keys (TOON, a compact serialization for agent-only files) to shrink what the agent
+  must reread each iteration (`references/artifacts.md`).
+- **Self-improvement flywheel** — at handoff, harvest a durable, sanitized lesson and (opt-in) report
+  it upstream, so wgm grows from every codebase (`references/self-improvement.md`).
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).
@@ -181,9 +205,10 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
 ./scripts/loop.sh build -- claude -p
 ```
 
-**Swarm (parallel worktrees):** `scripts/swarm.sh` fans the loop out across several `git worktree`
+**Worktree swarm (parallel `git worktree`s):** `scripts/swarm.sh` fans the loop out across several
 branches at once — one stream per task (`--tasks FILE`) or N identical streams (`-n N`), each on its
-own `wgm/swarm/N` branch to merge back. See [docs/operator/running-the-loop.md](docs/operator/running-the-loop.md).
+own `wgm/swarm/N` branch to merge back. (Parallelism across *tasks* — distinct from the **role swarm**
+of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](docs/operator/running-the-loop.md).
 
 - Modes match the skill: `grill | analyze | plan | preflight | build | review | extract` (plus
   `only` for a single pass).
@@ -195,6 +220,11 @@ own `wgm/swarm/N` branch to merge back. See [docs/operator/running-the-loop.md](
   `./scripts/loop.sh --help`.
 - Guard long autonomous runs with `--max-runtime-seconds`, `--idle-timeout`, `--checkpoint-interval`
   (auto-commit), and a `--notify "CMD"` lifecycle hook.
+- **Survive transient failures:** the loop retries a failed agent call with exponential backoff +
+  jitter (`--max-retries`) and trips a **circuit breaker** after N consecutive failures
+  (`--max-consecutive-failures`) instead of dying on the first hiccup.
+- **Measure the run:** `--metrics FILE` logs a per-iteration TSV (duration, progress, result), with a
+  pluggable `--cost-cmd` for token/cost — for data-driven runs.
 - **Works from any project:** the loop ships with the installed skill and acts on your current
   directory — run `~/.agents/skills/wgm/scripts/loop.sh` (or your install path) from your project's
   root. The `./scripts/loop.sh` examples above assume you're inside this repo.
@@ -208,10 +238,11 @@ own `wgm/swarm/N` branch to merge back. See [docs/operator/running-the-loop.md](
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · artifacts · scenarios · scoring · stall-recovery · gene-transfusion · validation-env
-├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · genes templates
-├── scripts/          # loop.sh (Ralph loop) · install.sh · install.ps1
-└── docs/             # operator/ and agent/ guides (Mermaid diagrams)
+├── references/       # grilling · ralph-loop · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · state.toon templates
+├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · install.sh · install.ps1
+├── .github/agents/   # the six role-specialized subagents (the swarm)
+└── docs/             # operator/ · agent/ · plans/ guides (Mermaid diagrams)
 ```
 
 ## Community
