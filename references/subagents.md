@@ -53,6 +53,16 @@ A single reviewer conflates "builds the right thing" with "builds it correctly,"
 its own assumptions. Splitting intent (spec) from correctness (quality) raises the chance a real
 defect is named, and keeps each review high-signal — no style nits, only issues that matter.
 
+## Dissent preservation
+A binary verdict can hide a real signal: a reviewer that PASSes may still hold a **non-blocking
+reservation**, and the two reviewers may **disagree**. Collapsing that into a single PASS is *false
+consensus* — the minority concern is rationalized away and never revisited. So:
+- Each reviewer emits its verdict **plus any reservations** — concerns that don't block this task.
+- The orchestrator **records reservations and any reviewer disagreement** as a durable follow-up — a
+  task in `IMPLEMENTATION_PLAN.md` or a note in `.wgm/memories.md` — even when the verdict is PASS.
+- The deterministic gate + both PASS verdicts still decide "done"; dissent is **preserved, not
+  averaged away**, so a valid concern survives across fresh-context iterations.
+
 ## Model selection
 Right-size the model per role: the **griller** and **implementer** can run on a frugal model for
 interview and mechanical work; the **reviewers**, the **validator**, and the **diagnostician** earn a

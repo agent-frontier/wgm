@@ -181,7 +181,9 @@ stop condition fires. **One task per iteration.** Each iteration:
    `references/validation-env.md`). Deterministic checks still gate "done."
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
    actually prove the task (not just "didn't crash")? You may split this into **two independent
-   subagents** — spec-compliance then code-quality — for higher-signal review (`references/subagents.md`).
+   subagents** — spec-compliance then code-quality — for higher-signal review. **Preserve dissent:**
+   record a reviewer's non-blocking reservation (or a disagreement between the two) as a follow-up,
+   never a silent PASS (`references/subagents.md`).
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone. **Remember:** append
    any durable lesson (a stall's cause + fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,

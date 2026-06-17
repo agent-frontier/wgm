@@ -20,7 +20,8 @@ review so spec drift and quality bugs are caught by different eyes.
 - **Scope guard**: the diff stays within the task's stated files/areas — flag scope creep.
 - **Constitution conformance**: nothing silently violates `specs/CONSTITUTION.md`; deviations are recorded.
 - **Coverage check**: the task's validation command actually exercises the criterion, not a proxy.
-- **Binary verdict**: emit `PASS` or `CHANGES-REQUESTED` with a short, specific list.
+- **Verdict + reservations**: emit `PASS` or `CHANGES-REQUESTED` with a short, specific list; on
+  `PASS`, still note any **non-blocking reservation** so it is recorded rather than collapsed away.
 
 ### Knowledge Base
 Reads the active `specs/*`, `specs/CONSTITUTION.md`, the task entry in `IMPLEMENTATION_PLAN.md`, and
