@@ -42,7 +42,8 @@ run() {  # run swarm.sh, capturing combined output + exit code without tripping 
 
 reset_swarm() {  # tear down every worktree under .wgm/worktrees + every wgm/* branch
   while IFS= read -r w; do
-    [[ -n "$w" ]] && git worktree remove --force "$w" 2>/dev/null || true
+    [[ -n "$w" ]] || continue
+    git worktree remove --force "$w" 2>/dev/null || true
   done < <(git worktree list --porcelain | awk '/^worktree /{print $2}' | grep '/\.wgm/worktrees/' || true)
   git worktree prune 2>/dev/null || true
   while IFS= read -r b; do
