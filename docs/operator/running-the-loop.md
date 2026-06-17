@@ -139,6 +139,21 @@ The breaker counts only **consecutive** failures — any successful iteration re
 fast** on the first error (the pre-resilience behavior), set `--max-retries 0 --max-consecutive-failures 1`.
 Each retry and the breaker trip emit `--notify` events (`retry` / `error`).
 
+### Metrics ledger (data-driven runs)
+
+`--metrics FILE` appends a TSV row per iteration, so you can reason about a run's cost and behavior:
+
+| Columns | Meaning |
+|---|---|
+| `timestamp` · `iter` · `mode` · `agent` | when, which iteration, the mode, and frugal/main |
+| `duration_s` · `plan_changed` · `result` | wall-clock seconds, whether the plan advanced (1/0), `ok`/`fail` |
+| `cost` | token/cost figure from `--cost-cmd` (empty if unset) |
+
+A host-agnostic loop can't read a black-box agent's token usage, so plug your own: `--cost-cmd "CMD"`
+runs after each iteration (with `$WGM_ITER` set) and its stdout fills the `cost` column — best-effort,
+its failure never breaks the loop. Example:
+`--metrics .wgm/metrics.tsv --cost-cmd 'tail -1 .wgm/usage.log'`.
+
 ## Project gates (wgm.yml)
 
 A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands

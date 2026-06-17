@@ -52,6 +52,10 @@
 #   --max-consecutive-failures N  circuit breaker: stop after N build iterations that fail every
 #                        retry in a row; 0 = never trip (default: 3). For fail-fast on the first
 #                        error, set --max-retries 0 --max-consecutive-failures 1.
+#   --metrics FILE       append a per-iteration TSV row (timestamp, iter, mode, agent, duration,
+#                        plan_changed, result, cost) to FILE — run telemetry for data-driven runs
+#   --cost-cmd "CMD"     after each iteration run CMD (shell) to print a token/cost figure for the
+#                        `cost` column; best-effort, its failure never breaks the loop (default: none)
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             git add -A && git commit after each build iteration (off by default)
 #   -h | --help          show this help
@@ -93,6 +97,8 @@ MAX_RETRIES=2
 RETRY_BASE_DELAY=5
 RETRY_MAX_DELAY=60
 MAX_CONSEC_FAIL=3
+METRICS_FILE=""
+COST_CMD=""
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -122,6 +128,8 @@ while [[ $# -gt 0 ]]; do
     --retry-base-delay) [[ $# -ge 2 ]] || { echo "--retry-base-delay requires a number" >&2; exit 2; }; RETRY_BASE_DELAY="$2"; shift 2 ;;
     --retry-max-delay) [[ $# -ge 2 ]] || { echo "--retry-max-delay requires a number" >&2; exit 2; }; RETRY_MAX_DELAY="$2"; shift 2 ;;
     --max-consecutive-failures) [[ $# -ge 2 ]] || { echo "--max-consecutive-failures requires a number" >&2; exit 2; }; MAX_CONSEC_FAIL="$2"; shift 2 ;;
+    --metrics) [[ $# -ge 2 ]] || { echo "--metrics requires a file" >&2; exit 2; }; METRICS_FILE="$2"; shift 2 ;;
+    --cost-cmd) [[ $# -ge 2 ]] || { echo "--cost-cmd requires a command" >&2; exit 2; }; COST_CMD="$2"; shift 2 ;;
     --)        shift; AGENT_ARGV=("$@"); break ;;
     --*)       echo "Unknown flag: $1" >&2; exit 2 ;;
     *)         POSITIONAL+=("$1"); shift ;;
@@ -233,6 +241,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
   echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
   echo "retries=${MAX_RETRIES} retry_base=${RETRY_BASE_DELAY}s retry_max=${RETRY_MAX_DELAY}s circuit_breaker=${MAX_CONSEC_FAIL}"
+  echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set}"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
@@ -276,6 +285,21 @@ plan_hash() {
 notify() {  # $1 = lifecycle event; best-effort, its failure never breaks the loop
   [[ -n "$NOTIFY" ]] || return 0
   WGM_EVENT="$1" WGM_ITER="${ITER:-0}" bash -c "$NOTIFY" || true
+}
+
+record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
+  [[ -n "$METRICS_FILE" ]] || return 0
+  local dur changed cost ts
+  dur=$(( $(date +%s) - ITER_START ))
+  if [[ "$(plan_hash)" != "$HASH_BEFORE" ]]; then changed=1; else changed=0; fi
+  cost=""
+  if [[ -n "$COST_CMD" ]]; then
+    cost="$(WGM_EVENT=iteration WGM_ITER="$ITER" bash -c "$COST_CMD" 2>/dev/null || true)"
+    cost="${cost//$'\t'/ }"; cost="${cost//$'\n'/ }"
+  fi
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  [[ -f "$METRICS_FILE" ]] || printf 'timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\n' > "$METRICS_FILE"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" >> "$METRICS_FILE"
 }
 
 # Model escalation engages only when BOTH a frugal and a main agent are available.
@@ -326,11 +350,14 @@ while :; do
   echo ""
   echo "==================== wgm ${MODE} (${ACTIVE}) — iteration ${ITER} ===================="
   HASH_BEFORE="$(plan_hash)"
+  ITER_START=$(date +%s)
   if run_iteration; then
     CONSEC_FAIL=0
     COMPLETED=$((COMPLETED + 1))
+    record_metrics ok
   else
     CONSEC_FAIL=$((CONSEC_FAIL + 1))
+    record_metrics fail
     echo "Agent failed iteration ${ITER} after exhausting retries (consecutive: ${CONSEC_FAIL})." >&2
     if [[ "$MODE" != "build" ]]; then notify error; exit 1; fi
     if [[ "$MAX_CONSEC_FAIL" -ne 0 && "$CONSEC_FAIL" -ge "$MAX_CONSEC_FAIL" ]]; then

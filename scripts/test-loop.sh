@@ -3,9 +3,10 @@
 # wgm/test-loop.sh — deterministic backpressure for scripts/loop.sh.
 #
 # Exercises the operational-limit knobs (--max-runtime-seconds, --idle-timeout,
-# --checkpoint-interval, --notify) and the resilience knobs (--max-retries with backoff,
-# --max-consecutive-failures circuit breaker) with a fake agent in a throwaway git repo, so the
-# loop's safety behavior has a real pass/fail signal. No real agent, model, or network is needed.
+# --checkpoint-interval, --notify), the resilience knobs (--max-retries with backoff,
+# --max-consecutive-failures circuit breaker), and the metrics ledger (--metrics, --cost-cmd) with a
+# fake agent in a throwaway git repo, so the loop's safety behavior has a real pass/fail signal. No
+# real agent, model, or network is needed.
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -152,6 +153,33 @@ if [[ "$RC" -eq 1 ]] && grep -q "Circuit breaker: 2 consecutive" <<<"$OUT"; then
   pass "circuit breaker stops after N consecutive failures"
 else
   fail "circuit breaker did not trip on persistent failure (rc=$RC)"
+fi
+
+# 14) --metrics logs a header + one row per iteration
+rm -f metrics.tsv
+run build 2 --metrics metrics.tsv -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 && -f metrics.tsv ]] && head -1 metrics.tsv | grep -q "timestamp" && head -1 metrics.tsv | grep -q "cost" && [[ "$(($(wc -l < metrics.tsv) - 1))" -eq 2 ]] && grep -q $'\tok\t' metrics.tsv; then
+  pass "metrics ledger logs a header + a row per iteration"
+else
+  fail "metrics ledger did not log expected rows (rc=$RC)"
+fi
+rm -f metrics.tsv
+
+# 15) --cost-cmd populates the cost column
+run build 1 --metrics metrics.tsv --cost-cmd 'echo 0.42' -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 ]] && tail -1 metrics.tsv | grep -q "0.42"; then
+  pass "cost-cmd populates the cost column"
+else
+  fail "cost-cmd did not populate the cost column (rc=$RC)"
+fi
+rm -f metrics.tsv
+
+# 16) --dry-run surfaces the metrics knobs
+run build --dry-run --metrics m.tsv --cost-cmd 'echo x' -- true
+if [[ "$RC" -eq 0 ]] && grep -q "metrics=m.tsv cost_cmd=set" <<<"$OUT"; then
+  pass "dry-run surfaces the metrics knobs"
+else
+  fail "dry-run did not surface the metrics knobs (rc=$RC)"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then
