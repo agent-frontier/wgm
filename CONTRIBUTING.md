@@ -48,6 +48,9 @@ actionlint                                    # lint .github/workflows/*.yml (CI
 > `skills-ref validate wgm` must be run from the **parent** directory, because the validator requires
 > the skill folder's basename to equal the skill name (`wgm`).
 
+Or run the local subset with **`make validate`** (lint + docs + the bash harnesses); `make help`
+lists every target (`make update` refreshes your installed copy, `make test`, `make lint`, …).
+
 ## Making a change
 
 1. Fork and branch from `main`.
