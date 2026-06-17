@@ -45,6 +45,13 @@
 #   --gates FILE         project-wide backpressure: a YAML file with a `gates:` list of commands,
 #                        injected as mandatory checks into every build iteration (default:
 #                        auto-detect wgm.yml or .wgm/gates.yml)
+#   --max-retries N      retry a failed agent invocation up to N times per iteration, with
+#                        exponential backoff + jitter; 0 = no retry (default: 2)
+#   --retry-base-delay N base seconds for the backoff (full jitter, capped); 0 = no wait (default: 5)
+#   --retry-max-delay N  cap for a single backoff wait, in seconds (default: 60)
+#   --max-consecutive-failures N  circuit breaker: stop after N build iterations that fail every
+#                        retry in a row; 0 = never trip (default: 3). For fail-fast on the first
+#                        error, set --max-retries 0 --max-consecutive-failures 1.
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             git add -A && git commit after each build iteration (off by default)
 #   -h | --help          show this help
@@ -82,6 +89,10 @@ IDLE_TIMEOUT=0
 CHECKPOINT_INTERVAL=0
 NOTIFY=""
 GATES_FILE=""
+MAX_RETRIES=2
+RETRY_BASE_DELAY=5
+RETRY_MAX_DELAY=60
+MAX_CONSEC_FAIL=3
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -107,6 +118,10 @@ while [[ $# -gt 0 ]]; do
     --checkpoint-interval) [[ $# -ge 2 ]] || { echo "--checkpoint-interval requires a number" >&2; exit 2; }; CHECKPOINT_INTERVAL="$2"; shift 2 ;;
     --notify) [[ $# -ge 2 ]] || { echo "--notify requires a command" >&2; exit 2; }; NOTIFY="$2"; shift 2 ;;
     --gates) [[ $# -ge 2 ]] || { echo "--gates requires a file" >&2; exit 2; }; GATES_FILE="$2"; shift 2 ;;
+    --max-retries) [[ $# -ge 2 ]] || { echo "--max-retries requires a number" >&2; exit 2; }; MAX_RETRIES="$2"; shift 2 ;;
+    --retry-base-delay) [[ $# -ge 2 ]] || { echo "--retry-base-delay requires a number" >&2; exit 2; }; RETRY_BASE_DELAY="$2"; shift 2 ;;
+    --retry-max-delay) [[ $# -ge 2 ]] || { echo "--retry-max-delay requires a number" >&2; exit 2; }; RETRY_MAX_DELAY="$2"; shift 2 ;;
+    --max-consecutive-failures) [[ $# -ge 2 ]] || { echo "--max-consecutive-failures requires a number" >&2; exit 2; }; MAX_CONSEC_FAIL="$2"; shift 2 ;;
     --)        shift; AGENT_ARGV=("$@"); break ;;
     --*)       echo "Unknown flag: $1" >&2; exit 2 ;;
     *)         POSITIONAL+=("$1"); shift ;;
@@ -125,7 +140,7 @@ case "$MODE" in
 esac
 
 case "$CONTAINER" in podman|docker) ;; *) echo "Invalid --container: $CONTAINER (podman|docker)" >&2; exit 2 ;; esac
-for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$CHECKPOINT_INTERVAL"; do
+for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$CHECKPOINT_INTERVAL" "$MAX_RETRIES" "$RETRY_BASE_DELAY" "$RETRY_MAX_DELAY" "$MAX_CONSEC_FAIL"; do
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "expected a non-negative integer, got: $n" >&2; exit 2; }
 done
 
@@ -217,6 +232,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "mode=${MODE} max_iterations=${MAX_ITERS} plan=${PLAN_REF} commit=${DO_COMMIT}"
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
   echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
+  echo "retries=${MAX_RETRIES} retry_base=${RETRY_BASE_DELAY}s retry_max=${RETRY_MAX_DELAY}s circuit_breaker=${MAX_CONSEC_FAIL}"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
@@ -270,8 +286,28 @@ ESC_ENABLED=0
 if [[ -n "$FRUGAL_AGENT" ]]; then ACTIVE="frugal"; else ACTIVE="main"; fi
 run_current() { if [[ "$ACTIVE" == "frugal" ]]; then run_frugal; else run_main; fi; }
 
+# Run one agent invocation, retrying a non-zero exit with exponential backoff + full jitter
+# (AWS-style), capped at --retry-max-delay. Returns 0 on success, the last failure code otherwise.
+run_iteration() {
+  local attempt=0 rc=0 exp ceil delay
+  while :; do
+    run_current && return 0
+    rc=$?
+    [[ "$attempt" -ge "$MAX_RETRIES" ]] && return "$rc"
+    attempt=$((attempt + 1))
+    exp=$((attempt - 1)); [[ "$exp" -gt 30 ]] && exp=30
+    ceil=$(( RETRY_BASE_DELAY * (1 << exp) ))
+    [[ "$ceil" -gt "$RETRY_MAX_DELAY" ]] && ceil="$RETRY_MAX_DELAY"
+    if [[ "$ceil" -le 0 ]]; then delay=0; else delay=$(( RANDOM % (ceil + 1) )); fi
+    echo "⚠ agent failed (rc=${rc}) on iteration ${ITER}; retry ${attempt}/${MAX_RETRIES} after ${delay}s backoff." >&2
+    notify retry
+    sleep "$delay"
+  done
+}
+
 ITER=0
 COMPLETED=0
+CONSEC_FAIL=0
 NOPROG=0
 PROG=0
 START_TS=$(date +%s)
@@ -290,8 +326,19 @@ while :; do
   echo ""
   echo "==================== wgm ${MODE} (${ACTIVE}) — iteration ${ITER} ===================="
   HASH_BEFORE="$(plan_hash)"
-  run_current || { echo "Agent exited non-zero on iteration ${ITER}; stopping." >&2; notify error; exit 1; }
-  COMPLETED=$((COMPLETED + 1))
+  if run_iteration; then
+    CONSEC_FAIL=0
+    COMPLETED=$((COMPLETED + 1))
+  else
+    CONSEC_FAIL=$((CONSEC_FAIL + 1))
+    echo "Agent failed iteration ${ITER} after exhausting retries (consecutive: ${CONSEC_FAIL})." >&2
+    if [[ "$MODE" != "build" ]]; then notify error; exit 1; fi
+    if [[ "$MAX_CONSEC_FAIL" -ne 0 && "$CONSEC_FAIL" -ge "$MAX_CONSEC_FAIL" ]]; then
+      echo "Circuit breaker: ${CONSEC_FAIL} consecutive failed iteration(s); stopping." >&2
+      notify error; exit 1
+    fi
+    continue
+  fi
 
   if [[ "$MODE" == "build" ]]; then
     DO_CP=0

@@ -123,6 +123,22 @@ Guardrails for long autonomous runs — all **off by default**, so existing beha
 `--notify` is shell-evaluated like `--agent`, so set it only to a command you trust; its own failure
 never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`.
 
+### Resilience — retries & circuit breaker
+
+Unlike the limits above, these default **on**, so a long unattended run survives a transient blip
+(a rate-limit, a network hiccup) instead of dying on the first non-zero agent exit.
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--max-retries N` | 2 | Retry a failed agent invocation up to N times in the same iteration, with exponential backoff + full jitter. |
+| `--retry-base-delay N` | 5 | Base seconds for the backoff (each wait is a random `0..min(base·2^k, cap)`); 0 = no wait. |
+| `--retry-max-delay N` | 60 | Cap for any single backoff wait, in seconds. |
+| `--max-consecutive-failures N` | 3 | Circuit breaker: stop the build loop after N iterations that exhaust their retries in a row; 0 = never trip. |
+
+The breaker counts only **consecutive** failures — any successful iteration resets it. To **fail
+fast** on the first error (the pre-resilience behavior), set `--max-retries 0 --max-consecutive-failures 1`.
+Each retry and the breaker trip emit `--notify` events (`retry` / `error`).
+
 ## Project gates (wgm.yml)
 
 A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands
