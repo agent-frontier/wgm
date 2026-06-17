@@ -46,7 +46,13 @@ One spec per coherent slice of work. Source from `assets/spec.template.md`. Must
 - **Magic moment** — the one thing that should impress; the demo path; the smallest end-to-end
   slice that proves value.
 - **Acceptance criteria → backpressure** — each criterion paired with the command/check that
-  verifies it.
+  verifies it. Write the criterion in **EARS** (Easy Approach to Requirements Syntax) so it is
+  unambiguous and testable — one of five shapes:
+  - *Ubiquitous:* "The [system] shall [response]."
+  - *Event-driven:* "When [trigger], the [system] shall [response]."
+  - *State-driven:* "While [state], the [system] shall [response]."
+  - *Optional:* "Where [feature], the [system] shall [response]."
+  - *Unwanted:* "If [undesired condition], then the [system] shall [response]."
 - **Assumptions & out-of-scope** — recommended assumptions made during grilling, and explicit
   non-goals for this pass.
 

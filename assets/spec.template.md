@@ -17,9 +17,13 @@
 - **Merely functional vs magical:** <what would make this feel flat, so we avoid it>
 
 ## Acceptance criteria → backpressure
-| Criterion | How it's verified (command/check) |
+Phrase each criterion in **EARS** (see `references/artifacts.md`) — e.g. "When [trigger], the
+[system] shall [response]" — so it is unambiguous and a command or judge can settle it.
+
+| Criterion (EARS) | How it's verified (command/check) |
 |---|---|
 | <criterion> | <`npm test ...` / `pytest ...` / curl probe / type-check / LLM-judge> |
+| When a user submits valid credentials, the API shall return 200 with a token | `pytest -k login_ok` |
 
 ## Holdout scenarios
 - **Files:** <`scenarios/*.yaml` (or `.wgm/scenarios/`) that verify this slice from the user's seat>

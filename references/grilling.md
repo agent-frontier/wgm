@@ -31,6 +31,8 @@ Walk down each branch of the decision tree, resolving dependencies between decis
 - **Constraints:** stack, deadlines, must-use/avoid tech, performance, security, deployment target.
 - **Scope edges:** what is explicitly out of scope for this pass?
 - **Acceptance + backpressure:** how will each criterion be *verified* by a command or check?
+  Phrase each as a testable **EARS** requirement (`references/artifacts.md`) — the trigger / state /
+  response shape forces out the ambiguity a test or an LLM judge otherwise can't settle.
 
 ## Grill-exit gate
 Stop interviewing and move to planning when **all** hold:
