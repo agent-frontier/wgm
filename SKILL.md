@@ -83,7 +83,8 @@ the artifact, or stop with a recorded blocker. Gates are not advisory.
      the bundled loop runner (`scripts/loop.sh` **inside this skill's own directory**, the base dir
      this `SKILL.md` loads from) **from the target project's root**, or restart with a clean context
      between iterations. Fresh context is the stronger mode; in-session work must compensate with
-     strict persistence.
+     strict persistence. For independent slices, fan out in parallel with `scripts/swarm.sh` — one
+     git worktree + branch per stream, merged back branch by branch.
 4. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
    load it — its principles govern every later decision.
@@ -256,4 +257,4 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
 - `references/self-improvement.md` — the growth flywheel: harvest lessons, report them upstream, and promote durable ones; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`), plus `state.template.toon` — compact agent-only state.
-- `scripts/loop.sh` — optional external Ralph loop. `scripts/install.sh` / `install.ps1` — installers.
+- `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.

@@ -48,6 +48,9 @@ jobs:
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
 
+      - name: Swarm harness (bash)
+        run: bash scripts/test-swarm.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |

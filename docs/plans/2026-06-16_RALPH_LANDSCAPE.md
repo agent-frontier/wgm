@@ -51,7 +51,7 @@ on **discipline** (grill → governed plan → holdout-judged loop), not on bein
 | ralph-wiggum-cursor | Cursor; token tracking; context rotation at 80k | Runs on any agent; **context rotation + summarize-forward now in-protocol** | Token-budget *enforcement* baked into `loop.sh` |
 | opencode-ralph-wiggum | OpenCode; mid-loop injection; struggle detection | Holdout judge; **named struggle signals auto-trip recovery** | A mid-loop context *injection* hook |
 | Goose Ralph Loop | Cross-model review; recipes | Two-stage subagent review already shipped | Cross-**model** (not just role) review |
-| multi-agent-ralph-loop | Parallel multi-agent streams | Sequenced subagent roles + backpressure | **Parallel worktree** loops |
+| multi-agent-ralph-loop | Parallel multi-agent streams | **Parallel git-worktree streams now shipped** (`swarm.sh`) + sequenced subagent roles | Auto-partition + auto-merge of streams |
 
 ## Where wgm sits
 
@@ -102,17 +102,17 @@ layered/compaction-surviving memory and the dissent-preserving review.
 - **Where wgm already matches the field:** fresh-context loop, signs and gates, `wgm.yml`
   backpressure gates, loop limits (runtime / idle / checkpoint), **retry + backoff & a
   consecutive-failure circuit breaker**, a **per-iteration metrics ledger** (with a pluggable cost
-  hook), memories with an **upstream promotion flow**, **context rotation / summarize-forward** at a
-  token budget, **named struggle signals**, model escalation, and a host-agnostic `loop.sh`.
-- **Shipped recently:** a per-iteration metrics ledger + pluggable cost hook (this cycle) · retry +
-  backoff & a consecutive-failure circuit breaker · context rotation / summarize-forward + named
-  struggle signals · the memory **promotion flow** (the growth flywheel) · scale-adaptive tracks ·
-  two-stage subagent review · the six-role swarm.
-- **Watchlist (borrow next):** semantic exit /
-  response analysis (ralph-claude-code) · task-tracker integrations
-  (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
-  (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop) ·
-  dissent-preserving review (elves).
+  hook), **parallel git-worktree streams** (`swarm.sh`), **dissent-preserving review**, **EARS**
+  acceptance criteria, memories with an **upstream promotion flow**, **context rotation /
+  summarize-forward** at a token budget, **named struggle signals**, model escalation, and a
+  host-agnostic `loop.sh`.
+- **Shipped recently:** parallel git-worktree streams (`swarm.sh`) · dissent-preserving review ·
+  EARS acceptance criteria · a per-iteration metrics ledger + pluggable cost hook · retry + backoff &
+  a consecutive-failure circuit breaker · context rotation / summarize-forward + named struggle
+  signals · the memory **promotion flow** (the growth flywheel).
+- **Watchlist (borrow next):** semantic exit / response analysis (ralph-claude-code) · task-tracker
+  integrations (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
+  (choo-choo-ralph).
 
 ## How this was tracked
 Surveyed on 2026-06-16 (re-run the same day to refresh the gap analysis against the latest field),
