@@ -22,13 +22,16 @@
 #   --force           overwrite/replace an existing install
 #   --no-windows      (WSL only) do NOT mirror into your Windows home
 #   --windows-home P  (WSL only) mirror into Windows home P (default: auto-detect via /mnt)
-#   --ref REF         git ref (branch/tag/sha) to self-fetch when piped (default: main)
+#   --ref REF         ref to self-fetch when piped: a branch/tag/sha, or "latest" for the newest
+#                       published release (default: main)
 #   -h | --help       show this help
 #
 # Self-fetch: when run via `curl … | bash` with no local checkout, the script downloads the repo
 # itself. Override the source with env vars:
 #   WGM_REPO          owner/name to fetch        (default: agent-frontier/wgm)
-#   WGM_REF           branch/tag/sha to fetch    (default: main; same as --ref)
+#   WGM_REF           branch/tag/sha or "latest" (default: main; same as --ref). A tag (vX.Y[.Z]) or
+#                       "latest" installs the matching GitHub *release* tarball published by the
+#                       release CI; any other ref uses the codeload source tarball.
 #   WGM_TARBALL_URL   explicit .tar.gz URL       (advanced/offline; e.g. file://…)
 #   WGM_WINDOWS_HOME  WSL: Windows home to mirror into (same as --windows-home)
 #
@@ -97,37 +100,70 @@ BOOTSTRAP=0
 TMP_FETCH=""
 _cleanup_fetch() { [[ -n "$TMP_FETCH" && -d "$TMP_FETCH" ]] && rm -rf "$TMP_FETCH"; }
 
+# Resolve the archive URL for the current WGM_REPO/WGM_REF. An explicit WGM_TARBALL_URL always wins.
+# A *released* ref — the literal "latest", or a vX.Y[.Z] tag — resolves to the release ASSET the
+# release CI publishes, so the validated tarball is what gets installed; any other ref (a branch or
+# sha, including the default "main") uses the codeload source tarball. Echoes the URL.
+resolve_source_url() {
+  if [[ -n "$WGM_TARBALL_URL" ]]; then printf '%s\n' "$WGM_TARBALL_URL"; return 0; fi
+  case "$WGM_REF" in
+    latest)  printf '%s\n' "https://github.com/$WGM_REPO/releases/latest/download/wgm.tar.gz" ;;
+    v[0-9]*) printf '%s\n' "https://github.com/$WGM_REPO/releases/download/$WGM_REF/wgm-$WGM_REF.tar.gz" ;;
+    *)       printf '%s\n' "https://codeload.github.com/$WGM_REPO/tar.gz/$WGM_REF" ;;
+  esac
+}
+
+# Download $1 (a .tar.gz URL) into $2 and, on success, point SRC_DIR at the extracted skill root —
+# handling both a codeload <repo>-<ref>/ wrapper and a flat release tarball (SKILL.md at the top).
+# Returns non-zero on any fetch/unpack miss so the caller can try the next candidate.
+_extract_into() {
+  local url="$1" dest="$2" got=0
+  command -v tar >/dev/null 2>&1 || return 1
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" | tar -xz -C "$dest" && got=1
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "$url" | tar -xz -C "$dest" && got=1
+  fi
+  [[ "$got" -eq 1 ]] || return 1
+  local d
+  for d in "$dest"/*/; do
+    [[ -d "$d" && -f "${d}SKILL.md" ]] || continue
+    SRC_DIR="${d%/}"; return 0
+  done
+  [[ -f "$dest/SKILL.md" ]] && { SRC_DIR="$dest"; return 0; }
+  return 1
+}
+
 fetch_source() {
   # Download the wgm repo into $1 and set SRC_DIR to the extracted skill root (the dir with SKILL.md).
   local dest="$1"
-  local url="${WGM_TARBALL_URL:-https://codeload.github.com/$WGM_REPO/tar.gz/$WGM_REF}"
   printf '%s\n' "  fetching: $WGM_REPO@$WGM_REF" >&2
-  local got=0
-  if command -v tar >/dev/null 2>&1; then
-    if command -v curl >/dev/null 2>&1; then
-      if curl -fsSL "$url" | tar -xz -C "$dest"; then got=1; fi
-    elif command -v wget >/dev/null 2>&1; then
-      if wget -qO- "$url" | tar -xz -C "$dest"; then got=1; fi
-    fi
+  # Candidate URLs, tried in order. For a tag the release asset is preferred, with the codeload
+  # source tarball as a fallback (e.g. a tag pushed before its release finished publishing).
+  local urls=() u i=0
+  urls+=("$(resolve_source_url)")
+  if [[ "$WGM_REF" != "latest" ]]; then
+    local cl="https://codeload.github.com/$WGM_REPO/tar.gz/$WGM_REF"
+    if [[ "${urls[0]}" != "$cl" ]]; then urls+=("$cl"); fi
   fi
-  if [[ "$got" -eq 1 ]]; then
-    # A GitHub codeload tarball unpacks to a single <repo>-<ref>/ wrapper dir.
-    local d
-    for d in "$dest"/*/; do
-      [[ -d "$d" ]] || continue
-      if [[ -f "${d}SKILL.md" ]]; then SRC_DIR="${d%/}"; return 0; fi
-    done
-    if [[ -f "$dest/SKILL.md" ]]; then SRC_DIR="$dest"; return 0; fi
-  fi
-  # Fallback: shallow git clone (handles odd tarball layouts or a missing curl/tar).
-  if command -v git >/dev/null 2>&1; then
-    printf '%s\n' "  tarball fetch unavailable — trying git clone" >&2
+  for u in "${urls[@]}"; do
+    local sub="$dest/try$i"; i=$((i + 1)); mkdir -p "$sub"
+    printf '%s\n' "  trying: $u" >&2
+    if _extract_into "$u" "$sub"; then return 0; fi
+    rm -rf "$sub"
+  done
+  # Fallback: shallow git clone (handles a missing curl/tar or an odd layout). "latest" is not a ref.
+  if [[ "$WGM_REF" != "latest" ]] && command -v git >/dev/null 2>&1; then
+    printf '%s\n' "  archive fetch unavailable — trying git clone" >&2
     if git clone --depth 1 --branch "$WGM_REF" "https://github.com/$WGM_REPO" "$dest/clone" >/dev/null 2>&1; then
       if [[ -f "$dest/clone/SKILL.md" ]]; then SRC_DIR="$dest/clone"; return 0; fi
     fi
   fi
   echo "Failed to fetch wgm ($WGM_REPO@$WGM_REF)." >&2
-  echo "  tried tarball: $url" >&2
+  echo "  tried: ${urls[*]}" >&2
+  if [[ "$WGM_REF" == "latest" ]]; then
+    echo "  (no published release yet? install bleeding-edge with WGM_REF=main)" >&2
+  fi
   echo "Install from a clone instead: git clone https://github.com/$WGM_REPO && cd \"\${WGM_REPO##*/}\" && ./scripts/install.sh" >&2
   exit 1
 }
@@ -145,6 +181,7 @@ else
   fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     SRC_DIR="<fetched $WGM_REPO@$WGM_REF>"   # preview only — no network in a dry run
+    printf '%s\n' "  would fetch: $(resolve_source_url)" >&2
   else
     trap _cleanup_fetch EXIT
     TMP_FETCH="$(mktemp -d "${TMPDIR:-/tmp}/wgm-install.XXXXXX")"

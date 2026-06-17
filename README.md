@@ -40,8 +40,9 @@ irm https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.ps
 
 Both default to a **user-level** install into the cross-client `~/.agents/skills/wgm`, plus any
 client dirs they detect (`~/.claude`, `~/.copilot`). The piped script self-fetches the repo (so it
-must be **public**); pin a branch/tag with `WGM_REF` / `--ref`. For all flags, clone the repo and
-run the script.
+must be **public**); it installs `main` by default — pin a branch, tag, or `latest` (the newest
+published release) with `WGM_REF` / `--ref`, where a tag or `latest` installs the validated release
+tarball. For all flags, clone the repo and run the script.
 
 ### From a clone (full control)
 
@@ -259,10 +260,13 @@ wgm/
   exactly**, prefixed with `v` (version `0.3` → tag `v0.3`).
 - **To cut a release:** push the matching tag — `git tag v0.3 && git push origin v0.3`.
   [`.github/workflows/release.yml`](.github/workflows/release.yml) then verifies the tag against
-  `SKILL.md`, re-runs shellcheck + `skills-ref` + the docs check, packages a `wgm-v0.3.tar.gz`, and
-  publishes a GitHub release with auto-generated notes.
+  `SKILL.md`, re-runs shellcheck + `skills-ref` + the docs check, packages `wgm-v0.3.tar.gz` (plus a
+  stable-named `wgm.tar.gz` for `…/releases/latest/download`), and publishes a GitHub release with
+  auto-generated notes.
 - Pin installs with `WGM_REF` / `--ref` when you want a specific release or commit instead of the
-  moving `main` branch.
+  moving `main` branch — e.g. `WGM_REF=latest` for the newest release, or `WGM_REF=v0.3` for a
+  specific one. A tag or `latest` fetches the published **release tarball**; any other ref uses the
+  codeload source archive.
 - CI validates every push and pull request before release promotion.
 
 ## Credits & license

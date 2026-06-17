@@ -35,7 +35,9 @@
   Overwrite/replace an existing install.
 
 .PARAMETER Ref
-  Git ref (branch/tag/sha) to self-fetch when run piped via `irm … | iex` (default: main).
+  Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
+  published release (default: main). A tag (vX.Y[.Z]) or "latest" installs the matching GitHub
+  release tarball; any other ref uses the codeload source archive.
 
 .PARAMETER NoWsl
   Do not delegate to WSL even if a distro is detected; perform a native-Windows install.
@@ -50,7 +52,8 @@
   a native-Windows install.
   Self-fetch: when run via `irm … | iex` (no local checkout) the script downloads the repo itself.
   Override the source with env vars: WGM_REPO (default agent-frontier/wgm), WGM_REF (default main;
-  same as -Ref), WGM_TARBALL_URL (explicit .zip/.tar.gz URL; advanced/offline, e.g. file://…).
+  same as -Ref; a tag or "latest" pulls the release tarball), WGM_TARBALL_URL (explicit .zip/.tar.gz
+  URL; advanced/offline, e.g. file://…).
 
 .EXAMPLE
   pwsh scripts/install.ps1 -Client all
@@ -150,45 +153,77 @@ if (-not $NoWsl -and -not $Dir -and $scope -eq 'user' -and (Test-WslAvailable)) 
   if (Invoke-WslDelegation) { exit 0 }
 }
 
-function Get-WgmSource {
-  param([string]$Dest)
-  $url = if ($tarballUrl) { $tarballUrl } else { "https://codeload.github.com/$repo/zip/$ref" }
-  Write-Host "  fetching: $repo@$ref"
-  $ok = $false
+function Resolve-WgmSourceUrl {
+  # Primary archive URL for $repo/$ref. WGM_TARBALL_URL always wins; a *released* ref — the literal
+  # "latest" or a vX.Y[.Z] tag — uses the published release .tar.gz asset so the validated tarball is
+  # installed; any other ref (branch/sha, incl. the default "main") uses the codeload source .zip.
+  if ($tarballUrl) { return $tarballUrl }
+  if ($ref -eq 'latest') { return "https://github.com/$repo/releases/latest/download/wgm.tar.gz" }
+  if ($ref -match '^v[0-9]') { return "https://github.com/$repo/releases/download/$ref/wgm-$ref.tar.gz" }
+  return "https://codeload.github.com/$repo/zip/$ref"
+}
+
+function Expand-WgmArchive {
+  # Fetch $Url into $Dest and return the extracted skill root (the dir with SKILL.md), or $null on a
+  # miss — handling both a codeload <repo>-<ref>/ wrapper and a flat release tarball.
+  param([string]$Url, [string]$Dest)
   try {
-    $isTar = $url -match '\.tar\.gz$|\.tgz$'
+    $isTar = $Url -match '\.tar\.gz$|\.tgz$'
     $archive = Join-Path $Dest ($(if ($isTar) { 'wgm.tar.gz' } else { 'wgm.zip' }))
-    if ($url -like 'file://*' -or (Test-Path -LiteralPath $url -ErrorAction SilentlyContinue)) {
-      Copy-Item -LiteralPath ($url -replace '^file://', '') -Destination $archive -Force
+    if ($Url -like 'file://*' -or (Test-Path -LiteralPath $Url -ErrorAction SilentlyContinue)) {
+      Copy-Item -LiteralPath ($Url -replace '^file://', '') -Destination $archive -Force
     }
     else {
-      Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing
+      Invoke-WebRequest -Uri $Url -OutFile $archive -UseBasicParsing
     }
     if ($isTar) {
-      if (Get-Command tar -ErrorAction SilentlyContinue) { tar -xzf $archive -C $Dest; $ok = $true }
+      if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { return $null }
+      tar -xzf $archive -C $Dest
     }
     else {
-      Expand-Archive -Path $archive -DestinationPath $Dest -Force; $ok = $true
+      Expand-Archive -Path $archive -DestinationPath $Dest -Force
     }
+    Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
   }
   catch {
     Write-Warning "  archive fetch failed: $($_.Exception.Message)"
+    return $null
   }
-  if ($ok) {
-    # A GitHub codeload archive unpacks to a single <repo>-<ref>/ wrapper dir.
-    $inner = Get-ChildItem -LiteralPath $Dest -Directory -ErrorAction SilentlyContinue |
-      Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') } | Select-Object -First 1
-    if ($inner) { return $inner.FullName }
-    if (Test-Path (Join-Path $Dest 'SKILL.md')) { return $Dest }
+  $inner = @(Get-ChildItem -LiteralPath $Dest -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') }) | Select-Object -First 1
+  if ($inner) { return $inner.FullName }
+  if (Test-Path (Join-Path $Dest 'SKILL.md')) { return $Dest }
+  return $null
+}
+
+function Get-WgmSource {
+  param([string]$Dest)
+  Write-Host "  fetching: $repo@$ref"
+  # Candidate URLs, tried in order: a tag prefers the release asset, with the codeload source archive
+  # as a fallback (e.g. a tag pushed before its release finished publishing).
+  $urls = @(Resolve-WgmSourceUrl)
+  if ($ref -ne 'latest') {
+    $cl = "https://codeload.github.com/$repo/zip/$ref"
+    if ($urls[0] -ne $cl) { $urls += $cl }
   }
-  if (Get-Command git -ErrorAction SilentlyContinue) {
+  $i = 0
+  foreach ($u in $urls) {
+    $sub = Join-Path $Dest ("try$i"); $i++
+    New-Item -ItemType Directory -Force -Path $sub | Out-Null
+    Write-Host "  trying: $u"
+    $root = Expand-WgmArchive -Url $u -Dest $sub
+    if ($root) { return $root }
+    Remove-Item -Recurse -Force $sub -ErrorAction SilentlyContinue
+  }
+  if (($ref -ne 'latest') -and (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Host "  archive fetch unavailable - trying git clone"
     $clone = Join-Path $Dest 'clone'
     & git clone --depth 1 --branch $ref "https://github.com/$repo" $clone 2>$null
     if (Test-Path (Join-Path $clone 'SKILL.md')) { return $clone }
   }
   if (Test-Path $Dest) { Remove-Item -Recurse -Force $Dest -ErrorAction SilentlyContinue }
-  Write-Error "Failed to fetch wgm ($repo@$ref). Tried $url. Install from a clone: git clone https://github.com/$repo"
+  $hint = if ($ref -eq 'latest') { ' (no published release yet? use WGM_REF=main for bleeding edge.)' } else { '' }
+  Write-Error "Failed to fetch wgm ($repo@$ref). Tried $($urls -join ', ').$hint Install from a clone: git clone https://github.com/$repo"
   exit 1
 }
 
@@ -203,6 +238,7 @@ if (-not $srcDir -and -not $Uninstall) {
   }
   if ($DryRun) {
     $srcDir = "<fetched $repo@$ref>"   # preview only - no network in a dry run
+    Write-Host "  would fetch: $(Resolve-WgmSourceUrl)"
   }
   else {
     $tmpFetch = Join-Path ([System.IO.Path]::GetTempPath()) ('wgm-install-' + [System.IO.Path]::GetRandomFileName())

@@ -3,7 +3,7 @@
 # A thin front-end over scripts/ and the backpressure suite. Nothing here is required to USE wgm
 # (it's a portable SKILL.md); these targets just make contributing and updating ergonomic.
 #
-#   make update     refresh your installed copy from this checkout (after a git pull)
+#   make update     git pull --ff-only (when run in a checkout) then reinstall your copy
 #   make validate   run the local backpressure suite (what CI runs, minus skills-ref/pwsh/actionlint)
 
 .DEFAULT_GOAL := help
@@ -16,7 +16,13 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-update: install ## Alias for install — refresh the installed skill from this checkout
+update: ## Pull latest from origin (when run in a git checkout), then reinstall the skill
+	@if [ -d .git ]; then \
+		echo "==> git pull --ff-only"; git pull --ff-only; \
+	else \
+		echo "==> no .git here — skipping pull; reinstalling from this tree"; \
+	fi
+	@$(MAKE) install
 
 install: ## Install/refresh wgm into your agent client dirs (~/.copilot, ~/.agents, ~/.claude)
 	bash scripts/install.sh --client all --force

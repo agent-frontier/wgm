@@ -13,6 +13,8 @@
 #   T7  uninstall              -> removes BOTH homes.
 #   T8  best-effort            -> WSL on but no resolvable Windows home: warn, still install Linux, rc 0.
 #   T9  live resolver (WSL)    -> on a real WSL host, autodetect resolves a Windows home under /mnt.
+#   T10 source-URL resolver    -> latest/tag resolve to the release asset; a branch to codeload (dry-run).
+#   T11 release-tarball install-> a flat (release-style) file:// tarball installs end to end.
 #
 # Testing/advanced override seams honoured by install.sh:
 #   WGM_FORCE_WSL=0|1      force the WSL detection result (so we can simulate non-WSL on a WSL host).
@@ -125,6 +127,38 @@ if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null && [[ -d /mnt/c ]]; then
   fi
 else
   ok "T9 skipped (not a real WSL host)"
+fi
+
+# ---- T10: bootstrap source-URL resolver picks release assets for tags/latest ----
+# A copied install.sh (no SKILL.md sibling) forces bootstrap mode; --dry-run echoes the URL it would
+# fetch without any network, so we can assert the resolver without a live release.
+boot="$WORK/t10"; mkdir -p "$boot"; cp "$INSTALL" "$boot/install.sh"
+u_latest="$(HOME="$WORK/t10h" WGM_REPO=acme/wgm WGM_REF=latest  bash "$boot/install.sh" --user --client agents --dry-run 2>&1)"
+u_tag="$(   HOME="$WORK/t10h" WGM_REPO=acme/wgm WGM_REF=v1.2.3  bash "$boot/install.sh" --user --client agents --dry-run 2>&1)"
+u_main="$(  HOME="$WORK/t10h" WGM_REPO=acme/wgm WGM_REF=main    bash "$boot/install.sh" --user --client agents --dry-run 2>&1)"
+if contains "$u_latest" "https://github.com/acme/wgm/releases/latest/download/wgm.tar.gz" \
+  && contains "$u_tag" "https://github.com/acme/wgm/releases/download/v1.2.3/wgm-v1.2.3.tar.gz" \
+  && contains "$u_main" "https://codeload.github.com/acme/wgm/tar.gz/main"; then
+  ok "T10 source-URL resolver: release asset for latest/tag, codeload source for a branch"
+else
+  bad "T10 resolver picked the wrong URL (latest=[$u_latest] tag=[$u_tag] main=[$u_main])"
+fi
+
+# ---- T11: bootstrap install from a flat (release-style) tarball via file:// ------
+# The release CI publishes a flat tarball (SKILL.md at the top, no wrapper dir); prove the installer
+# fetches+unpacks that layout end to end, not just the codeload <repo>-<ref>/ wrapper.
+if command -v curl >/dev/null 2>&1; then
+  boot="$WORK/t11"; mkdir -p "$boot"; cp "$INSTALL" "$boot/install.sh"
+  flat="$WORK/t11-flat.tar.gz"; tar -czf "$flat" -C "$ROOT" --exclude='./.git' .
+  lh="$WORK/t11h"; mkdir -p "$lh"
+  HOME="$lh" WGM_FORCE_WSL=0 WGM_TARBALL_URL="file://$flat" bash "$boot/install.sh" --user --client agents >/dev/null 2>&1
+  if [[ -f "$lh/$SUB/SKILL.md" && ! -L "$lh/$SUB/SKILL.md" ]]; then
+    ok "T11 bootstrap installs a flat release-style tarball end to end"
+  else
+    bad "T11 expected SKILL.md installed from a flat file:// tarball at $lh/$SUB"
+  fi
+else
+  ok "T11 skipped (no curl for a file:// fetch)"
 fi
 
 echo ""

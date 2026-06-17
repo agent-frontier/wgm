@@ -8,6 +8,7 @@
 #   B  an unrecognized directory is left intact without -Force (no clobber).
 #   C  when WSL is "available" (fake wsl.exe), a user-scope install delegates to bash inside WSL.
 #   D  -NoWsl forces a native install even when WSL is available.
+#   E  bootstrap source-URL resolver: latest/tag -> release asset, a branch -> codeload (dry-run).
 #
 # Exit 0 = green, 1 = red.
 
@@ -93,6 +94,30 @@ esac
   $loggedD = if (Test-Path $logD) { Get-Content -Raw $logD } else { '' }
   if (($loggedD -notmatch 'bash') -and (Test-Path (Join-Path $dirD 'wgm/SKILL.md'))) { Ok 'D -NoWsl forces a native install (no delegation)' }
   else { Bad 'D -NoWsl should bypass delegation and install natively' }
+
+  # ---- E: bootstrap source-URL resolver picks release assets for tags/latest ----
+  # A copied install.ps1 (no SKILL.md sibling) forces bootstrap mode; -DryRun echoes the URL it would
+  # fetch without any network, so we can assert the resolver without a live release.
+  $bootE = Join-Path $work 'e'
+  New-Item -ItemType Directory -Force -Path $bootE | Out-Null
+  Copy-Item $installPs (Join-Path $bootE 'install.ps1')
+  $bootPs = Join-Path $bootE 'install.ps1'
+  $env:WGM_REPO = 'acme/wgm'
+  try {
+    $env:WGM_REF = 'latest'
+    $eLatest = (& pwsh -NoProfile -File $bootPs -NoWsl -Dir (Join-Path $work 'eL') -Client agents -DryRun 2>&1 | Out-String)
+    $env:WGM_REF = 'v1.2.3'
+    $eTag = (& pwsh -NoProfile -File $bootPs -NoWsl -Dir (Join-Path $work 'eT') -Client agents -DryRun 2>&1 | Out-String)
+    $env:WGM_REF = 'main'
+    $eMain = (& pwsh -NoProfile -File $bootPs -NoWsl -Dir (Join-Path $work 'eM') -Client agents -DryRun 2>&1 | Out-String)
+  }
+  finally { $env:WGM_REF = $null; $env:WGM_REPO = $null }
+  if (($eLatest -match 'https://github\.com/acme/wgm/releases/latest/download/wgm\.tar\.gz') -and
+      ($eTag -match 'https://github\.com/acme/wgm/releases/download/v1\.2\.3/wgm-v1\.2\.3\.tar\.gz') -and
+      ($eMain -match 'https://codeload\.github\.com/acme/wgm/zip/main')) {
+    Ok 'E source-URL resolver: release asset for latest/tag, codeload source for a branch'
+  }
+  else { Bad "E resolver picked the wrong URL (latest=$eLatest tag=$eTag main=$eMain)" }
 }
 finally {
   $env:WSL_FAKE_LOG = $null
