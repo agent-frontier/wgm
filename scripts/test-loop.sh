@@ -3,8 +3,9 @@
 # wgm/test-loop.sh — deterministic backpressure for scripts/loop.sh.
 #
 # Exercises the operational-limit knobs (--max-runtime-seconds, --idle-timeout,
-# --checkpoint-interval, --notify) with a fake agent in a throwaway git repo, so the loop's
-# safety behavior has a real pass/fail signal. No real agent, model, or network is needed.
+# --checkpoint-interval, --notify) and the resilience knobs (--max-retries with backoff,
+# --max-consecutive-failures circuit breaker) with a fake agent in a throwaway git repo, so the
+# loop's safety behavior has a real pass/fail signal. No real agent, model, or network is needed.
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -115,6 +116,43 @@ else
   fail "missing --gates file not rejected (rc=$RC)"
 fi
 rm -f wgm.yml
+
+# 10) --dry-run surfaces the resilience knobs
+run build --dry-run --max-retries 4 --retry-base-delay 1 --max-consecutive-failures 5 -- true
+if [[ "$RC" -eq 0 ]] && grep -q "retries=4 retry_base=1s retry_max=60s circuit_breaker=5" <<<"$OUT"; then
+  pass "dry-run surfaces the retry + circuit-breaker knobs"
+else
+  fail "dry-run did not surface the resilience knobs (rc=$RC)"
+fi
+
+# 11) a non-integer --max-retries is rejected before running
+run build --max-retries xyz --dry-run -- true
+if [[ "$RC" -eq 2 ]] && grep -q "non-negative integer" <<<"$OUT"; then
+  pass "rejects a non-integer --max-retries"
+else
+  fail "did not reject a bad --max-retries (rc=$RC)"
+fi
+
+# 12) a transient agent failure is retried and recovers (the loop does not abort)
+rm -f .retry_n
+# shellcheck disable=SC2016  # the agent script body must stay literal; loop.sh's child shell expands it
+AGENT_FLAKY=(bash -c 'n=$(cat .retry_n 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > .retry_n; [ "$n" -ge 2 ] || exit 1; printf -- "- recovered\n" >> IMPLEMENTATION_PLAN.md' _)
+run build 1 --max-retries 2 --retry-base-delay 0 -- "${AGENT_FLAKY[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "retry 1/2" <<<"$OUT" && grep -q -- "- recovered" IMPLEMENTATION_PLAN.md; then
+  pass "retries a transient agent failure and recovers"
+else
+  fail "did not recover from a transient failure (rc=$RC)"
+fi
+rm -f .retry_n
+
+# 13) persistent failure trips the circuit breaker (and does not loop forever)
+AGENT_FAIL=(bash -c 'exit 1' _)
+run build 10 --max-retries 0 --retry-base-delay 0 --max-consecutive-failures 2 -- "${AGENT_FAIL[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Circuit breaker: 2 consecutive" <<<"$OUT"; then
+  pass "circuit breaker stops after N consecutive failures"
+else
+  fail "circuit breaker did not trip on persistent failure (rc=$RC)"
+fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "loop harness: GREEN"

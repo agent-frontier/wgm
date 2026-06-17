@@ -45,7 +45,7 @@ on **discipline** (grill → governed plan → holdout-judged loop), not on bein
 | Project | What it is | wgm's edge | What wgm could borrow |
 |---|---|---|---|
 | ralph-orchestrator | Rust runner; 7 backends; Hat personas; TUI | Portable `SKILL.md` (no binary); holdout judge; grill | A TUI / dashboard; richer per-persona dispatch |
-| ralph-claude-code | Claude loop: exit detection, rate-limit, circuit breaker | Host-agnostic; governance stack | **Circuit-breaker** beyond idle-timeout; rate-limit handling |
+| ralph-claude-code | Claude loop: exit detection, rate-limit, circuit breaker | Host-agnostic; **retry+backoff & a consecutive-failure circuit breaker now in `loop.sh`** | Semantic exit/response analysis (vs exit-code only) |
 | choo-choo-ralph | Beads 5-phase; compounding knowledge | Holdout judging; one-file portability | **Beads-style** structured knowledge (vs flat `memories.md`) |
 | ralph-starter | CLI; GitHub/Linear/Notion; presets; cost tracking | Skill + judge; governed plan | **Cost / token tracking**; task-tracker integrations |
 | ralph-wiggum-cursor | Cursor; token tracking; context rotation at 80k | Runs on any agent; **context rotation + summarize-forward now in-protocol** | Token-budget *enforcement* baked into `loop.sh` |
@@ -100,14 +100,15 @@ layered/compaction-surviving memory and the dissent-preserving review.
   and **governance stack** (constitution · consistency gate · no-placeholder · scale-adaptive
   tracks · two-stage subagent review) run deeper than the ecosystem norm.
 - **Where wgm already matches the field:** fresh-context loop, signs and gates, `wgm.yml`
-  backpressure gates, loop limits (runtime / idle / checkpoint), memories with an **upstream
-  promotion flow**, **context rotation / summarize-forward** at a token budget, **named struggle
-  signals**, model escalation, and a host-agnostic `loop.sh`.
-- **Shipped since the last survey:** context rotation / summarize-forward + named struggle signals
-  (this cycle) · the memory **promotion flow** (the growth flywheel) · scale-adaptive tracks ·
-  two-stage subagent review · the six-role swarm.
-- **Watchlist (borrow next):** cost / token tracking (ralph-starter, cursor) · a **circuit-breaker**
-  beyond idle-timeout + rate-limit handling (ralph-claude-code) · task-tracker integrations
+  backpressure gates, loop limits (runtime / idle / checkpoint), **retry + backoff & a
+  consecutive-failure circuit breaker**, memories with an **upstream promotion flow**, **context
+  rotation / summarize-forward** at a token budget, **named struggle signals**, model escalation,
+  and a host-agnostic `loop.sh`.
+- **Shipped recently:** retry + backoff & a consecutive-failure circuit breaker in `loop.sh` (this
+  cycle) · context rotation / summarize-forward + named struggle signals · the memory **promotion
+  flow** (the growth flywheel) · scale-adaptive tracks · two-stage subagent review · the six-role swarm.
+- **Watchlist (borrow next):** cost / token tracking (ralph-starter, cursor) · semantic exit /
+  response analysis (ralph-claude-code) · task-tracker integrations
   (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
   (choo-choo-ralph) · parallel multi-agent worktrees (multi-agent-ralph-loop) ·
   dissent-preserving review (elves).
