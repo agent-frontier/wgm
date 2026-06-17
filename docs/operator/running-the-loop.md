@@ -178,6 +178,34 @@ Gates are **shell commands** — use only a file you trust. A starter lives in
 [`assets/wgm.example.yml`](../../assets/wgm.example.yml). Today the loop injects the gates as
 mandatory backpressure into the prompt; having `loop.sh` also run them itself is a planned follow-up.
 
+## Swarm — parallel worktrees
+
+For independent slices, fan the loop out with `scripts/swarm.sh`: it runs several `loop.sh` build
+streams **in parallel**, each isolated in its own `git worktree` on its own branch, then you merge
+the branches — one thought per branch.
+
+```bash
+# one stream per line; each line is that stream's scope
+printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
+./scripts/swarm.sh --tasks .wgm/tasks.txt -- copilot -p   # or set $WGM_AGENT
+# …or N identical streams (race / diversity):
+./scripts/swarm.sh -n 3 --max-iterations 20 -- copilot -p
+```
+
+| Flag | Effect |
+|---|---|
+| `--tasks FILE` | one stream per non-empty, non-`#` line (the line is that stream's `--request` scope) |
+| `-n, --count N` | N identical streams |
+| `--max-iterations N` | per-stream build cap (0 = until each self-stops) |
+| `--prefix NAME` | branch/worktree name prefix (default `wgm/swarm`) |
+| `--cleanup` | remove the worktree dirs when done — branches are kept for merging |
+| `--dry-run` | print the plan; create nothing |
+
+Each stream runs with `--commit`, so its branch carries the work. Worktrees live under
+`.wgm/worktrees/` (gitignored). Merge a finished stream with `git merge wgm/swarm/N`; an existing
+branch is skipped rather than clobbered. Partition the work yourself — the swarm is the sheepdog
+spawning the dogs, not an auto-splitter.
+
 ## Stopping the loop
 
 - `Ctrl+C` at any time.

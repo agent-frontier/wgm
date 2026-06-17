@@ -181,6 +181,10 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
 ./scripts/loop.sh build -- claude -p
 ```
 
+**Swarm (parallel worktrees):** `scripts/swarm.sh` fans the loop out across several `git worktree`
+branches at once — one stream per task (`--tasks FILE`) or N identical streams (`-n N`), each on its
+own `wgm/swarm/N` branch to merge back. See [docs/operator/running-the-loop.md](docs/operator/running-the-loop.md).
+
 - Modes match the skill: `grill | analyze | plan | preflight | build | review | extract` (plus
   `only` for a single pass).
 - `build`/`review` refuse to run without an `IMPLEMENTATION_PLAN.md`.

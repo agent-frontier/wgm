@@ -40,6 +40,7 @@ for s in scripts/*.sh; do bash -n "$s"; done  # shell syntax
 bash scripts/check-docs.sh                    # docs structure, links, mermaid, placeholders
 bash scripts/test-install.sh                  # bash installer harness (9 cases)
 bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness (16 cases)
+bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness (6 cases)
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 cases)
 actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```
