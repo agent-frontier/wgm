@@ -1,11 +1,12 @@
 # wgm vs the Ralph ecosystem — competitive landscape
 
-**Date:** 2026-06-16 · **Sources:** [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) (curated list) · [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) (live topic feed)
+**Date:** 2026-06-16 · **Sources:** [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) · the live topics [ralph-loop](https://github.com/topics/ralph-loop), [agent-skill](https://github.com/topics/agent-skill), [agentskills](https://github.com/topics/agentskills), [ai-coding](https://github.com/topics/ai-coding)
 
 > A companion to [the roadmap](2026-06-16_PLAN.md). That doc compared wgm to the spec-driven crowd
 > (Spec Kit, BMAD, Superpowers…); this one tracks wgm against **the Ralph ecosystem itself** — the
 > loop runners, orchestrators, and tool-specific implementations catalogued in `awesome-ralph`.
-> "wgm vs the world." Re-run the survey periodically and refresh the table + watchlist.
+> "wgm vs the world." Re-run the survey periodically and refresh the table, watchlist, and the
+> *Adjacent ecosystems* scan (agent-skills + ai-coding).
 
 ## The one-line difference
 
@@ -114,14 +115,54 @@ layered/compaction-surviving memory and the dissent-preserving review.
   integrations (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
   (choo-choo-ralph).
 
+## Adjacent ecosystems — agent-skills & ai-coding
+
+`awesome-ralph` is the *core* circle, but wgm sits in two wider ones. Re-surveying the live GitHub
+topics [`agent-skill`](https://github.com/topics/agent-skill),
+[`agentskills`](https://github.com/topics/agentskills), and
+[`ai-coding`](https://github.com/topics/ai-coding) places wgm in full context:
+
+```mermaid
+flowchart TB
+  subgraph AI["ai-coding agents (Cursor, Copilot, Codex, kilocode)"]
+    subgraph SK["agent-skills ecosystem (agentskills.io)"]
+      subgraph RL["Ralph loop runners (awesome-ralph)"]
+        WGM["wgm: a process skill + host-agnostic runner"]
+      end
+    end
+  end
+```
+
+- **Agent-skills ecosystem** (`agent-skill` / `agentskills`): dominated by **domain/task skills**
+  (kepano/obsidian-skills ~36k★, drawio-skill, design-extract, Claude-OSINT, Jetpack-Compose) and
+  **skill infrastructure** — install/translate/share (rohitg00/skillkit), registries
+  (antigravity-awesome-skills, skillhub), and a **skills test runner** (darkrishabh/agent-skills-eval).
+  wgm is a rare **meta / process skill** (a build *methodology*), not a domain tool — a distinctive
+  slot, but it is **not yet in those registries** and has **no skill-behaviour eval** of its own.
+- **Broader ai-coding** (`ai-coding`): the substrate wgm rides — agent platforms (kilocode, Cursor,
+  Codex), **MCP code-intel toolkits** (oraios/serena, zilliztech/claude-context), and a loud
+  **token/cost** theme (rtk's 60–90% token cut, token-optimizer's "survive compaction",
+  getagentseal/codeburn's **token TUI dashboard**). wgm is **host-agnostic discipline**, not a
+  platform — complementary, not competing.
+- **Convergence (validates recent shipments):** automazeio/ccpm is a PM skill built on **GitHub
+  Issues + git worktrees** — the same pair as wgm's growth flywheel + new `swarm.sh`; multi-agent
+  meta-harnesses (ruvnet/ruflo) echo wgm's six-role swarm; the token-economy obsession matches wgm's
+  single-token keys, context rotation, and metrics ledger.
+
+**Gleaned watchlist additions:** a **skill-behaviour eval** (trigger + lifecycle tests, after
+agent-skills-eval and Anthropic's "test with real usage") · **listing wgm in skill registries**
+(agentskills.io, antigravity, skillhub) for discovery · a **token/cost TUI** (codeburn) atop the
+metrics ledger · optional **MCP code-intel** (serena-style) as a retrieval layer under the loop.
+
 ## How this was tracked
-Surveyed on 2026-06-16 (re-run the same day to refresh the gap analysis against the latest field),
-against two complementary sources:
-- [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) — a hand-curated list (the projects above).
-- [github.com/topics/ralph-loop](https://github.com/topics/ralph-loop) — the **live GitHub topic
-  feed**; new repos tagged `ralph-loop` surface here first (e.g. Claude-Code orchestration frameworks
-  with MemPalace-style layered memory and parallel agent teams). Scan it when refreshing the table
-  and watchlist.
+Surveyed on 2026-06-16 (re-run periodically to refresh the gap analysis against the latest field),
+against a curated list plus four live GitHub topic feeds:
+- [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) — a hand-curated list (the Ralph projects above).
+- [topics/ralph-loop](https://github.com/topics/ralph-loop) — the **live** Ralph feed; new tagged repos
+  surface here first (e.g. Claude-Code orchestration frameworks with layered memory + parallel teams).
+- [topics/agent-skill](https://github.com/topics/agent-skill) + [topics/agentskills](https://github.com/topics/agentskills)
+  — wgm's native ecosystem (the agentskills.io standard); see *Adjacent ecosystems* above.
+- [topics/ai-coding](https://github.com/topics/ai-coding) — the broader agent/platform substrate wgm rides.
 
 The positioning is qualitative (a read of each project's README), meant to be refreshed as the
 ecosystem moves — not a precise score.
