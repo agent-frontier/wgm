@@ -50,6 +50,9 @@ jobs:
         run: |
           mkdir -p dist
           tar --exclude-vcs --exclude=./dist -czf "dist/wgm-${GITHUB_REF_NAME}.tar.gz" .
+          # Stable-named copy so `…/releases/latest/download/wgm.tar.gz` always resolves — this is
+          # what `install.sh`/`install.ps1` fetch for WGM_REF=latest.
+          cp "dist/wgm-${GITHUB_REF_NAME}.tar.gz" dist/wgm.tar.gz
           ls -l dist
 
       - name: Publish GitHub release
@@ -59,4 +62,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "wgm ${GITHUB_REF_NAME}" \
             --generate-notes \
-            "dist/wgm-${GITHUB_REF_NAME}.tar.gz"
+            "dist/wgm-${GITHUB_REF_NAME}.tar.gz" \
+            "dist/wgm.tar.gz"
