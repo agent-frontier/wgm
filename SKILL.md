@@ -61,23 +61,28 @@ implement / prototype something from rough intent.
 - Research-only / "explain this" questions with no build intent.
 - The task already has complete, unambiguous step-by-step instructions.
 
-## How gates work (enforcement)
-The lifecycle is a state machine. At the end of each phase, **print a `Gate check:` block listing
-every gate item as PASS or FAIL.** If any item is FAIL, do **not** advance — ask one question, fix
-the artifact, or stop with a recorded blocker. Gates are not advisory.
+## Related Skills & Plugins
+
+**sofaking** — Stack Overflow for Agents knowledge integration. When installed, wgm can invoke sofaking at:
+- **Plan phase** — search prior art and validate architecture choices before implementing.
+- **Validate phase** — verify outcomes and contribute durable learnings back to SOFA.
+
+Sofaking is optional; wgm continues normally if it is unavailable or returns an error.
+
+## Gates (enforcement)
+The lifecycle is a state machine. At each phase end, **print a `Gate check:` block listing every gate item as PASS or FAIL.** If any item is FAIL, do **not** advance — ask one question, fix the artifact, or stop with a recorded blocker. Gates are not advisory.
 
 ## Phase 0 — Triage (always first)
-1. Parse the mode (above). Confirm this skill applies; if not, say so and stop.
-2. **Track (scale-adaptive) — classify the work.** Size the ceremony to the work's scale and risk,
-   **state the chosen track** ("Track: Quick/Standard/Full — …"), and **default to Standard when
-   unsure**. The deterministic backpressure gate is never skipped — only the surrounding ceremony flexes.
+1. Parse the mode; confirm this skill applies (else say so and stop).
+2. **Discover plugins.** If `~/.copilot/skills/*/plugin.toml` exists, load plugin metadata (name, hooks, dependencies) before planning. Missing plugins or dependencies are warnings, not blockers.
+3. **Track (scale-adaptive).** Size the ceremony to the work's scale and risk, **state the chosen track** ("Track: Quick/Standard/Full — …"), and **default to Standard when unsure**. The deterministic backpressure gate is never skipped — only the surrounding ceremony flexes.
 
    | Track | When | Ceremony |
    |---|---|---|
    | **Quick** | Bug fix or small 1–5 file change with an obvious check | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight |
    | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged |
    | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation |
-3. Decide loop mode:
+4. Decide loop mode:
    - **Ralph-lite** (default): run the loop in-session for small/medium work.
    - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration — run
      the bundled loop runner (`scripts/loop.sh` **inside this skill's own directory**, the base dir
@@ -85,10 +90,10 @@ the artifact, or stop with a recorded blocker. Gates are not advisory.
      between iterations. Fresh context is the stronger mode; in-session work must compensate with
      strict persistence. For independent slices, fan out in parallel with `scripts/swarm.sh` — one
      git worktree + branch per stream, merged back branch by branch.
-4. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
+5. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
    load it — its principles govern every later decision.
-5. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
+6. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
    to seed the build in the house style (`references/gene-transfusion.md`).
 
 ## Phase 1 — Grill (align)
@@ -258,3 +263,5 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/self-improvement.md` — the growth flywheel: harvest lessons, report them upstream, and promote durable ones; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`), plus `state.template.toon` — compact agent-only state.
 - `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.
+- `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
+- `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.
