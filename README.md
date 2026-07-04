@@ -227,7 +227,8 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
   loop self-terminates. Stop anytime with `Ctrl+C` or by creating `STOP` / `.wgm/STOP`. See
   `./scripts/loop.sh --help`.
 - Guard long autonomous runs with `--max-runtime-seconds`, `--idle-timeout`, `--checkpoint-interval`
-  (auto-commit), and a `--notify "CMD"` lifecycle hook.
+  (auto-commit), `--max-cost` (stop once cumulative spend from `--cost-cmd` hits a ceiling), and a
+  `--notify "CMD"` lifecycle hook.
 - **Survive transient failures:** the loop retries a failed agent call with exponential backoff +
   jitter (`--max-retries`) and trips a **circuit breaker** after N consecutive failures
   (`--max-consecutive-failures`) instead of dying on the first hiccup.
