@@ -1,10 +1,11 @@
 # Backpressure for hard-to-test domains (native, games, GUIs, engines)
 
 The loop dies without a deterministic pass/fail signal. In web/CLI/library work the signal is
-obvious (a test, a type-check, an HTTP probe). In **native apps, games, engines, emulators, GUIs,
-firmware** the magic moment is *on-screen / interactive* and there is no natural unit test — so the
-first job is to **build the harness that becomes the backpressure.** Treat the harness as the
-product's first feature, not an afterthought.
+usually obvious (a test, a type-check, an HTTP probe) — but some claims (like "ranks better on SEO")
+have no CI-observable signal at all; see **Web SEO / ranking** below. In **native apps, games,
+engines, emulators, GUIs, firmware** the magic moment is *on-screen / interactive* and there is no
+natural unit test — so the first job is to **build the harness that becomes the backpressure.**
+Treat the harness as the product's first feature, not an afterthought.
 
 ## Build the harness first (it IS the backpressure)
 - **Headless, automated entry.** Add env-gated automation: scripted input, auto-advance past splash/
@@ -67,6 +68,28 @@ that were previously dead). Do not paper over it and do not ship a red suite —
 [`stall-recovery.md`](stall-recovery.md) ("Destabilizing fix while unattended"): preserve the fix on
 a branch, revert to green, and hand off with a precise repro. A separate **low-risk hardening track**
 (defensive guards), validated by the *same* acceptance soak, often de-risks or unblocks the risky fix.
+
+## Web SEO / ranking (and other live, CI-unobservable claims)
+Some web acceptance criteria — "ranks better on SEO," "beats the incumbent," any claim whose true
+value lives on a live third-party service — have **no CI-observable signal at all**: live Google rank
+cannot be queried from a test. Manufacture a deterministic **proxy** instead of shrugging:
+
+- **Pin the proxy.** For "better SEO," assert what *is* observable: full content present in
+  view-source (proves pre-render, not client-only hydration), Lighthouse SEO = 100, and valid
+  JSON-LD / sitemap / robots.txt / canonical / OpenGraph on every route.
+- **Score it head-to-head against the incumbent**, not just against an absolute number — see
+  *Relative-to-incumbent scoring* in `references/scoring.md`. An absolute pass is blind to "worse
+  than the thing you're replacing"; a served baseline also blocks gaming.
+- **Treat ad/analytics/third-party scripts as a performance constraint, not a feature.** Monetization
+  and telemetry are the classic way a content site accidentally destroys the Core Web Vitals it
+  depends on (layout shift from late ad iframes, main-thread blocking, LCP regressions). Ship ad
+  slots inside fixed-height reserved-space wrappers (no layout shift on insert), defer/lazy-load the
+  scripts, and **gate them in the exact same audit that gates the content** — CLS/LCP must hold with
+  ads on, not just with them off.
+- This generalizes past web/SEO: any "is this actually better / faster / ranked-higher" claim that
+  lives outside CI benefits from a deterministic proxy scored against a live, served baseline.
+
+**Provenance:** `[learn]` issues #32 (SEO/ranking proxy) and #35 (ads/CWV as a perf constraint).
 
 ## Cross-links
 [`ralph-loop.md`](ralph-loop.md) (backpressure in depth) · [`scoring.md`](scoring.md) (holdout

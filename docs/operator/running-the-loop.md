@@ -201,6 +201,25 @@ printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
 | `--cleanup` | remove the worktree dirs when done — branches are kept for merging |
 | `--dry-run` | print the plan; create nothing |
 
+### Planning a swarm well
+- **Partition file ownership, not just features.** Worktree isolation only prevents *live* file
+  contention — two peer streams can still independently touch the **same shared module** (a
+  registry, an `index`/`mod`/`use` file, a shared FFI/utils file), which then surfaces only as a
+  merge conflict at integration time, the most expensive moment to find it. Assign each stream a
+  disjoint set of files/areas it owns, name them explicitly in its prompt, and route shared
+  additions (helpers, constants, FFI) into the stream's *own* module instead of the common file.
+  Treat any unavoidably-shared declaration file as a known merge point and have each stream append
+  in a stable, non-adjacent location so a 3-way merge stays trivial.
+- **A feasibility spike is a legitimate stream too.** Not every stream has to ship code — dispatch an
+  open "is this even possible?" question as a peer stream whose deliverable is a **go/no-go writeup
+  with provenance**, not a diff. Fold the verdict back into `IMPLEMENTATION_PLAN.md`: drop any task
+  the spike proves is a duplicate, split out a smaller patchable sub-win it surfaces, and record the
+  question so it's never re-attempted. **A well-supported NO-GO is a PASS for a spike, not a
+  stall** — it only fails if it produces no decision (see [`stall-recovery.md`](../agent/stall-recovery.md)).
+
+**Provenance:** `[learn]` issues #29 (file-ownership partitioning) and #30 (feasibility spikes as a
+parallel stream).
+
 Each stream runs with `--commit`, so its branch carries the work. Worktrees live under
 `.wgm/worktrees/` (gitignored). Merge a finished stream with `git merge wgm/swarm/N`; an existing
 branch is skipped rather than clobbered. Partition the work yourself — the swarm is the sheepdog

@@ -12,6 +12,13 @@ soft hint:
 - The diff churns (edit / revert / edit) without moving a signal.
 - The same tool or setup error repeats (a missing dependency, an env issue, a flaky command).
 
+**Not a stall: a well-supported feasibility-spike NO-GO.** A parallel feasibility-spike stream
+(`docs/operator/running-the-loop.md`, "Planning a swarm well") that returns a clear, well-reasoned
+NO-GO — and reshapes the backlog because of it (a task dropped, a sub-win promoted, the question
+recorded so it's never re-attempted) — is a **successful, decisive iteration**, not a struggle
+signal. Only a spike that produces *no* decision (inconclusive, abandoned) counts toward the stall
+signals above.
+
 When you detect a stall, **stop generating** and recover.
 
 ## Wonder (diagnose — think wide)

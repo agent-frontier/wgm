@@ -37,6 +37,12 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 ## Backpressure in depth
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
+- **De-risk an unusual runtime at T1.** If the build's host runtime is newer, older, or odder than a
+  key tool's tested baseline (a bleeding-edge language major vs. a framework's LTS target), make the
+  *first* task prove the whole toolchain end-to-end — install it, get a trivial hello-world through
+  the real build/run path, assert the real output exists — before any feature work, and pre-commit a
+  fallback (pin a known-good version) in case it misbehaves. This extends "the first task is to
+  build a validation signal" to the runtime/environment axis, not just the test harness.
 - Prefer fast, deterministic signals. A 2-second deterministic check beats a 30-second flaky one.
 - Include at least one **end-to-end demo check** that exercises the spec's smallest demo path —
   narrow unit/build checks can pass while the actual user flow is broken.
@@ -52,13 +58,22 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   injects them into every build prompt (`--gates FILE` to override).
 
 ## Standing guardrails
-Inject these into **every** iteration — they prevent the two most common loop failures:
+Inject these into **every** iteration — they prevent recurring loop failures:
 - **Search before you build.** Before adding code, grep the codebase for an existing implementation
   (parallel searches help). The classic Ralph failure is re-implementing something that already
   exists because one quick search came up empty. Don't assume a feature is missing — prove it is.
+  **Widen the search past the local repo:** also check declared dependencies, mandated companion
+  tools, and the platform/runtime for the capability — a project's "additive to X, never duplicate
+  X" rule is only enforceable if Analyze actually inspects X. If a dependency or companion already
+  ships it, drop the build task, wire/enable the existing provider instead, and record why.
 - **Document why each test exists.** When you add a test, record in a comment what behavior it proves
   and why it matters. A fresh context that can't see the rationale may delete the test as an orphan,
   silently dropping coverage.
+- **Format only what you touched.** Never run a project- or crate-wide auto-formatter mid-iteration —
+  it rewrites files this task never touched, leaving stray churn that can block a branch switch and
+  buries the one-task diff in reformatting noise. Hand-format to the house style, or format only the
+  exact files this task changed; run a full reformat (if ever needed) as its own separate, reviewed
+  change.
 
 ## Memory (cross-iteration learning)
 Fresh context per iteration is Ralph's strength, but it also forgets. A small, token-budgeted
@@ -97,6 +112,11 @@ progress is lost. wgm's rule:
   recovery and consider model escalation (`stall-recovery.md`); if still stuck, record the blocker,
   stop, ask or regenerate the plan. Regenerating the plan is cheap; a loop going in circles is not.
 - The trajectory is clearly wrong (building the wrong thing, duplicating work) → stop and re-plan.
+- **Autonomous + manual-merge: cap concurrent open PRs (~3-5).** In an autopilot loop that ships one
+  PR per iteration into a repo a human merges by hand, an open-ended stream of net-new PRs floods the
+  maintainer and deepens the shared-file conflict surface while nothing actually lands. Past the cap,
+  the next iteration's task becomes **consolidation** — help land, rebase, or merge existing PRs —
+  instead of opening another one; merged value beats more net-new work.
 
 ## Keep AGENTS.md lean
 `AGENTS.md` is operational only: how to build, run, and validate, plus durable codebase patterns.

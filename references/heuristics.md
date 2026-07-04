@@ -15,6 +15,22 @@ Prune or merge entries that a protocol change has made redundant — the ledger 
 memory it graduates from.
 
 ## Loop discipline
+- **Heuristic:** never run a project- or crate-wide auto-formatter mid-iteration; format only the
+  exact files this task touched. **Why:** a blanket formatter rewrites untouched files, leaving
+  stray churn that blocks a branch switch and buries the one-task diff in reformatting noise.
+  **Provenance:** wgm dogfood, `[learn]` issue #37 (Rust `cargo fmt -p` rewrote 14 files, 2 were the
+  task). **Landed in:** `references/ralph-loop.md` (Standing guardrails) · `SKILL.md` Loop · Implement.
+- **Heuristic:** extend "search before you build" past the local repo to declared dependencies and
+  mandated companion tools; if one already ships the capability, drop the task and wire it in.
+  **Why:** a repo-only grep can't see a capability that lives in a sibling tool the project composes
+  with, so it stays invisible to the standard guardrail. **Provenance:** wgm dogfood, `[learn]` issue
+  #31. **Landed in:** `references/ralph-loop.md` (Standing guardrails) · `SKILL.md` Loop · Analyze.
+- **Heuristic:** in an autonomous, manual-merge loop, cap concurrent open PRs (~3-5); past the cap,
+  the next iteration consolidates existing PRs instead of opening another one. **Why:** an
+  open-ended stream of net-new PRs floods the maintainer and deepens the shared-file conflict
+  surface while nothing actually lands — merged value beats more net-new work. **Provenance:** wgm
+  dogfood, `[learn]` issue #36 (18 PRs open, 0 merged). **Landed in:** `references/ralph-loop.md`
+  (Stop/regenerate conditions) · `SKILL.md` Stop conditions.
 - **Heuristic:** search the codebase for an existing implementation before building anything.
   **Why:** assuming a feature is missing and rebuilding it is a top loop-failure mode.
   **Provenance:** ghuntley/Ralph standing guardrail. **Landed in:** `SKILL.md` Loop · Analyze.
@@ -23,6 +39,13 @@ memory it graduates from.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** when the build runtime is newer/odder than a key tool's tested baseline, make T1
+  prove the whole toolchain end-to-end (a hello-world that really builds/runs) and pre-commit a
+  runtime-pin fallback before feature work. **Why:** mid-build tooling stalls invalidate work that
+  assumed a green build; a five-minute hello-world surfaces the incompatibility while it's still
+  trivial to route around. **Provenance:** wgm dogfood, `[learn]` issue #34 (elm-pages/lamdera on a
+  newer-than-LTS Node). **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `SKILL.md` Plan-exit gate.
 - **Heuristic:** for native apps, games, GUIs, or engines, the *first* task is building the headless
   harness (output capture, state probes, crash soaks). **Why:** there is no natural unit test to
   lean on, so a deterministic signal must be manufactured before any feature work.
@@ -46,3 +69,34 @@ memory it graduates from.
   **Why:** a single reviewer conflates "right thing" with "built correctly" and blesses its own
   assumptions. **Provenance:** Superpowers two-stage review. **Landed in:** `references/subagents.md`
   · `wgm-spec-reviewer` + `wgm-quality-reviewer`.
+
+## Comparative & hard-to-test scoring
+- **Heuristic:** when "better X" is the goal but X is unobservable in CI (live SEO/Google rank,
+  "beats the incumbent"), pin it to a deterministic proxy and score it head-to-head against a served
+  incumbent, not just an absolute threshold. **Why:** an absolute pass is blind to "worse than the
+  thing you're replacing"; a live baseline also blocks gaming and surfaces the incumbent's own
+  failures as the proof. **Provenance:** wgm dogfood, `[learn]` issues #32, #33.
+  **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking) ·
+  `references/scoring.md` (Relative-to-incumbent scoring).
+- **Heuristic:** treat ad/analytics/third-party scripts as a Core Web Vitals constraint gated in the
+  same audit as the content, never bolted on. **Why:** monetization/telemetry is the classic way a
+  content site destroys the performance it depends on (layout shift, main-thread blocking, LCP
+  regressions) — reserved-space wrappers + deferred scripts + a shared CLS/LCP gate turn "the ad
+  shows up" into "the ad shows up *and* CWV stays in budget." **Provenance:** wgm dogfood, `[learn]`
+  issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
+
+## Swarm & parallelism
+- **Heuristic:** partition a worktree swarm's file ownership, not just its features; route shared
+  additions into each stream's own module and treat any unavoidable shared declaration file as a
+  known, append-only merge point. **Why:** worktree isolation only prevents *live* contention — two
+  peer streams touching the same shared module still surfaces as a merge conflict at the most
+  expensive moment, integration time. **Provenance:** wgm dogfood, `[learn]` issue #29 (Rust FFI
+  crate, two streams sharing one declaration file). **Landed in:**
+  `docs/operator/running-the-loop.md` (Swarm — Planning a swarm well).
+- **Heuristic:** bless a feasibility-spike as a first-class parallel swarm stream whose deliverable
+  is a go/no-go verdict, and treat a well-supported NO-GO as a PASS, not a stall. **Why:** a spike
+  that reshapes the backlog (drops a now-duplicate task, promotes a patchable sub-win, records a
+  settled question) is one of the highest-value outcomes a run can produce — misreading it as a
+  failure would suppress exactly the signal that saves the most wasted work. **Provenance:** wgm
+  dogfood, `[learn]` issue #30. **Landed in:** `docs/operator/running-the-loop.md` (Swarm — Planning
+  a swarm well) · `references/stall-recovery.md` (Detecting a stall).
