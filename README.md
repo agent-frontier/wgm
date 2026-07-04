@@ -116,6 +116,7 @@ continues forward. A leading word counts as a mode only if it's a known keyword 
 - `specs/*` — what to build and why (incl. the "magic moment" and smallest end-to-end slice)
 - `IMPLEMENTATION_PLAN.md` — the prioritized task list (the loop's memory)
 - `AGENTS.md` — a lean "how to build & validate" guide
+- `docs/audit/*` — the docs-audit paper trail (committed, never gitignored by default — see Capabilities)
 
 **Safety:** `wgm` never overwrites an existing `AGENTS.md`. If your repo already has any of these
 files, it writes its own under `.wgm/` instead (`.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/`,
@@ -166,10 +167,16 @@ flowchart LR
   (`assets/memories.template.md`).
 - **Context rotation** — when the window fills, summarize progress into the plan + memories and
   **rotate to fresh context** rather than grinding on a degraded one (`references/ralph-loop.md`).
-- **Two-stage subagent review (the role swarm)** — six role-specialized agents (griller · implementer ·
-  spec + quality reviewers · validator · diagnostician); the two reviewers run independently and
-  **preserve dissent** — a minority concern is recorded, never collapsed into a silent PASS
-  (`references/subagents.md`).
+- **Two-stage subagent review (the role swarm)** — eleven role-specialized agents in total (griller ·
+  implementer · spec + quality reviewers · validator · diagnostician · the five-role docs-audit
+  swarm); the two code reviewers run independently and **preserve dissent** — a minority concern is
+  recorded, never collapsed into a silent PASS (`references/subagents.md`).
+- **Docs-audit paper trail** — a mandatory, automatic audit of documentation *quality* (not just
+  structure) from four vantage points — junior dev, senior dev, principal dev, PM — consolidated by
+  a technical-writer role into one committed report per run. Every action item is labeled strictly
+  **Agent action** or **Operator action** (never by persona), and the report is indexed the same way
+  this README indexes its own docs. No need to ask for it — it runs automatically at Ship/Handoff
+  (`references/docs-audit.md`).
 - **EARS acceptance criteria** — *Easy Approach to Requirements Syntax*: phrase each criterion in a
   testable trigger/state/response shape (e.g. "When X, the system shall Y") so a check or judge can
   settle it (`references/artifacts.md`).
@@ -239,11 +246,11 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics
-├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · state.toon templates
+├── references/       # grilling · ralph-loop · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics · docs-audit
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · state.toon templates
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · install.sh · install.ps1
-├── .github/agents/   # the six role-specialized subagents (the swarm)
-└── docs/             # operator/ · agent/ · plans/ guides (Mermaid diagrams)
+├── .github/agents/   # the eleven role-specialized subagents (the swarm), incl. the docs-audit swarm
+└── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)
 ```
 
 ## Community

@@ -19,6 +19,11 @@ After the build is green, scan `.wgm/memories.md` for a lesson that is:
 
 A lesson that fails any of the three stays local. One that passes is a candidate to report.
 
+**A recurring docs-audit finding is a candidate too.** If the same issue shows up in a `docs/audit/*`
+report across more than one project (e.g. a persona repeatedly flags the same category of drift),
+that pattern is exactly the kind of durable, cross-project, sanitized lesson this harvest step looks
+for — treat it the same as a `.wgm/memories.md` entry (`references/docs-audit.md`).
+
 ## Report (outbound, opt-in)
 File the candidate to [`agent-frontier/wgm`](https://github.com/agent-frontier/wgm) as a `[learn]`
 report using the [`heuristic_report.yml`](../.github/ISSUE_TEMPLATE/heuristic_report.yml) template

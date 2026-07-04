@@ -10,10 +10,12 @@
 #   4. Internal relative Markdown links resolve to real files.
 #   5. No leftover <placeholder> or TODO markers remain in docs/.
 #   6. Every operator doc (docs/operator/*) opens with an "## Executive overview" section.
+#   7. Every .github/agents/*.agent.md file has required frontmatter (name, description) and
+#      required sections (a "**Mission**:" statement and an "### Integration" section).
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
-# SECURITY.md, CODE_OF_CONDUCT.md, and launch-facing GitHub templates.
+# SECURITY.md, CODE_OF_CONDUCT.md, .github/agents/*.agent.md, and launch-facing GitHub templates.
 
 set -uo pipefail
 
@@ -31,6 +33,7 @@ REQUIRED=(
   "docs/operator/running-the-loop.md"
   "docs/operator/containers.md"
   "docs/operator/troubleshooting.md"
+  "docs/operator/playbook.md"
   "docs/agent/lifecycle.md"
   "docs/agent/attractor-loop.md"
   "docs/agent/scenarios-and-scoring.md"
@@ -97,6 +100,7 @@ done
 # 6 — every operator doc carries an executive overview to orient the reader.
 OPERATOR_DOCS=(
   "docs/operator/README.md"
+  "docs/operator/playbook.md"
   "docs/operator/installation.md"
   "docs/operator/running-the-loop.md"
   "docs/operator/containers.md"
@@ -109,8 +113,22 @@ for f in "${OPERATOR_DOCS[@]}"; do
   fi
 done
 
+# 7 — every custom agent file carries required frontmatter + sections.
+shopt -s nullglob
+AGENT_FILES=(.github/agents/*.agent.md)
+shopt -u nullglob
+for f in "${AGENT_FILES[@]}"; do
+  grep -qE '^name:' "$f"            || note "agent file missing 'name:' frontmatter: $f"
+  grep -qE '^description:' "$f"     || note "agent file missing 'description:' frontmatter: $f"
+  grep -q '\*\*Mission\*\*:' "$f"   || note "agent file missing a '**Mission**:' statement: $f"
+  grep -qE '^### Integration' "$f"  || note "agent file missing an '### Integration' section: $f"
+done
+if (( ${#AGENT_FILES[@]} == 0 )); then
+  note ".github/agents/*.agent.md — no custom agent files found"
+fi
+
 if (( FAIL == 0 )); then
-  ok "docs check passed (${#MD[@]} files, ${MERMAID_TOTAL} mermaid diagram(s))"
+  ok "docs check passed (${#MD[@]} files, ${MERMAID_TOTAL} mermaid diagram(s), ${#AGENT_FILES[@]} agent file(s))"
   echo "docs: GREEN"
   exit 0
 else
