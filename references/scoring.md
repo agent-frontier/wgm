@@ -44,6 +44,24 @@ Score how fully the observed behavior satisfies the expectation.
 Keep the generator and judge **separate** (the generator must never see scenarios). Record the judge
 prompt, the score, and the one-line justification — and accept that scores vary run to run.
 
+## Relative-to-incumbent scoring (clone/replacement builds)
+When the job is to **beat or replace an existing artifact** (a redesign, a port, a faster library, a
+leaner CLI), an absolute threshold is necessary but not sufficient — it is blind to "worse than the
+thing you're replacing." Score relative to a live baseline instead:
+
+1. **Build and serve the incumbent** alongside the new implementation.
+2. **Run the exact same deterministic audit on both** (the same checks, the same scenarios).
+3. **Gate on parity-or-better:** the new build must be ≥ the incumbent on every dimension that
+   matters, plus still clear its own absolute floor.
+
+The incumbent's own failures, surfaced by the shared harness, become the *proof* the replacement is
+better — a far stronger, more defensible artifact than a lone "we hit the target number" — and it
+catches a regression an absolute pass would hide. See `references/hard-to-test-domains.md` (Web SEO
+/ ranking) for the web-specific instance of this pattern.
+
+**Provenance:** `[learn]` issues #32, #33 — clone/replacement builds scored against a served
+incumbent, not just an absolute Lighthouse/SEO threshold.
+
 ## Stratified convergence
 Grade by ascending **tier** (`references/scenarios.md`): bring tier-1 scenarios to threshold before
 admitting tier-2, then tier-3. This stops easy passes from masking hard failures and focuses each

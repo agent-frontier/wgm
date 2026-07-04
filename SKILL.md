@@ -144,7 +144,9 @@ runs once a plan exists (`references/artifacts.md`).
 - [ ] `IMPLEMENTATION_PLAN.md` exists.
 - [ ] Every task has: objective · files/areas · **validation command** · acceptance criteria · status.
 - [ ] The first task is small enough for one iteration.
-- [ ] If no validation signal exists yet, the **first task is "create a validation signal."**
+- [ ] If no validation signal exists yet, the **first task is "create a validation signal"** — this
+      includes proving an unusually new/old runtime or toolchain end-to-end (not just a test
+      harness) when it's riskier than a key tool's tested baseline (`references/ralph-loop.md`).
 - [ ] The plan includes a final **demo-validation task** that runs the spec's smallest end-to-end
       demo path; it must pass before Ship/Handoff.
 - [ ] **Standard/Full** require at least one **tier-1 holdout scenario** covering the spec's demo
@@ -174,14 +176,17 @@ stop condition fires. **One task per iteration.** Each iteration:
 1. **Analyze** — read only what you need: `IMPLEMENTATION_PLAN.md`, the relevant spec, and the
    files for this one task. Pick the single most important `pending` task ("let Ralph Ralph").
    **Search before you build:** grep the codebase for an existing implementation first — don't
-   assume a feature is missing; duplicating work is a top loop failure mode.
+   assume a feature is missing; duplicating work is a top loop failure mode. **Widen the search past
+   the local repo** to declared dependencies and mandated companion tools; if one already ships the
+   capability, drop the task and wire it in instead (`references/ralph-loop.md`).
    **Recall first:** if `.wgm/memories.md` exists, read it (token-budgeted) so you don't repeat a
    past gotcha, stall, or dead end. If `specs/CONTEXT.md` exists, consult it so you use each domain
    term's canonical name — consistent naming, fewer tokens.
 2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
    slice over many half-built parts. **Holdout rule:** do not open scenario files while implementing.
    **Document why each test exists:** when you add a test, note in a comment what behavior it proves,
-   so a fresh context never deletes it as an orphan.
+   so a fresh context never deletes it as an orphan. **Format only what you touched:** never run a
+   project-wide auto-formatter mid-iteration — it buries the one-task diff in reformatting noise.
 3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
    creating one **is** this iteration's task. No green signal → not done. Then **judge satisfaction
    (0–100)** against this slice's holdout scenarios, converging by tier (stratified); run the app in
@@ -220,7 +225,9 @@ validation command exited 0**; otherwise set it `blocked` (with a note) or leave
 **Stop conditions:** all must-have tasks `done` (including the demo-validation task) **and overall
 satisfaction ≥ threshold (default 95)**; or a stall persists after wonder/reflect + escalation (~3
 recovery cycles — record the blocker, stop, ask or regenerate the plan); or context is too bloated
-to continue safely.
+to continue safely. **Autonomous + manual-merge:** cap concurrent open PRs (~3-5) — past the cap, the
+next iteration is a consolidation task (help land existing PRs), not another net-new one
+(`references/ralph-loop.md`).
 
 ## Phase 4 — Ship / Handoff
 - Summarize what was built, how to run/validate it, and what the demo path is.
