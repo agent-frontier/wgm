@@ -56,6 +56,9 @@
 #                        plan_changed, result, cost) to FILE — run telemetry for data-driven runs
 #   --cost-cmd "CMD"     after each iteration run CMD (shell) to print a token/cost figure for the
 #                        `cost` column; best-effort, its failure never breaks the loop (default: none)
+#   --max-cost N         stop the build loop once cumulative cost (summed from --cost-cmd's output,
+#                        whatever unit it emits) reaches N; 0 = unlimited (default: 0). Requires
+#                        --cost-cmd to have anything to sum — warns at startup if set without it.
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             git add -A && git commit after each build iteration (off by default)
 #   -h | --help          show this help
@@ -99,6 +102,8 @@ RETRY_MAX_DELAY=60
 MAX_CONSEC_FAIL=3
 METRICS_FILE=""
 COST_CMD=""
+MAX_COST=0
+CUM_COST=0
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -130,6 +135,7 @@ while [[ $# -gt 0 ]]; do
     --max-consecutive-failures) [[ $# -ge 2 ]] || { echo "--max-consecutive-failures requires a number" >&2; exit 2; }; MAX_CONSEC_FAIL="$2"; shift 2 ;;
     --metrics) [[ $# -ge 2 ]] || { echo "--metrics requires a file" >&2; exit 2; }; METRICS_FILE="$2"; shift 2 ;;
     --cost-cmd) [[ $# -ge 2 ]] || { echo "--cost-cmd requires a command" >&2; exit 2; }; COST_CMD="$2"; shift 2 ;;
+    --max-cost) [[ $# -ge 2 ]] || { echo "--max-cost requires a number" >&2; exit 2; }; MAX_COST="$2"; shift 2 ;;
     --)        shift; AGENT_ARGV=("$@"); break ;;
     --*)       echo "Unknown flag: $1" >&2; exit 2 ;;
     *)         POSITIONAL+=("$1"); shift ;;
@@ -151,6 +157,11 @@ case "$CONTAINER" in podman|docker) ;; *) echo "Invalid --container: $CONTAINER 
 for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$CHECKPOINT_INTERVAL" "$MAX_RETRIES" "$RETRY_BASE_DELAY" "$RETRY_MAX_DELAY" "$MAX_CONSEC_FAIL"; do
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "expected a non-negative integer, got: $n" >&2; exit 2; }
 done
+# --max-cost is a plain number, not necessarily an integer (a cost figure may be fractional).
+[[ "$MAX_COST" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "expected a non-negative number for --max-cost, got: $MAX_COST" >&2; exit 2; }
+if [[ -z "$COST_CMD" ]] && awk -v m="$MAX_COST" 'BEGIN{exit !(m>0)}'; then
+  echo "⚠ --max-cost is set but --cost-cmd is not; the cost ceiling will never trigger." >&2
+fi
 
 # Single-phase modes run once by default; build runs unlimited by default; `only` forces one pass.
 if [[ -z "$MAX_ITERS" ]]; then
@@ -241,7 +252,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
   echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
   echo "retries=${MAX_RETRIES} retry_base=${RETRY_BASE_DELAY}s retry_max=${RETRY_MAX_DELAY}s circuit_breaker=${MAX_CONSEC_FAIL}"
-  echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set}"
+  echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set} max_cost=${MAX_COST}"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
@@ -288,7 +299,6 @@ notify() {  # $1 = lifecycle event; best-effort, its failure never breaks the lo
 }
 
 record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
-  [[ -n "$METRICS_FILE" ]] || return 0
   local dur changed cost ts
   dur=$(( $(date +%s) - ITER_START ))
   if [[ "$(plan_hash)" != "$HASH_BEFORE" ]]; then changed=1; else changed=0; fi
@@ -296,7 +306,13 @@ record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
   if [[ -n "$COST_CMD" ]]; then
     cost="$(WGM_EVENT=iteration WGM_ITER="$ITER" bash -c "$COST_CMD" 2>/dev/null || true)"
     cost="${cost//$'\t'/ }"; cost="${cost//$'\n'/ }"
+    # Accumulate toward --max-cost independent of --metrics; a non-numeric cost figure contributes
+    # nothing (best-effort, same contract as the rest of --cost-cmd's failure handling).
+    if [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+      CUM_COST="$(awk -v a="$CUM_COST" -v b="$cost" 'BEGIN{print a+b}')"
+    fi
   fi
+  [[ -n "$METRICS_FILE" ]] || return 0
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   [[ -f "$METRICS_FILE" ]] || printf 'timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\n' > "$METRICS_FILE"
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" >> "$METRICS_FILE"
@@ -382,6 +398,9 @@ while :; do
     [[ "$HASH_AFTER" != "$HASH_BEFORE" ]] && LAST_PROG_TS=$(date +%s)
     if [[ "$IDLE_TIMEOUT" -ne 0 && $(( $(date +%s) - LAST_PROG_TS )) -ge "$IDLE_TIMEOUT" ]]; then
       echo "Idle timeout: no plan progress for ${IDLE_TIMEOUT}s; ending."; break
+    fi
+    if awk -v a="$CUM_COST" -v b="$MAX_COST" 'BEGIN{exit !(b>0 && a>=b)}'; then
+      echo "Reached max cost (${CUM_COST} >= ${MAX_COST})."; break
     fi
     if [[ "$ESC_ENABLED" -eq 1 ]]; then
       if [[ "$HASH_AFTER" != "$HASH_BEFORE" ]]; then PROG=$((PROG + 1)); NOPROG=0

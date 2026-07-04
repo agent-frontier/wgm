@@ -4,9 +4,9 @@
 #
 # Exercises the operational-limit knobs (--max-runtime-seconds, --idle-timeout,
 # --checkpoint-interval, --notify), the resilience knobs (--max-retries with backoff,
-# --max-consecutive-failures circuit breaker), and the metrics ledger (--metrics, --cost-cmd) with a
-# fake agent in a throwaway git repo, so the loop's safety behavior has a real pass/fail signal. No
-# real agent, model, or network is needed.
+# --max-consecutive-failures circuit breaker), the metrics ledger (--metrics, --cost-cmd), and the
+# cost ceiling (--max-cost) with a fake agent in a throwaway git repo, so the loop's safety behavior
+# has a real pass/fail signal. No real agent, model, or network is needed.
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -176,10 +176,44 @@ rm -f metrics.tsv
 
 # 16) --dry-run surfaces the metrics knobs
 run build --dry-run --metrics m.tsv --cost-cmd 'echo x' -- true
-if [[ "$RC" -eq 0 ]] && grep -q "metrics=m.tsv cost_cmd=set" <<<"$OUT"; then
-  pass "dry-run surfaces the metrics knobs"
+if [[ "$RC" -eq 0 ]] && grep -q "metrics=m.tsv cost_cmd=set max_cost=0" <<<"$OUT"; then
+  pass "dry-run surfaces the metrics knobs (incl. max_cost)"
 else
   fail "dry-run did not surface the metrics knobs (rc=$RC)"
+fi
+
+# 17) --max-cost halts the build loop once cumulative cost crosses the ceiling
+run build 10 --cost-cmd 'echo 5' --max-cost 12 -- "${AGENT_PROGRESS[@]}"
+iters="$(grep -c "wgm build" <<<"$OUT" || true)"
+if [[ "$RC" -eq 0 ]] && grep -q "Reached max cost (15 >= 12)" <<<"$OUT" && [[ "$iters" -eq 3 ]]; then
+  pass "max-cost halts the loop once cumulative cost is reached (3 iterations, 5+5+5=15>=12)"
+else
+  fail "max-cost did not halt the loop as expected (rc=$RC, iters=$iters)"
+fi
+
+# 18) --max-cost without --cost-cmd warns instead of silently never triggering
+run build --dry-run --max-cost 10 -- true
+if [[ "$RC" -eq 0 ]] && grep -q -- "--max-cost is set but --cost-cmd is not" <<<"$OUT"; then
+  pass "max-cost without cost-cmd warns instead of silently no-op'ing"
+else
+  fail "did not warn when max-cost set without cost-cmd (rc=$RC)"
+fi
+
+# 19) a non-numeric --max-cost is rejected before running
+run build --max-cost abc --dry-run -- true
+if [[ "$RC" -eq 2 ]] && grep -q "non-negative number for --max-cost" <<<"$OUT"; then
+  pass "rejects a non-numeric --max-cost"
+else
+  fail "did not reject a bad --max-cost (rc=$RC)"
+fi
+
+# 20) default --max-cost (0 = unlimited) never halts the loop early — existing behavior unchanged
+run build 3 --cost-cmd 'echo 999' -- "${AGENT_PROGRESS[@]}"
+iters="$(grep -c "wgm build" <<<"$OUT" || true)"
+if [[ "$RC" -eq 0 ]] && ! grep -q "Reached max cost" <<<"$OUT" && [[ "$iters" -eq 3 ]]; then
+  pass "default max-cost (0) never halts the loop early"
+else
+  fail "unexpected early halt with default max-cost (rc=$RC, iters=$iters)"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

@@ -154,6 +154,22 @@ runs after each iteration (with `$WGM_ITER` set) and its stdout fills the `cost`
 its failure never breaks the loop. Example:
 `--metrics .wgm/metrics.tsv --cost-cmd 'tail -1 .wgm/usage.log'`.
 
+### Cost ceiling
+
+`--max-cost N` stops the **build** loop once the cumulative total from `--cost-cmd` reaches `N` —
+the spend equivalent of `--max-runtime-seconds`, so an unattended run can't silently blow through an
+unbounded budget. It works independently of `--metrics` (you don't need a ledger file to get the
+ceiling) but **requires `--cost-cmd`** to have anything to sum — set both, or you'll get a startup
+warning that the ceiling can never trigger. The unit is whatever `--cost-cmd` emits (dollars, cents,
+tokens); wgm never interprets it, only sums it.
+
+```bash
+./scripts/loop.sh build --cost-cmd 'tail -1 .wgm/usage.log' --max-cost 20   # stop at spend >= 20
+```
+
+Default `0` = unlimited (unchanged behavior). This closes the "API spend/cost ceiling" follow-up
+noted in [`docs/plans/2026-06-16_PLAN.md`](../plans/2026-06-16_PLAN.md).
+
 ## Project gates (wgm.yml)
 
 A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands
