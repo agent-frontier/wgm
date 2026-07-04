@@ -79,9 +79,9 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
 
    | Track | When | Ceremony |
    |---|---|---|
-   | **Quick** | Bug fix or small 1–5 file change with an obvious check | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight |
-   | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged |
-   | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation |
+   | **Quick** | Bug fix or small 1–5 file change with an obvious check | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
+   | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged; the docs-audit swarm runs once, at Ship/Handoff |
+   | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation · a Plan-exit **baseline** docs-audit pass |
 4. Decide loop mode:
    - **Ralph-lite** (default): run the loop in-session for small/medium work.
    - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration — run
@@ -154,6 +154,8 @@ runs once a plan exists (`references/artifacts.md`).
       requirement lacks a task and no task lacks a spec.
 - [ ] **No placeholders:** no task carries a `to-be-decided` / `implement-later` / `fill-in` marker;
       every task names exact files/areas and a runnable validation command.
+- [ ] **Full track only:** a baseline docs-audit pass has run over the specs/`AGENTS.md`/README as
+      they stand before any code is written (`references/docs-audit.md`).
 
 ## Phase 2.5 — Preflight (readiness gate)
 Before looping, score the plan's readiness **0–100** (goal/JTBD clarity · observable success
@@ -224,6 +226,12 @@ to continue safely.
 - Summarize what was built, how to run/validate it, and what the demo path is.
 - List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
 - Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
+- **Audit the docs — mandatory, no need to ask (Standard/Full).** Dispatch the docs-audit swarm:
+  four independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
+  technical-writer role into one paper-trail report — every action item labeled strictly **Agent
+  action** or **Operator action** — committed under `docs/audit/` (or `.wgm/docs/audit/`). Ship is
+  not complete without this report; Quick tracks rely on `scripts/check-docs.sh` alone
+  (`references/docs-audit.md`).
 - **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` for a lesson that is durable,
   cross-project, and sanitized (about wgm's behavior — never the host's code or secrets). If upstream
   reporting is enabled for this project (opt-in — explicit ask, dogfood run, or project setting), file
@@ -241,9 +249,10 @@ to continue safely.
 - Decide root vs `.wgm/` once, in Triage, and stay consistent.
 
 ## Backpressure is the skill
-A loop without a deterministic pass/fail signal is just hoping. Every task must map its acceptance
-criteria to a runnable command (test, type-check, build, lint, HTTP probe). If the project has no
-such signal, your first job is to create one. **For native apps, games, GUIs, or engines** — where there is no natural unit test — building that harness (headless automation, output capture, state probes, crash soaks) *is* the first task; see `references/hard-to-test-domains.md`. Only for subjective criteria (UX feel, copy,
+**Backpressure is a deterministic pass/fail signal** — a test, type-check, build, lint, or HTTP
+probe — that gates whether a task can be called done. A loop without one is just hoping. Every task
+must map its acceptance criteria to a runnable command. If the project has no such signal, your
+first job is to create one. **For native apps, games, GUIs, or engines** — where there is no natural unit test — building that harness (headless automation, output capture, state probes, crash soaks) *is* the first task; see `references/hard-to-test-domains.md`. Only for subjective criteria (UX feel, copy,
 aesthetics) where no deterministic check can exist, fall back to an LLM-as-judge check with a
 binary pass/fail, and record its prompt and verdict. Re-run the signal until green before declaring
 a task done. For holistic, end-to-end confidence, augment with **holdout-scenario satisfaction
@@ -252,7 +261,11 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 ## References
 - `references/grilling.md` — the interview discipline.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
-- `references/subagents.md` — the six role-specialized subagents (griller · implementer · two-stage review · validator · diagnostician) and how the Loop dispatches them ("swarm" mode).
+- `references/subagents.md` — the eleven role-specialized subagents (griller · implementer ·
+  two-stage review · validator · diagnostician · the five-role docs-audit swarm) and how the Loop
+  dispatches them ("swarm" mode).
+- `references/docs-audit.md` — the mandatory docs-audit paper trail: four dev/PM personas plus a
+  technical-writer consolidator, Agent-vs-Operator action classification, and artifact placement.
 - `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, and AGENTS.md.
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
@@ -261,7 +274,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
 - `references/self-improvement.md` — the growth flywheel: harvest lessons, report them upstream, and promote durable ones; `references/heuristics.md` is the curated ledger.
-- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`), plus `state.template.toon` — compact agent-only state.
+- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`), plus `state.template.toon` — compact agent-only state.
 - `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

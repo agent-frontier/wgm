@@ -5,10 +5,10 @@ continue the work. Fill them from the templates in `assets/`.
 
 ## Placement & safety rules
 - **Greenfield/empty repo:** write artifacts at the project root (`IMPLEMENTATION_PLAN.md`,
-  `specs/`, `scenarios/`, `AGENTS.md`).
+  `specs/`, `scenarios/`, `AGENTS.md`, `docs/audit/`).
 - **Existing project** that already has any of `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, or `specs/`:
   write wgm's artifacts under **`.wgm/`** instead — `.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/`,
-  `.wgm/scenarios/`, `.wgm/AGENTS.md` — to avoid clobbering the project's files.
+  `.wgm/scenarios/`, `.wgm/AGENTS.md`, `.wgm/docs/audit/` — to avoid clobbering the project's files.
 - **Never overwrite an existing `AGENTS.md`.** Touch root `AGENTS.md` only with explicit approval.
 - Decide root vs `.wgm/` **once, in Triage**, and stay consistent for the whole run.
 
@@ -101,6 +101,25 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
 - **Distinct from the other artifacts.** `IMPLEMENTATION_PLAN.md` holds task *state*, `AGENTS.md` the
   curated *how-to*, `.wgm/scores.md` the *numeric* trajectory; memories hold the raw *lessons*.
 - **Placement:** always under `.wgm/` — it is per-build scratch, not a deliverable.
+
+## `docs/audit/*.md` — the docs-audit paper trail
+The durable record that the docs-audit swarm ran and what it found — evidence of work done for a
+human operator, not agent scratch. Source from `assets/docs-audit-report.template.md`; the full
+discipline (cadence, personas, consolidation algorithm, severity taxonomy) is in
+`references/docs-audit.md`.
+
+- **Placement** follows the same root vs `.wgm/` rule as the other artifacts — `docs/audit/` for a
+  greenfield project, `.wgm/docs/audit/` for an existing project that already has `AGENTS.md` /
+  `IMPLEMENTATION_PLAN.md` / `specs/`.
+- **Naming:** `docs/audit/<UTC-timestamp>_<slug>.md`, indexed newest-first in `docs/audit/README.md`.
+- **Never gitignored by default.** Unlike `.wgm/memories.md`, this is not agent scratch — it is the
+  operator-facing proof the audit happened, so a downstream project commits it like any other
+  deliverable. **This repo (wgm-the-tool) is the one exception:** its own `.gitignore` treats
+  `/IMPLEMENTATION_PLAN.md`, `/specs/`, `/scenarios/`, and `/.wgm/` as ephemeral dogfood scratch
+  because the repo ships templates, not live plans — that repo-specific choice is never general
+  guidance for a project wgm is building for someone else.
+- **Written by** the `wgm-docs-writer` role, after the four persona reviewers
+  (`wgm-docs-junior` / `-senior` / `-principal` / `-pm`) have reported (`references/subagents.md`).
 
 ## Token economy — keep reloaded state cheap
 `IMPLEMENTATION_PLAN.md` and `.wgm/memories.md` are reloaded **every iteration**, so they are a token

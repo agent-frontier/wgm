@@ -40,7 +40,7 @@ stateDiagram-v2
 | **Plan** | Write the constitution, optional `CONTEXT.md` glossary, specs (EARS-phrased acceptance), scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
 | **Preflight** | Score readiness 0–100 | Readiness ≥ 80 |
 | **Loop** | One task per iteration (Analyze → Implement → Validate → two-stage review with dissent → Record); rotate context when it fills | Validation exited 0; satisfaction judged; plan updated |
-| **Ship** | Summarize, leave repo resumable; **harvest** a durable lesson (self-improvement) | Demo path green; threshold met |
+| **Ship** | Summarize, leave repo resumable; **audit the docs** (mandatory paper trail, Standard/Full — [`references/docs-audit.md`](../../references/docs-audit.md)); **harvest** a durable lesson (self-improvement) | Demo path green; threshold met; docs-audit report committed |
 
 Details per phase live in the references: [grilling](../../references/grilling.md),
 [artifacts](../../references/artifacts.md), [scoring](../../references/scoring.md),

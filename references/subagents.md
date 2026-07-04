@@ -16,6 +16,11 @@ that supports custom agents):
 | `wgm-quality-reviewer` | Review (stage 2) | Bugs + weak validation, high signal → PASS / CHANGES-REQUESTED. |
 | `wgm-validator` | Validate | Holdout-scenario satisfaction 0–100 (stratified); the deterministic gate stays the hard gate. |
 | `wgm-diagnostician` | Stall recovery | wonder→reflect, model escalation, and harnesses for hard-to-test domains. |
+| `wgm-docs-junior` | Docs audit | Reviews docs for onboarding/clarity from a newcomer's seat — read-only. |
+| `wgm-docs-senior` | Docs audit | Reviews docs for correctness, completeness, maintainability — read-only. |
+| `wgm-docs-principal` | Docs audit | Reviews docs for constitution conformance, architecture fit, cross-doc consistency — read-only. |
+| `wgm-docs-pm` | Docs audit | Reviews docs for status accuracy, risk visibility, traceability — read-only. |
+| `wgm-docs-writer` | Docs audit | Consolidates the four persona reports into one paper-trail report; classifies every item Agent vs Operator action; preserves dissent. |
 
 The swarm runs the lifecycle end to end — the sheepdog (orchestrator) dispatches each dog to its phase:
 
@@ -63,11 +68,44 @@ consensus* — the minority concern is rationalized away and never revisited. So
 - The deterministic gate + both PASS verdicts still decide "done"; dissent is **preserved, not
   averaged away**, so a valid concern survives across fresh-context iterations.
 
+## Docs-audit swarm (four personas + a writer)
+Documentation gets the same swarm treatment as code review, just wider: four independent,
+order-agnostic persona passes — `wgm-docs-junior`, `wgm-docs-senior`, `wgm-docs-principal`,
+`wgm-docs-pm` — each report read-only findings through one lens, then `wgm-docs-writer` consolidates
+all four into the single paper-trail artifact an operator reads. Full discipline (cadence, severity
+taxonomy, artifact placement) in `references/docs-audit.md`; report shape in
+`assets/docs-audit-report.template.md`.
+
+```mermaid
+flowchart LR
+  J["wgm-docs-junior<br/>clarity"] --> W["wgm-docs-writer<br/>consolidate"]
+  S["wgm-docs-senior<br/>correctness"] --> W
+  P["wgm-docs-principal<br/>architecture"] --> W
+  M["wgm-docs-pm<br/>status/risk"] --> W
+  W --> REPORT["docs/audit/*.md<br/>paper trail"]
+```
+
+- **Dispatch:** the four persona passes have no ordering dependency and may run in parallel; the
+  writer always runs last, after all four have reported.
+- **Dissent applies here too:** when personas disagree, the writer preserves it explicitly (a
+  `Dissent` section) rather than averaging it away — the same discipline described above for the
+  two-stage code review, extended from two voices to four.
+- **The one new discipline:** the writer classifies every finding as **Agent action** or **Operator
+  action** by the *kind of action*, never by which persona raised it — a mechanical fix stays an
+  Agent action even if a PM raised it; a policy question stays an Operator action even if a junior
+  dev raised it.
+- **Trigger points** (not every iteration): Ship/Handoff (mandatory, Standard/Full) and, on the Full
+  track, a Plan-exit baseline pass plus opportunistic passes on doc-touching diffs. Quick skips the
+  swarm entirely and relies on `scripts/check-docs.sh`.
+
 ## Model selection
 Right-size the model per role: the **griller** and **implementer** can run on a frugal model for
 interview and mechanical work; the **reviewers**, the **validator**, and the **diagnostician** earn a
 more capable model (finding the subtle bug, the gamed score, or the stall's root cause is the
 expensive part). This mirrors the loop's frugal↔escalate switching (`references/stall-recovery.md`).
+The same split applies to the docs-audit swarm: the four **persona reviewers** are frugal-model work
+(one bounded, single-lens read), while **`wgm-docs-writer`** earns a more capable model — correct
+dissent-preservation and Agent-vs-Operator classification is the part easy to get subtly wrong.
 
 ## Curated context (the sheepdog's job)
 The orchestrator extracts exactly the text each subagent needs and hands it over — subagents do not
@@ -83,4 +121,5 @@ swarm's context lean.
 
 ## Cross-links
 `references/ralph-loop.md` (loop + backpressure) · `references/scoring.md` (what validation must
-prove) · `references/stall-recovery.md` (escalation) · the archetype files in `.github/agents/`.
+prove) · `references/stall-recovery.md` (escalation) · `references/docs-audit.md` (the docs-audit
+swarm's own discipline) · the archetype files in `.github/agents/`.

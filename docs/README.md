@@ -7,8 +7,8 @@ by concern:
   then install, drive the loop, validation containers, troubleshooting.
 - **[agent/](agent/)** — for the agent following the skill: the lifecycle state machine, the
   convergence loop, scenarios & scoring, stall recovery, gene transfusion. The deeper mechanics — the
-  six-subagent **role swarm** and the **self-improvement flywheel** (run at handoff) — live in
-  [`references/`](../references/).
+  role swarm (eleven subagents, including the five-role **docs-audit swarm**) and the
+  **self-improvement flywheel** (run at handoff) — live in [`references/`](../references/).
 
 For the quickstart, see the top-level [README](../README.md). The authoritative protocol is
 [`SKILL.md`](../SKILL.md); these docs explain the *why* and the *how* behind it. The terse,
@@ -42,6 +42,7 @@ flowchart TD
 | Audience | Doc | What it covers |
 |---|---|---|
 | Operator | [operator/README.md](operator/README.md) | Operator overview: the journey and where to start |
+| Operator | [playbook.md](operator/playbook.md) | The operator SOP/checklist: per-build steps, per-gate PASS/FAIL cheat-sheet, how to read a docs-audit report |
 | Operator | [installation.md](operator/installation.md) | Install on Linux/macOS/Windows/WSL, user vs project |
 | Operator | [running-the-loop.md](operator/running-the-loop.md) | `loop.sh` + the **swarm** (parallel worktrees), limits, retry/circuit-breaker, the metrics ledger, thresholds, escalation |
 | Operator | [containers.md](operator/containers.md) | Podman/OCI validation environment |
@@ -51,7 +52,8 @@ flowchart TD
 | Agent | [scenarios-and-scoring.md](agent/scenarios-and-scoring.md) | Holdout scenarios, judging, satisfaction, tiers |
 | Agent | [stall-recovery.md](agent/stall-recovery.md) | Wonder/reflect + model escalation |
 | Agent | [gene-transfusion.md](agent/gene-transfusion.md) | Seeding the build from an exemplar |
-| Agent | [references/subagents.md](../references/subagents.md) | The six role-specialized subagents (the swarm) + dissent-preserving review |
+| Agent | [references/subagents.md](../references/subagents.md) | The eleven role-specialized subagents (the swarm) + dissent-preserving review |
+| Agent | [references/docs-audit.md](../references/docs-audit.md) | The docs-audit swarm: four dev/PM personas + a technical-writer consolidator; the paper-trail artifact |
 | Agent | [references/self-improvement.md](../references/self-improvement.md) | The growth flywheel: harvest → report upstream → promote durable lessons |
 
 ## Plans & roadmap
