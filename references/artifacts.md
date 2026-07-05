@@ -104,6 +104,9 @@ Rules:
 - **No placeholders.** Every task names exact files/areas and a runnable validation command. Reject a
   task that carries a `to-be-decided` / `implement-later` / `fill-in` marker, says "similar to T1", or
   has no validation command — that is a planning failure, not a task.
+- **Optional machine-readable sidecar:** if a build wants tooling-friendly task state, mirror the
+  statuses in `assets/sprint-status.template.yaml` — but `IMPLEMENTATION_PLAN.md` stays the
+  authoritative shared-state file.
 
 ## `AGENTS.md` — lean operational guide
 How to build, run, and validate this project, plus durable codebase patterns. Source from

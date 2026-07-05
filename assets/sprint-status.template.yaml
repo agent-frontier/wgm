@@ -1,0 +1,14 @@
+# Sprint status — optional machine-readable task state.
+# A lightweight sidecar for tooling-friendly status checks; complements `IMPLEMENTATION_PLAN.md`
+# without replacing it. Keep this file in sync with the plan's task statuses when you use it.
+# See references/artifacts.md for artifact roles and placement.
+
+tasks:
+  - id: <task-id-from-implementation-plan>
+    status: <pending | in_progress | done | blocked>
+    notes:
+      - <short status note>
+  - id: <blocked-task-id>
+    status: blocked
+    blockers:
+      - <what this task is waiting on>
