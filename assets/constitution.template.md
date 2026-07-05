@@ -26,3 +26,5 @@ When a slice must break a principle, log it here so the next agent sees the trad
 | Date | Principle | Why we deviated | Scope |
 |---|---|---|---|
 | <yyyy-mm-dd> | <principle> | <reason / trade-off> | <where it applies> |
+
+**Version**: <constitution-version> | **Ratified**: <yyyy-mm-dd> | **Last Amended**: <yyyy-mm-dd>

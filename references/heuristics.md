@@ -14,6 +14,29 @@ changed how wgm behaves *everywhere*, not just in one build. See
 Prune or merge entries that a protocol change has made redundant — the ledger stays lean, like the
 memory it graduates from.
 
+## Triage & Grill
+- **Heuristic:** reserve the Quick track for work that fits in one short prompt and one agent turn
+  once clarification lands; if it still needs research or unsettled decisions, pay the loop tax.
+  **Why:** "small diff" is not the same as "small ambiguity surface" — under-scoping a decisionful
+  task as Quick skips exactly the ceremony that keeps it from drifting. **Provenance:** external
+  research, `open-gsd/gsd-core`'s `docs/explanation/context-engineering.md` +
+  `docs/explanation/the-phase-loop.md`. **Landed in:** `SKILL.md` (Triage track table).
+- **Heuristic:** scan ambiguity against a named taxonomy, then ask the highest
+  **Impact × Uncertainty** question with a recommendation-first format.
+  **Why:** a fixed scan catches the missing dimension an ad-hoc interview forgets, and a
+  recommendation-first multiple-choice prompt lets the user advance with a one-word "yes" instead of
+  spending a turn restating your own best option. **Provenance:** external research,
+  `github/spec-kit`'s `templates/commands/clarify.md`. **Landed in:** `references/grilling.md`.
+
+## Planning & artifact quality
+- **Heuristic:** treat a spec-quality checklist as "unit tests for English," and re-run it after
+  each accepted Grill answer until the pass count stabilizes.
+  **Why:** readiness scoring works better as a confirmation step than as the first place basic
+  requirement rot is discovered; a living checklist surfaces clarity/coverage gaps while they are
+  still cheap to fix. **Provenance:** external research, `github/spec-kit`'s
+  `templates/commands/checklist.md` + `templates/commands/specify.md`. **Landed in:**
+  `references/artifacts.md`.
+
 ## Loop discipline
 - **Heuristic:** before running a task's full validation command, diff actually-touched files
   against its declared files/areas from `IMPLEMENTATION_PLAN.md` as a cheap pre-check.

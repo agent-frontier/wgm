@@ -11,7 +11,10 @@ Walk down each branch of the decision tree, resolving dependencies between decis
 ## Rules
 1. **One question at a time.** Never batch. A wall of questions gets a shallow answer.
 2. **Always recommend an answer.** For every question, give your recommended choice and a one-line
-   why. The user should be able to reply "yes" and move on.
+   why. For multiple-choice questions, put it first as
+   `**Recommended:** Option [X] - <reasoning>`, then a compact options table, then a one-line
+   reply rule: "Reply with the letter, say `yes` / `recommended` to accept, or give your own short
+   answer." The user should be able to reply "yes" and move on.
 3. **Explore before asking.** If a question can be answered by reading the codebase, read the
    codebase instead. Questions you can resolve yourself are not questions for the user.
 4. **Resolve dependencies in order.** Some decisions gate others (data model before API shape,
@@ -37,6 +40,28 @@ Walk down each branch of the decision tree, resolving dependencies between decis
 - **Acceptance + backpressure:** how will each criterion be *verified* by a command or check?
   Phrase each as a testable **EARS** requirement (`references/artifacts.md`) — the trigger / state /
   response shape forces out the ambiguity a test or an LLM judge otherwise can't settle.
+
+## Ambiguity taxonomy (what to scan for)
+Before you ask, scan the request/spec against this ambiguity taxonomy (adapted from
+[`github/spec-kit`](https://github.com/github/spec-kit)):
+- **Functional scope & behavior** — what the system must do.
+- **Success criteria & out-of-scope** — what counts as done, and what this pass will not do.
+- **Roles / personas** — who differs, and why the distinction matters.
+- **Domain & data model** — entities, relationships, invariants.
+- **Identity / lifecycle** — uniqueness rules, states, transitions.
+- **Interaction & UX flow** — the user journey, handoffs, visible feedback.
+- **Error / empty / loading states** — how the product behaves off the happy path.
+- **Non-functional quality attributes** — performance, scalability, reliability, observability,
+  security, compliance.
+- **Integration & external dependencies** — APIs, services, storage, auth providers, contracts.
+- **Edge cases & failure handling** — invalid input, retries, concurrency, degraded modes.
+- **Constraints, tradeoffs, terminology** — tech mandates, deadlines, compatibility, naming drift.
+- **Completion signals & placeholders** — TODO markers, unresolved decisions, vague adjectives like
+  "robust" with no measurable proof.
+
+Mark each category **clear / partial / missing**. When many stay unresolved at once, prioritize by
+**Impact × Uncertainty** and ask the highest-leverage one first. If more than ~5 remain open, take
+the top five and keep rule 6's soft cap behavior: summarize, offer defaults, keep moving.
 
 ## Grill-exit gate
 Stop interviewing and move to planning when **all** hold:
