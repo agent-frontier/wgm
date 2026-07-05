@@ -198,8 +198,11 @@ stop condition fires. **One task per iteration.** Each iteration:
    record a reviewer's non-blocking reservation (or a disagreement between the two) as a follow-up,
    never a silent PASS (`references/subagents.md`).
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
-   tasks. Write enough that a **fresh agent could continue** from the file alone. **Remember:** append
-   any durable lesson (a stall's cause + fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,
+   tasks. Write enough that a **fresh agent could continue** from the file alone. Once that
+   validation command exits 0, commit the iteration with a Conventional Commits message (`type:
+   imperative description`, ≤72 chars; one iteration, one commit); if git is unavailable, the
+   plan-file record is still required. **Remember:** append any durable lesson (a stall's cause +
+   fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,
    kept lean within a ~2000-token budget. **Agent-only files** (`.wgm/` memories, scores, any
    agent-only state) may min-max context with **single-token keys serialized as TOON + an embedded
    legend**; human-facing artifacts (the plan, specs) stay readable (`references/artifacts.md`).

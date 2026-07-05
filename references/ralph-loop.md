@@ -32,7 +32,12 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 2. **Implement** — smallest change that completes one task; prefer a working vertical slice.
 3. **Validate** — run the task's backpressure command. Green or it isn't done.
 4. **Review** — diff check: scope creep, acceptance met, signal actually proves the task.
-5. **Record** — update the plan: status, results, follow-ups. Make it fresh-agent-resumable.
+5. **Record** — update the plan: status, results, follow-ups. Once the task's validation
+   command exits 0, commit that iteration with a Conventional Commits message (`type: imperative
+   description`, ≤72 chars; `fix` / `feat` / `refactor` / `docs` / `test` / `chore` / `build` /
+   `ci`) so history mirrors the one-task loop; if git is unavailable, the plan-file record is
+   still required. Adapted from `Aider-AI/aider`'s Conventional-Commits-style auto-commit habit.
+   Make it fresh-agent-resumable.
 
 ## Backpressure in depth
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
@@ -70,10 +75,15 @@ Inject these into **every** iteration — they prevent recurring loop failures:
 - **Search before you build.** Before adding code, grep the codebase for an existing implementation
   (parallel searches help). The classic Ralph failure is re-implementing something that already
   exists because one quick search came up empty. Don't assume a feature is missing — prove it is.
-  **Widen the search past the local repo:** also check declared dependencies, mandated companion
-  tools, and the platform/runtime for the capability — a project's "additive to X, never duplicate
-  X" rule is only enforceable if Analyze actually inspects X. If a dependency or companion already
-  ships it, drop the build task, wire/enable the existing provider instead, and record why.
+  Extract the key identifiers the task actually names (function / class / variable names), not just
+  conceptual keywords, and search those exact names first. For each hit, also inspect what imports
+  or calls it; the defining file is only half the surface area. Deprioritize identifiers that show
+  up everywhere (generic helpers, framework builtins) — they are usually noise, not signal.
+  Adapted from `Aider-AI/aider`'s `aider/repomap.py`. **Widen the search past the local repo:**
+  also check declared dependencies, mandated companion tools, and the platform/runtime for the
+  capability — a project's "additive to X, never duplicate X" rule is only enforceable if Analyze
+  actually inspects X. If a dependency or companion already ships it, drop the build task,
+  wire/enable the existing provider instead, and record why.
 - **Document why each test exists.** When you add a test, record in a comment what behavior it proves
   and why it matters. A fresh context that can't see the rationale may delete the test as an orphan,
   silently dropping coverage.

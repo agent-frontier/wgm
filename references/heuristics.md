@@ -15,6 +15,12 @@ Prune or merge entries that a protocol change has made redundant — the ledger 
 memory it graduates from.
 
 ## Triage & Grill
+- **Heuristic:** run a cross-requirement consistency scan before leaving Grill: contradictions,
+  vague thresholds, and undefined referenced concepts must be resolved or made measurable.
+  **Why:** requirements that look fine in isolation can still be mutually impossible or vague enough
+  to fork the implementation once design starts. **Provenance:** external research, Kiro's
+  `kiro.dev/docs/specs/analyze-requirements/`. **Landed in:** `references/grilling.md`
+  (Grill-exit gate).
 - **Heuristic:** reserve the Quick track for work that fits in one short prompt and one agent turn
   once clarification lands; if it still needs research or unsettled decisions, pay the loop tax.
   **Why:** "small diff" is not the same as "small ambiguity surface" — under-scoping a decisionful
@@ -38,6 +44,16 @@ memory it graduates from.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** after a task's validation command exits 0, commit that iteration with a
+  Conventional Commits message. **Why:** one green task per commit keeps history aligned with the
+  plan's one-task loop without leaving broken commits behind. **Provenance:** external research,
+  `Aider-AI/aider`'s Conventional-Commits-style auto-commit workflow. **Landed in:** `SKILL.md`
+  Loop · Record · `references/ralph-loop.md` (The per-iteration algorithm).
+- **Heuristic:** search exact task-named identifiers first, then follow their callers/importers
+  before deciding where to edit. **Why:** conceptual keyword search misses the real change surface,
+  and stopping at the defining file misses the files that actually need changing. **Provenance:**
+  external research, `Aider-AI/aider`'s `aider/repomap.py`. **Landed in:**
+  `references/ralph-loop.md` (Standing guardrails).
 - **Heuristic:** before running a task's full validation command, diff actually-touched files
   against its declared files/areas from `IMPLEMENTATION_PLAN.md` as a cheap pre-check.
   **Why:** a mismatch (e.g. a task scoped to `schema/` touching UI files) is an early signal of
