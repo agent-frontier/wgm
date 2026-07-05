@@ -32,6 +32,7 @@ REQUIRED=(
   "docs/operator/installation.md"
   "docs/operator/running-the-loop.md"
   "docs/operator/containers.md"
+  "docs/operator/devcontainers.md"
   "docs/operator/troubleshooting.md"
   "docs/operator/playbook.md"
   "docs/agent/lifecycle.md"
@@ -104,6 +105,7 @@ OPERATOR_DOCS=(
   "docs/operator/installation.md"
   "docs/operator/running-the-loop.md"
   "docs/operator/containers.md"
+  "docs/operator/devcontainers.md"
   "docs/operator/troubleshooting.md"
 )
 for f in "${OPERATOR_DOCS[@]}"; do

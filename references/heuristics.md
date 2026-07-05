@@ -46,6 +46,17 @@ prune becomes due — `docs/audit/README.md`.)
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** default to Ralph-full (genuinely fresh context per iteration via `scripts/loop.sh`)
+  whenever a non-interactive agent invocation is available, not only for large/ambiguous builds;
+  reserve Ralph-lite (in-session) for interactive-only hosts or Quick-track work.
+  **Why:** the original technique's own definition is "Ralph is a technique. In its purest form,
+  Ralph is a Bash loop" — a single monolithic process with progress living on disk, not model
+  context, between passes. Treating in-session execution as the default rather than the fallback
+  quietly settles for the weaker, compromise form of the technique even when the purer form is one
+  subprocess call away. **Provenance:** external research, `ghuntley/how-to-ralph-wiggum` +
+  ghuntley.com/loop (Geoffrey Huntley's original Ralph definition). **Landed in:** `SKILL.md`
+  (Phase 0 — Decide loop mode) · `references/ralph-loop.md` (Ralph-lite vs Ralph-full) ·
+  `docs/operator/running-the-loop.md`.
 - **Heuristic:** verify the project's working tree is clean before the first loop iteration.
   **Why:** prompt-only skills lack shadow-checkpoint infrastructure; a clean git baseline keeps the
   repo's own history as a reliable rollback path when an iteration destabilizes the tree.
@@ -220,3 +231,28 @@ prune becomes due — `docs/audit/README.md`.)
   failure would suppress exactly the signal that saves the most wasted work. **Provenance:** wgm
   dogfood, `[learn]` issue #30. **Landed in:** `docs/operator/running-the-loop.md` (Swarm — Planning
   a swarm well) · `references/stall-recovery.md` (Detecting a stall).
+
+## Local sandboxing (devcontainers)
+- **Heuristic:** when sandboxing the loop itself in a local devcontainer, reference ONE shared,
+  prebuilt image (`"image"`, never a per-project `"build"`), bind-mount the project instead of
+  copying it in, make the build idempotent (skip an unnecessary rebuild), and label every created
+  resource so cleanup can be scoped to exactly what the tool created.
+  **Why:** a per-project `"build"` devcontainer.json costs a new multi-GB image per project — the
+  literal disk-bloat failure mode a "manageable" local sandbox exists to avoid; an unlabeled prune
+  either does nothing useful or risks touching a container/image it didn't create. **Provenance:**
+  external research, the [containers.dev](https://containers.dev) spec's prebuilt-image reuse
+  guidance + standard Docker/Podman disk-hygiene practice (`system df`, scoped `prune`).
+  **Landed in:** `scripts/devcontainer.sh` · `references/devcontainers.md` ·
+  `docs/operator/devcontainers.md`.
+- **Heuristic:** when a sandboxed container bind-mounts a host directory, run it as the calling
+  host user's UID:GID, and add Podman's `--userns=keep-id` specifically for Podman (Docker needs no
+  such flag). **Why:** the image's own baked UID (even a numerically identical `1000`) is not the
+  same UID as the host caller once rootless Podman's default user namespace remaps it — a
+  bind-mounted directory that isn't world-readable (a `mktemp -d`-style `0700` dir is the common
+  case) is silently unreadable/unwritable inside the sandbox even though the mount itself
+  "succeeds," and this is easy to miss if the smoke test happens to use a world-readable directory.
+  **Provenance:** wgm dogfood — discovered live while building and testing this session's
+  `--devcontainer` sandbox (`scripts/test-devcontainer.sh`'s real, non-dry-run cases caught it: a
+  bind-mounted file was readable in an ad hoc `/tmp` test dir but not through the harness's
+  `mktemp -d` temp dir, isolating the permission mismatch). **Landed in:** `scripts/devcontainer.sh`
+  (`cmd_run`'s `--user`/`--userns=keep-id`) · `references/devcontainers.md`.

@@ -197,6 +197,9 @@ flowchart LR
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).
+- **Local devcontainer sandbox** — run the loop *itself* isolated in a disk-conscious local
+  devcontainer (one shared image across every project, never a per-project build) via
+  `loop.sh --devcontainer` (`references/devcontainers.md`).
 
 Full design docs live in [`docs/`](docs/), split by **operator** and **agent** concerns.
 
@@ -216,6 +219,7 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
 ./scripts/loop.sh extract --source ../exemplar  # gene transfusion from an exemplar repo
 ./scripts/loop.sh build only          # exactly one iteration
 ./scripts/loop.sh build --dry-run     # preview the prompt/command; run nothing
+./scripts/loop.sh build --devcontainer  # run the whole loop sandboxed (one shared image; see below)
 # …or pass the agent argv after `--` (invoked without eval — safest):
 ./scripts/loop.sh build -- claude -p
 ```
@@ -241,6 +245,9 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
   (`--max-consecutive-failures`) instead of dying on the first hiccup.
 - **Measure the run:** `--metrics FILE` logs a per-iteration TSV (duration, progress, result), with a
   pluggable `--cost-cmd` for token/cost — for data-driven runs.
+- **Sandbox the loop itself:** `--devcontainer` re-execs the whole invocation inside a disk-conscious
+  local devcontainer via `scripts/devcontainer.sh` — one shared, prebuilt image reused across every
+  project (never a per-project build). See [docs/operator/devcontainers.md](docs/operator/devcontainers.md).
 - **Works from any project:** the loop ships with the installed skill and acts on your current
   directory — run `~/.agents/skills/wgm/scripts/loop.sh` (or your install path) from your project's
   root. The `./scripts/loop.sh` examples above assume you're inside this repo.
@@ -254,9 +261,9 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics · docs-audit · adr · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
-├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · state.toon templates
-├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · install.sh · install.ps1
+├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · heuristics · docs-audit · adr · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · state.toon · devcontainer/ templates
+├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · devcontainer.sh (local sandbox) · install.sh · install.ps1
 ├── .github/agents/   # the eleven role-specialized subagents (the swarm), incl. the docs-audit swarm
 └── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)
 ```

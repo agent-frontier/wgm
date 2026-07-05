@@ -1,0 +1,29 @@
+# Containerfile.template — the ONE shared base image for wgm's local devcontainer sandbox.
+#
+# Built once via `scripts/devcontainer.sh build-base`, tagged `localhost/wgm-devcontainer-base:latest`,
+# and referenced — never rebuilt — by every project's scaffolded devcontainer.json ("image", not
+# "build"). That single choice is the actual disk-bloat fix: one image's layers, shared across every
+# project that runs wgm's Ralph-full loop in a sandbox, instead of N near-identical multi-GB images.
+#
+# Deliberately minimal + generic: just enough to run scripts/loop.sh and scripts/devcontainer.sh
+# themselves (bash/git/curl/jq) plus a Node.js runtime, since most CLI coding agents ship as npm
+# packages. It does NOT bake in any one vendor's agent CLI, and it does NOT include any project's own
+# toolchain (npm deps/pytest/cargo/etc.) — `scripts/devcontainer.sh run` bind-mounts the host's agent
+# CLI + the repo at run time instead, so the shared image never grows per project or per agent.
+#
+# Never bake secrets or credentials into this file — its layers are cached and reused across every
+# project on the machine. Auth (git config, agent CLI tokens) is mounted at *run* time only
+# (see scripts/devcontainer.sh), never copied in here.
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      bash git curl ca-certificates jq nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rootless-friendly: run as a non-root user inside the image (wgm's existing Podman/OCI convention;
+# see references/validation-env.md). UID 1000 matches the common single-user host default.
+RUN useradd --create-home --uid 1000 --shell /bin/bash wgm
+USER wgm
+WORKDIR /workspace
+
+LABEL wgm.devcontainer=1 wgm.devcontainer.role=base

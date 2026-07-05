@@ -1,0 +1,27 @@
+// devcontainer.json.template — scaffolded into a project's .devcontainer/ by
+// `scripts/devcontainer.sh init`. (devcontainer.json is JSONC — comments are part of the spec.)
+//
+// Disk-conscious by design: it references ONE shared, prebuilt base image ("image", never "build")
+// so every project using wgm's devcontainer sandbox reuses the same image layers instead of each
+// building/storing its own multi-GB copy. Build the shared image once with:
+//   scripts/devcontainer.sh build-base
+//
+// The workspace is bind-mounted, never copied into the image, so the image stays generic and tiny
+// regardless of repo size. This file is a standards-compliant containers.dev artifact usable by the
+// official devcontainer CLI / VS Code / Codespaces for interactive work; wgm's own automation
+// (scripts/devcontainer.sh run) drives podman/docker directly instead of requiring that separate
+// CLI, matching how scripts/loop.sh's --container flag already works.
+//
+// Need extra system deps for this one project? Don't bake them into the shared image (that defeats
+// the point of sharing it). Extend it in a project-local Containerfile instead:
+//   FROM localhost/wgm-devcontainer-base:latest
+//   RUN <your extra deps>
+// ...then switch "image" below to "build": { "dockerfile": "Containerfile" }. That keeps the shared
+// base the common case and a project-specific image an explicit, visible opt-in.
+{
+  "name": "wgm-ralph-sandbox",
+  "image": "localhost/wgm-devcontainer-base:latest",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "remoteUser": "wgm"
+}

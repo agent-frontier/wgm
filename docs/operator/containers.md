@@ -9,7 +9,10 @@
   probe suffices, skip the container.
 - **Golden rules:** run rootless, bind localhost on a free port, never bake in secrets, always
   clean up.
+- **Not what you want if:** you're trying to sandbox the *agent loop itself* (not the app under
+  test) — see [devcontainers.md](devcontainers.md) instead.
 - **Next:** [running-the-loop.md](running-the-loop.md) (`--container`) ·
+  [devcontainers.md](devcontainers.md) (sandbox the loop itself) ·
   [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
 
 Some acceptance scenarios can only be judged against the software **actually running** — an HTTP
