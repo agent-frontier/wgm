@@ -15,6 +15,13 @@ Prune or merge entries that a protocol change has made redundant — the ledger 
 memory it graduates from.
 
 ## Loop discipline
+- **Heuristic:** before running a task's full validation command, diff actually-touched files
+  against its declared files/areas from `IMPLEMENTATION_PLAN.md` as a cheap pre-check.
+  **Why:** a mismatch (e.g. a task scoped to `schema/` touching UI files) is an early signal of
+  scope/spec drift — catching it before the validation budget is spent beats discovering it only
+  after a full, possibly expensive run finishes. **Provenance:** external research,
+  `saitarrun/devforge-ai`'s `ralph-loop` skill (its "Sentinel" health check). **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth).
 - **Heuristic:** never run a project- or crate-wide auto-formatter mid-iteration; format only the
   exact files this task touched. **Why:** a blanket formatter rewrites untouched files, leaving
   stray churn that blocks a branch switch and buries the one-task diff in reformatting noise.
@@ -39,6 +46,14 @@ memory it graduates from.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** adopt a formal `evals/evals.json` fixture (prompt + expected_output + assertions,
+  graded with/without the skill) as a skill's own output-quality self-test, distinct from a
+  trigger-classification fixture. **Why:** a skill's prompt-engineering (its `SKILL.md`/references
+  text) has no natural unit test; a structured eval schema gives it one, closing exactly the
+  self-test gap a trigger-only fixture leaves open. **Provenance:** external research,
+  `agentskills/agentskills`'s `evaluating-skills.mdx` (the specification wgm already conforms to for
+  `SKILL.md` structure). **Landed in:** `references/evals.md` · `evals/evals.json` ·
+  `scripts/check-evals.sh`.
 - **Heuristic:** when the build runtime is newer/odder than a key tool's tested baseline, make T1
   prove the whole toolchain end-to-end (a hello-world that really builds/runs) and pre-commit a
   runtime-pin fallback before feature work. **Why:** mid-build tooling stalls invalidate work that

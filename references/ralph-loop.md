@@ -44,6 +44,13 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   fallback (pin a known-good version) in case it misbehaves. This extends "the first task is to
   build a validation signal" to the runtime/environment axis, not just the test harness.
 - Prefer fast, deterministic signals. A 2-second deterministic check beats a 30-second flaky one.
+- **Spec-drift pre-check (optional, cheap).** Before running the task's full validation command,
+  diff the files actually touched against the task's declared files/areas in
+  `IMPLEMENTATION_PLAN.md`. A mismatch (e.g. a task scoped to `schema/` touching UI files) is a
+  cheap, early signal of scope or spec drift — worth flagging before spending the validation budget
+  on a run that was never going to prove the right thing. Adapted from `saitarrun/devforge-ai`'s
+  `ralph-loop` skill (its "Sentinel" health check, which also flags "context drift" — a new log
+  entry conspicuously shorter than prior ones).
 - Include at least one **end-to-end demo check** that exercises the spec's smallest demo path —
   narrow unit/build checks can pass while the actual user flow is broken.
 - Only when no deterministic check can exist (UX feel, copy, aesthetics) fall back to an

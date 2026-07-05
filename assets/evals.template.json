@@ -1,0 +1,16 @@
+{
+  "_instructions": "Copy this file to evals/evals.json in your own skill/project root (alongside SKILL.md), delete this _instructions key, and replace skill_name plus every eval entry. See references/evals.md for the full discipline: 2-3 cases to start, vary phrasing, cover at least one edge case, write assertions that are objectively checkable (not 'the output is good').",
+  "skill_name": "<your-skill-name>",
+  "evals": [
+    {
+      "id": "<short-kebab-case-id>",
+      "prompt": "<a realistic user message -- the kind of thing someone would actually type>",
+      "expected_output": "<a human-readable description of what success looks like>",
+      "files": ["<optional: input files this eval needs, relative to evals/>"],
+      "assertions": [
+        "<a specific, observable, programmatically-or-LLM-checkable statement>",
+        "<add one assertion per acceptance criterion this case is meant to prove>"
+      ]
+    }
+  ]
+}

@@ -24,6 +24,36 @@ report across more than one project (e.g. a persona repeatedly flags the same ca
 that pattern is exactly the kind of durable, cross-project, sanitized lesson this harvest step looks
 for — treat it the same as a `.wgm/memories.md` entry (`references/docs-audit.md`).
 
+## Cross-pollinate (a second channel — external research)
+The flywheel above harvests *internal* lessons from this project's own dogfooding. wgm also grows by
+scanning **sibling agent-skill projects on GitHub** for patterns worth assimilating. This is
+research, not the per-build code-style seeding `references/gene-transfusion.md` describes — that's a
+different, per-project technique used in Triage/Plan to seed one build from one exemplar; this is
+wgm-the-skill improving itself from the wider ecosystem.
+
+Reach for it opportunistically, or when a user asks wgm to grow/improve itself. How it works:
+1. **Search** GitHub (the GitHub MCP tools, or `web_search` for repo discovery followed by
+   `github-mcp-server-get_file_contents` for precision) for skills/frameworks solving problems
+   adjacent to wgm's own phases — grilling, loop mechanics, scoring, docs audits, self-testing.
+2. **Evaluate** each candidate the same way an internal lesson is judged: durable? Would it help in a
+   *different* codebase, not just cosmetic to this one? Can it be sanitized (cite the source repo,
+   respect its licence)?
+3. **Land it directly.** Because this is discovered while already working *in* `agent-frontier/wgm`,
+   skip the outbound `[learn]`-issue round-trip below — that pipeline exists specifically for lessons
+   learned while dogfooding wgm *in a different host repo*. Implement the change directly and cite
+   the source in `heuristics.md`'s **Provenance** field, exactly as existing entries already do
+   (e.g. "ghuntley/Ralph standing guardrail," "Superpowers two-stage review," "octopusgarden").
+4. **Not every finding is a change.** A candidate that only confirms an existing design choice is
+   already sound is worth a one-line citation, not a behavior change — record the "why we didn't
+   change this" so a future pass doesn't re-litigate settled ground.
+
+**Worked example (this session):** researched `saitarrun/devforge-ai` (a sibling `ralph-loop`
+skill), `mattpocock/skills` (the credited origin of wgm's `grill-me`-inspired Grill phase), and
+`agentskills/agentskills` (the specification wgm's `SKILL.md` already conforms to). Landed: a
+spec-drift pre-check in `references/ralph-loop.md`, the `evals/` self-test convention in
+`references/evals.md`, and a citation in `references/grilling.md` confirming an existing design
+choice. See `references/heuristics.md` for the graduated entries.
+
 ## Report (outbound, opt-in)
 File the candidate to [`agent-frontier/wgm`](https://github.com/agent-frontier/wgm) as a `[learn]`
 report using the [`heuristic_report.yml`](../.github/ISSUE_TEMPLATE/heuristic_report.yml) template
