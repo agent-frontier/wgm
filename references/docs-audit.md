@@ -52,6 +52,12 @@ Each persona reviews the same doc set through one lens and produces a short, str
 Severity taxonomy, used by all four: **RED** (blocker — actively wrong or misleading), **AMBER**
 (major — incomplete, unclear, or drifting), **GREEN** (minor/nit, or no finding).
 
+For the **PM** lens, also check whether
+[`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md)'s
+"point-in-time snapshot" has fallen meaningfully behind the sources that have since been
+assimilated into [`references/heuristics.md`](heuristics.md)'s **Provenance** fields. If it has,
+flag that drift as a finding; do not silently treat the landscape snapshot as current.
+
 ## The technical writer (consolidation)
 One additional role — the **technical writer** — takes all four persona outputs and produces the
 single artifact an operator actually reads. It does not add new opinions of its own; it normalizes.

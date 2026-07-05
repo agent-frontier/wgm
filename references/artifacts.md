@@ -39,6 +39,19 @@ and cuts tokens — a term defined once here need not be re-derived each loop. S
 - **Placement** follows the same root vs `.wgm/` rule as the other artifacts —
   `specs/CONTEXT.md` or `.wgm/specs/CONTEXT.md`.
 
+## `specs/adr/*.md` — why a hard decision was made
+Architecture Decision Records capture the reasoning behind a choice that would be hard to unwind
+later, so a fresh agent or human sees the trade-off instead of guessing from the code. Source from
+`assets/adr.template.md`; the gate and discipline live in `references/adr.md`.
+
+- **Write one only when the ADR gate clears.** The decision should be hard to reverse, cross-cutting,
+  and genuinely debatable; otherwise keep the note in the spec or plan instead.
+- **Capture the trade-off.** Record the context/forces, the decision, the alternatives rejected, and
+  the consequences accepted.
+- **Placement** follows the same root vs `.wgm/` rule as the other artifacts —
+  `specs/adr/NNNN-title.md` or `.wgm/specs/adr/NNNN-title.md`.
+- **Created during Plan or Loop.** Write it when the qualifying decision is made, not after the fact.
+
 ## `specs/*.md` — what to build and why
 One spec per coherent slice of work. Source from `assets/spec.template.md`. Must capture:
 - **JTBD** — the job, and who it's for.
@@ -94,6 +107,8 @@ A prioritized task list — the memory of the loop. Source from
 - **files/areas** — where the change likely lives.
 - **validation command** — the backpressure that proves it (e.g. `npm test -- auth`, `pytest -k x`).
 - **acceptance criteria** — what "done" means for this task.
+- **tracker reference (optional)** — an external issue/ticket ID when useful for traceability
+  (e.g. `GH-142`, `ENG-204`, or "Task 7 (tracks GH-142)").
 - **status** — `pending | in_progress | done | blocked` (+ a note for blocked).
 
 Rules:
@@ -104,6 +119,12 @@ Rules:
 - **No placeholders.** Every task names exact files/areas and a runnable validation command. Reject a
   task that carries a `to-be-decided` / `implement-later` / `fill-in` marker, says "similar to T1", or
   has no validation command — that is a planning failure, not a task.
+- **Host-agnostic tracker convention only.** wgm does **not** ship a GitHub / Linear / Notion client.
+  A tracker ID is a documented traceability pattern, not a built integration. If the host or operator
+  already has tracker capability, the Record step may update both `IMPLEMENTATION_PLAN.md` and the
+  external tracker status together; otherwise, update the plan alone. This pattern was borrowed from
+  [`ralph-starter`](https://github.com/rubenmarcus/ralph-starter), already noted in
+  [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md).
 
 ## `AGENTS.md` — lean operational guide
 How to build, run, and validate this project, plus durable codebase patterns. Source from
