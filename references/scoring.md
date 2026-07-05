@@ -35,14 +35,18 @@ across scenarios, optionally tier-weighted). **Converge** when the overall score
 Use a tight, structured judge prompt, separate from the generator:
 
 ```
-You are grading one acceptance step. Output {score: 0-100, why: <one line>}.
+You are grading one acceptance step. Output {score: 0-100, why: <one line>, diagnostics?: [{category: <slug>, detail: <one line>}]}.
 Expectation: <step.expect>
 Observed:    <captured output / HTTP response / terminal state>
 Score how fully the observed behavior satisfies the expectation.
 ```
 
 Keep the generator and judge **separate** (the generator must never see scenarios). Record the judge
-prompt, the score, and the one-line justification — and accept that scores vary run to run.
+prompt, the score, and the one-line justification — and accept that scores vary run to run. For
+sub-100 scores, an optional `diagnostics` array (short category slugs such as `auth` or
+`http-status`, each with a one-line detail) makes recurring failure *classes* trackable across
+iterations instead of burying them in prose; this follows `foundatron/octopusgarden`'s
+`internal/llm/prompt.go`.
 
 ## Relative-to-incumbent scoring (clone/replacement builds)
 When the job is to **beat or replace an existing artifact** (a redesign, a port, a faster library, a
@@ -67,12 +71,20 @@ Grade by ascending **tier** (`references/scenarios.md`): bring tier-1 scenarios 
 admitting tier-2, then tier-3. This stops easy passes from masking hard failures and focuses each
 phase of the loop on the next real gap.
 
+### Regression detection
+After each validated iteration, compare every scenario's score to that scenario's score in the
+previous validated iteration. If a scenario that previously cleared the convergence threshold now
+drops below it, name it explicitly as a **regression** — e.g.
+`scenario 'checkout happy path' dropped 82→71 (iteration 3→4)` — and stop to diagnose before
+adding more code. This sharper signal comes from `foundatron/octopusgarden`'s
+`internal/attractor/regression.go`.
+
 ## Recording
-- Per-iteration: note the overall score, per-tier scores, and the weakest scenario in
-  `IMPLEMENTATION_PLAN.md`.
-- Keep an append-only `.wgm/scores.md` (iteration · tier · score · note) so a fresh agent sees the
-  numeric trajectory; record the *prose* lesson behind a jump or drop in `.wgm/memories.md`
-  (`references/artifacts.md`).
+- Per-iteration: note the overall score, per-tier scores, the weakest scenario, any explicit
+  regression, and the most frequent diagnostic category in `IMPLEMENTATION_PLAN.md`.
+- Keep an append-only `.wgm/scores.md` (iteration · tier · score · note · dominant diagnostic
+  category) so a fresh agent sees the numeric trajectory; record the *prose* lesson behind a jump or
+  drop in `.wgm/memories.md` (`references/artifacts.md`).
 
 ## When the score stalls
 A flat or falling score across ~2 iterations is a **stall**: stop adding code and switch to
