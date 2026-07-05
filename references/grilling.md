@@ -38,8 +38,9 @@ Walk down each branch of the decision tree, resolving dependencies between decis
 - **Constraints:** stack, deadlines, must-use/avoid tech, performance, security, deployment target.
 - **Scope edges:** what is explicitly out of scope for this pass?
 - **Acceptance + backpressure:** how will each criterion be *verified* by a command or check?
-  Phrase each as a testable **EARS** requirement (`references/artifacts.md`) — the trigger / state /
-  response shape forces out the ambiguity a test or an LLM judge otherwise can't settle.
+  Phrase each as a testable **EARS** requirement (Mavin et al., Rolls-Royce / IEEE RE 2009; see
+  `references/artifacts.md` for all five shapes) — that structure forces out the ambiguity a test
+  or an LLM judge otherwise can't settle.
 
 ## Ambiguity taxonomy (what to scan for)
 Before you ask, scan the request/spec against this ambiguity taxonomy (adapted from
@@ -68,6 +69,13 @@ Stop interviewing and move to planning when **all** hold:
 - [ ] Goal is known.
 - [ ] User-visible success criteria are known.
 - [ ] Major constraints are known.
+- [ ] Acceptance criteria are mutually consistent: no contradictions, no vague thresholds without
+      measurable definitions, and all referenced concepts are defined. (Kiro's requirements
+      consistency pass: https://kiro.dev/docs/specs/analyze-requirements/)
+- [ ] No redundant or contradictory statements remain. (`foundatron/octopusgarden`'s `economy`
+      dimension)
+- [ ] Default values, limits, and boundary conditions are explicit, not left implicit.
+      (`foundatron/octopusgarden`'s `defaults_and_boundaries` dimension)
 - [ ] Each unknown is answered, explored from code, or recorded as an explicit assumption.
 - [ ] The user said "go," or the remaining ambiguity cannot change the build.
 
