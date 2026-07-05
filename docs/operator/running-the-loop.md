@@ -171,6 +171,58 @@ tokens); wgm never interprets it, only sums it.
 Default `0` = unlimited (unchanged behavior). This closes the "API spend/cost ceiling" follow-up
 noted in [`docs/plans/2026-06-16_PLAN.md`](../plans/2026-06-16_PLAN.md).
 
+## Optional external tooling: dashboards and cost views
+
+wgm ships the **loop runner and its output files**, not a bundled operator UI. If you want a live
+dashboard, build it **externally** against the files and hooks `loop.sh` already exposes — the same
+"runner emits durable state; a separate tool renders it" pattern noted for
+[`ralph-orchestrator`](../plans/2026-06-16_RALPH_LANDSCAPE.md) and `codeburn` in the landscape
+survey.
+
+### Pattern: a ledger-backed TUI/dashboard (ralph-orchestrator style)
+
+In the `wgm vs representative projects` table, `ralph-orchestrator` is the reference for a terminal
+dashboard/TUI. The equivalent wgm pattern is: **leave `loop.sh` alone, and point an external reader
+at its existing artifacts**.
+
+- **Primary data source:** the `--metrics FILE` TSV ledger (`timestamp`, `iter`, `mode`, `agent`,
+  `duration_s`, `plan_changed`, `result`, `cost`).
+- **Event stream:** `--notify "CMD"` lifecycle events (`start`, `retry`, `error`, `complete`) plus
+  any checkpoint commits you asked `--checkpoint-interval` to create.
+- **Optional score input:** if you want a satisfaction trend line as well as iteration timing, read
+  the existing `.wgm/scores.md` trajectory (or the score notes written into the plan) alongside the
+  ledger; the TUI is still only *reading* wgm's durable outputs.
+
+That gives an operator enough to tail or poll for:
+
+- current iteration number, mode, and active frugal/main agent
+- per-iteration elapsed time and success/failure history
+- whether the plan advanced this pass (`plan_changed`)
+- checkpoint boundaries and loop lifecycle notifications
+- satisfaction trend, if you also ingest the score log
+
+In other words: you **could** build a `ralph-orchestrator`-style terminal board on top of
+`.wgm/metrics.tsv`, `.wgm/scores.md`, and `--notify`; wgm itself does **not** ship that board.
+
+### Pattern: a token/cost TUI (codeburn style)
+
+The landscape survey's *Adjacent ecosystems* section calls out `codeburn` as a **token TUI
+dashboard**. wgm's matching integration point is already here: `--cost-cmd` fills the ledger's
+per-iteration `cost` column, and `--max-cost` can stop the loop once that running total crosses a
+ceiling.
+
+- Keep your own token/spend collector outside wgm (for example, a host-specific usage log or API
+  meter).
+- Have `--cost-cmd` print one numeric figure per iteration in whatever unit you care about
+  (tokens, cents, dollars).
+- Enable `--metrics FILE` so the figure lands in the ledger as a durable time series.
+- Let an external TUI tail that ledger and render live per-iteration cost, cumulative spend, and
+  "distance to `--max-cost`" progress.
+
+This is intentionally **host-agnostic**: wgm does not know how your agent exposes usage, and it does
+not bundle a token dashboard. It only gives you the hook and the ledger so an operator can attach a
+`codeburn`-style live view if they want one.
+
 ## Project gates (wgm.yml)
 
 A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands

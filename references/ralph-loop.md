@@ -32,7 +32,11 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 
 ## The per-iteration algorithm
 `Analyze → Implement → Validate → Review → Record`
-1. **Analyze** — read only `IMPLEMENTATION_PLAN.md`, the relevant spec, and this task's files.
+1. **Analyze** — read only `IMPLEMENTATION_PLAN.md`, the relevant spec, and this task's files. If
+   the host exposes an optional MCP code-intelligence layer (for example,
+   [`oraios/serena`](https://github.com/oraios/serena)), use it to narrow symbol / call-graph /
+   cross-reference lookup before falling back to grep; wgm itself does not bundle or require that
+   retrieval layer.
 2. **Implement** — smallest change that completes one task; prefer a working vertical slice.
 3. **Validate** — run the task's backpressure command. Green or it isn't done.
 4. **Review** — diff check: scope creep, acceptance met, signal actually proves the task.
@@ -53,6 +57,11 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   fallback (pin a known-good version) in case it misbehaves. This extends "the first task is to
   build a validation signal" to the runtime/environment axis, not just the test harness.
 - Prefer fast, deterministic signals. A 2-second deterministic check beats a 30-second flaky one.
+- **Known limitation: exit codes are a blunt signal.** `scripts/loop.sh` currently judges an
+  iteration by process exit code only, which can miss a "succeeded but did nothing useful" response
+  or treat a semantically empty exit-0 turn as progress. A future enhancement pattern is
+  **semantic exit / response analysis** — inspect the response content as well as the exit code, as
+  `ralph-claude-code` does — but that is a candidate upgrade, not a current `loop.sh` capability.
 - **Spec-drift pre-check (optional, cheap).** Before running the task's full validation command,
   diff the files actually touched against the task's declared files/areas in
   `IMPLEMENTATION_PLAN.md`. A mismatch (e.g. a task scoped to `schema/` touching UI files) is a
@@ -104,6 +113,8 @@ Fresh context per iteration is Ralph's strength, but it also forgets. A small, t
 - **Recall in Analyze:** read it first so you don't re-hit a known gotcha or re-walk a dead end.
 - **Append in Record:** add the one-line lesson from this iteration (a fix that worked, a gotcha, a
   stall's cause). Keep it within ~2000 tokens — trim the oldest when over.
+- **Outgrown the flat log?** For optional named alternatives for long builds, see
+  `references/memory-patterns.md`.
 - **Cross-check prior commitments at Ship/Handoff:** if a previous session's memories include an
   explicit "resolve to..." / "next time..." commitment and this build reused the same
   `.wgm/memories.md`, add a one-line ✅/❌ note on whether it actually happened. This is a
@@ -141,6 +152,12 @@ progress is lost. wgm's rule:
 - The same task fails ~3 times, or the satisfaction score stalls → first run a **wonder/reflect**
   recovery and consider model escalation (`stall-recovery.md`); if still stuck, record the blocker,
   stop, ask or regenerate the plan. Regenerating the plan is cheap; a loop going in circles is not.
+- If "significant discovery" flags keep piling up across still-pending tasks, a stall pattern keeps
+  recurring on *different* tasks, or the build's actual path no longer matches the spec's magic
+  moment / demo path, treat it as **plan drift**, not just one task needing a better Record step.
+- When the plan is structurally stale, regenerate `IMPLEMENTATION_PLAN.md` from the current spec,
+  the completed work, and the accumulated memories instead of incrementally patching a plan whose
+  assumptions no longer hold.
 - The trajectory is clearly wrong (building the wrong thing, duplicating work) → stop and re-plan.
 - **Autonomous + manual-merge: cap concurrent open PRs (~3-5).** In an autopilot loop that ships one
   PR per iteration into a repo a human merges by hand, an open-ended stream of net-new PRs floods the

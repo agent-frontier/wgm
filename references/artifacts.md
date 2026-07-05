@@ -125,6 +125,9 @@ Rules:
   external tracker status together; otherwise, update the plan alone. This pattern was borrowed from
   [`ralph-starter`](https://github.com/rubenmarcus/ralph-starter), already noted in
   [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md).
+- **Optional machine-readable sidecar:** if a build wants tooling-friendly task state, mirror the
+  statuses in `assets/sprint-status.template.yaml` — but `IMPLEMENTATION_PLAN.md` stays the
+  authoritative shared-state file.
 
 ## `AGENTS.md` — lean operational guide
 How to build, run, and validate this project, plus durable codebase patterns. Source from
