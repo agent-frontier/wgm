@@ -79,7 +79,7 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
 
    | Track | When | Ceremony |
    |---|---|---|
-   | **Quick** | Bug fix or small 1–5 file change with an obvious check | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
+   | **Quick** | Bug fix or small 1–5 file change with an obvious check, and completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions) | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
    | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged; the docs-audit swarm runs once, at Ship/Handoff |
    | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation · a Plan-exit **baseline** docs-audit pass |
 4. Decide loop mode:

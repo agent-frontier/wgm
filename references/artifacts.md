@@ -58,6 +58,28 @@ One spec per coherent slice of work. Source from `assets/spec.template.md`. Must
 
 Let the format flex per project, but keep these sections present.
 
+## `specs/*.checklist.md` — spec-quality checklist
+Requirements-quality checks for a spec — the "unit tests for English" pass, adapted from
+`github/spec-kit`'s `templates/commands/checklist.md` + `templates/commands/specify.md`. This
+validates the **requirements writing**, not the implementation.
+
+- **Quality dimensions:** completeness · clarity · consistency · measurability · coverage.
+- **Created once the draft exists.** When a spec first stabilizes, create its checklist beside it —
+  `specs/<slice>.checklist.md` or `.wgm/specs/<slice>.checklist.md` — following the same root vs
+  `.wgm/` placement rule as the spec it tests.
+- **Living artifact through Grill.** After each accepted answer in `references/grilling.md`,
+  re-evaluate the checklist: toggle checkboxes, convert unknowns into traceability markers, and
+  report the running pass count (`12/16 → 15/16`) before moving on.
+- **Traceability over vibes.** Use `[Spec §X.Y]` when a requirement exists and `[Gap]` when it
+  doesn't yet. At least ~80% of items should carry one of those markers.
+- **Not an implementation test.** Preflight readiness (`references/scoring.md`) and per-task
+  backpressure still prove the build; this checklist proves the spec is specific enough to build
+  from.
+- **Close the Preflight gap early.** By the time readiness is scored, most spec-quality misses
+  should already be visible in this checklist's pass count instead of surprising Preflight.
+- **See also:** `references/grilling.md` for when it gets re-run, `references/scoring.md` for the
+  later readiness gate it should de-risk.
+
 ## `scenarios/*.yaml` — the holdout acceptance set
 User-journey acceptance specs used as a **holdout set**: the Implement step never reads them; only
 Validate/Review (the judge) does. This prevents teaching-to-the-test. Source from
