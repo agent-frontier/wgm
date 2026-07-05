@@ -162,7 +162,9 @@ runs once a plan exists (`references/artifacts.md`).
 ## Phase 2.5 — Preflight (readiness gate)
 Before looping, score the plan's readiness **0–100** (goal/JTBD clarity · observable success
 criteria · scenario coverage of the demo path · each acceptance criterion mapped to backpressure ·
-scope edges). See `references/scoring.md`.
+scope edges). See `references/scoring.md`. Also verify the project's working tree is clean (`git
+status`) before starting the Loop — an uncommitted clean baseline means `git checkout -- .` can
+always undo one iteration's file changes.
 
 **Preflight-exit gate:**
 - [ ] **Standard/Full:** readiness ≥ **80** (recommended). Below it, return to Grill/Plan and fix the

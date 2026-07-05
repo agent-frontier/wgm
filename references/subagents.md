@@ -115,9 +115,31 @@ Right-size the model per role: the **griller** and **implementer** can run on a 
 interview and mechanical work; the **reviewers**, the **validator**, and the **diagnostician** earn a
 more capable model (finding the subtle bug, the gamed score, or the stall's root cause is the
 expensive part). This mirrors the loop's frugal↔escalate switching (`references/stall-recovery.md`).
+Cline makes the same split explicit with `planModeApiModelId` / `actModeApiModelId`, which
+strengthens the case for naming per-phase model choice as a first-class recommendation instead of
+leaving it as loose advice.
 The same split applies to the docs-audit swarm: the four **persona reviewers** are frugal-model work
 (one bounded, single-lens read), while **`wgm-docs-writer`** earns a more capable model — correct
 dissent-preservation and Agent-vs-Operator classification is the part easy to get subtly wrong.
+
+## Tool-restriction schema (per agent)
+Today the `.github/agents/*.agent.md` files describe tool access in prose ("Primary tools: ...").
+For clearer contracts — and future hosts that can enforce them — each agent can also declare a Roo
+Code-style `groups:` array (`RooCodeInc/Roo-Code`, `packages/types/src/mode.ts`):
+- `read` — view/grep/glob/search only; no writes or shell.
+- `edit` — write/create, optionally scoped with `fileRegex`.
+- `command` — terminal / run-command access.
+- `mcp` — host integrations beyond repo-local read/write.
+
+Example mappings:
+- `wgm-griller` → `groups: [read, ["edit", {fileRegex: "^specs/CONTEXT\\.md$"}]]`
+- `wgm-spec-reviewer` / `wgm-quality-reviewer` / `wgm-validator` → `groups: [read]`
+- `wgm-implementer` / `wgm-diagnostician` → `groups: [read, edit, command]`
+
+This is documentation clarity first, not a false claim of enforcement: wgm is a prompt-defined
+skill, not the host runtime, so it cannot impose these restrictions by itself. But a host that
+honors machine-readable tool groups can make the role contract real, and Roo Code's zero-tool
+Orchestrator (`groups: []`) is the clean precedent for a pure-delegation sheepdog.
 
 ## Curated context (the sheepdog's job)
 The orchestrator extracts exactly the text each subagent needs and hands it over — subagents do not

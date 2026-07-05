@@ -38,6 +38,24 @@ memory it graduates from.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** verify the project's working tree is clean before the first loop iteration.
+  **Why:** prompt-only skills lack shadow-checkpoint infrastructure; a clean git baseline keeps the
+  repo's own history as a reliable rollback path when an iteration destabilizes the tree.
+  **Provenance:** external research, `RooCodeInc/Roo-Code`'s
+  `src/services/checkpoints/ShadowCheckpointService.ts`. **Landed in:** `SKILL.md` (Phase 2.5 —
+  Preflight).
+- **Heuristic:** treat an A→B→A→B alternation across four iterations as a named oscillation, and
+  break it with a no-revert, different-architecture steer.
+  **Why:** generic diff churn notices motion but misses the stronger signal that the loop is
+  literally bouncing between two states; naming it justifies a harder intervention than another
+  small tweak. **Provenance:** external research, `foundatron/octopusgarden`'s
+  `internal/attractor/oscillation.go`. **Landed in:** `references/stall-recovery.md`.
+- **Heuristic:** when the genes artifact reveals a component DAG, converge the components in
+  topological mini-loops before running the full integration pass.
+  **Why:** foundational layers stabilize cheaper in isolation, and later layers get higher-signal
+  context from already-converged dependencies instead of fighting the whole stack at once.
+  **Provenance:** external research, `foundatron/octopusgarden`'s `docs/gene-transfusion.md` +
+  `internal/attractor/toposort.go`. **Landed in:** `references/gene-transfusion.md`.
 - **Heuristic:** before running a task's full validation command, diff actually-touched files
   against its declared files/areas from `IMPLEMENTATION_PLAN.md` as a cheap pre-check.
   **Why:** a mismatch (e.g. a task scoped to `schema/` touching UI files) is an early signal of
@@ -135,6 +153,17 @@ memory it graduates from.
   · `wgm-spec-reviewer` + `wgm-quality-reviewer`.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** record a threshold-clearing scenario that later drops below threshold as a named
+  regression, not just a lower score.
+  **Why:** overall satisfaction can stay flat or even rise while one once-working scenario breaks;
+  explicit regression tracking catches the slip early and demands diagnosis instead of averaging it
+  away. **Provenance:** external research, `foundatron/octopusgarden`'s
+  `internal/attractor/regression.go`. **Landed in:** `references/scoring.md`.
+- **Heuristic:** ask the judge for structured diagnostic categories alongside the numeric score.
+  **Why:** recurring low scores are easier to fix when the failure class (`auth`, `http-status`,
+  etc.) is tracked across iterations instead of buried in free-form prose. **Provenance:** external
+  research, `foundatron/octopusgarden`'s `internal/llm/prompt.go`. **Landed in:**
+  `references/scoring.md`.
 - **Heuristic:** when "better X" is the goal but X is unobservable in CI (live SEO/Google rank,
   "beats the incumbent"), pin it to a deterministic proxy and score it head-to-head against a served
   incumbent, not just an absolute threshold. **Why:** an absolute pass is blind to "worse than the
@@ -150,6 +179,11 @@ memory it graduates from.
   issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
 
 ## Swarm & parallelism
+- **Heuristic:** declare each subagent's tool budget in machine-readable groups, not prose alone.
+  **Why:** prompt text says what a role *should* do; structured `read` / `edit` / `command` /
+  `mcp` groups make the contract portable to hosts that can actually enforce it and clarify which
+  roles are read-only. **Provenance:** external research, `RooCodeInc/Roo-Code`'s
+  `packages/types/src/mode.ts`. **Landed in:** `references/subagents.md`.
 - **Heuristic:** partition a worktree swarm's file ownership, not just its features; route shared
   additions into each stream's own module and treat any unavoidable shared declaration file as a
   known, append-only merge point. **Why:** worktree isolation only prevents *live* contention — two

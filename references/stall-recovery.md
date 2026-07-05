@@ -10,6 +10,8 @@ soft hint:
 - The satisfaction score (`references/scoring.md`) doesn't improve for ~2 consecutive iterations.
 - The same task fails its backpressure ~2–3 times.
 - The diff churns (edit / revert / edit) without moving a signal.
+- **Oscillation:** the last 4 iterations alternate A→B→A→B on the generated file set — a named
+  revert loop, not just generic churn.
 - The same tool or setup error repeats (a missing dependency, an env issue, a flaky command).
 
 **Not a stall: a well-supported feasibility-spike NO-GO.** A parallel feasibility-spike stream
@@ -20,6 +22,12 @@ signal. Only a spike that produces *no* decision (inconclusive, abandoned) count
 signals above.
 
 When you detect a stall, **stop generating** and recover.
+
+### Oscillation (A→B→A→B)
+Borrow the sharper pattern from `foundatron/octopusgarden`'s `internal/attractor/oscillation.go`:
+when the last four iterations hash to an alternating A→B→A→B pattern, inject steering text that
+explicitly forbids a revert to the previous implementation and demands a fundamentally different
+approach — a different data structure, algorithm, or architecture, not a cosmetic tweak.
 
 ## Wonder (diagnose — think wide)
 A deliberately divergent pass. Do **not** write code. Step back and enumerate hypotheses for *why*
