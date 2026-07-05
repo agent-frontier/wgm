@@ -236,9 +236,11 @@ next iteration is a consolidation task (help land existing PRs), not another net
 - **Audit the docs — mandatory, no need to ask (Standard/Full).** Dispatch the docs-audit swarm:
   four independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
   technical-writer role into one paper-trail report — every action item labeled strictly **Agent
-  action** or **Operator action** — committed under `docs/audit/` (or `.wgm/docs/audit/`). Ship is
-  not complete without this report; Quick tracks rely on `scripts/check-docs.sh` alone
-  (`references/docs-audit.md`).
+  action** or **Operator action** — committed under `docs/audit/` (or `.wgm/docs/audit/`). A
+  consolidated pass must eventually cover every Standard-track PR, though on that track a dedicated
+  run MAY be deferred and batched across a same-session run of PRs rather than dispatched after each
+  one (see "Batching" in `references/docs-audit.md`); Quick tracks rely on `scripts/check-docs.sh`
+  alone.
 - **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` for a lesson that is durable,
   cross-project, and sanitized (about wgm's behavior — never the host's code or secrets). If upstream
   reporting is enabled for this project (opt-in — explicit ask, dogfood run, or project setting), file
@@ -285,8 +287,10 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
-- `references/self-improvement.md` — the growth flywheel: harvest lessons, report them upstream, and promote durable ones; `references/heuristics.md` is the curated ledger.
-- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, `evals`), plus `state.template.toon` — compact agent-only state.
+- `references/self-improvement.md` — the growth flywheel: harvest internal lessons and
+  cross-pollinate from external research, report them upstream, and promote durable ones;
+  `references/heuristics.md` is the curated ledger.
+- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`), plus `state.template.toon` (compact agent-only state) and `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`).
 - `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

@@ -20,6 +20,12 @@ FAIL=0
 note() { printf 'FAIL: %s\n' "$*" >&2; FAIL=1; }
 ok()   { printf 'ok:   %s\n' "$*"; }
 
+if ! command -v jq >/dev/null 2>&1; then
+  note "jq is required but not found on PATH (see CONTRIBUTING.md's Dev prerequisites)"
+  echo "evals: RED" >&2
+  exit 2
+fi
+
 FIXTURE="evals/evals.json"
 
 if [[ ! -f "$FIXTURE" ]]; then

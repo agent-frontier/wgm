@@ -20,6 +20,7 @@ welcome.
 | Tool | Used for |
 |---|---|
 | `bash`, [`shellcheck`](https://www.shellcheck.net/) | shell scripts + lint |
+| `jq` | `scripts/check-evals.sh` (evals fixture schema check) |
 | `pwsh` (PowerShell 7+) | the Windows installer + its test harness |
 | `python3` + `pip` | `skills-ref` (skill validator) |
 

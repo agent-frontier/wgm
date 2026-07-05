@@ -54,7 +54,9 @@ flowchart TD
 | Agent | [gene-transfusion.md](agent/gene-transfusion.md) | Seeding the build from an exemplar |
 | Agent | [references/subagents.md](../references/subagents.md) | The eleven role-specialized subagents (the swarm) + dissent-preserving review |
 | Agent | [references/docs-audit.md](../references/docs-audit.md) | The docs-audit swarm: four dev/PM personas + a technical-writer consolidator; the paper-trail artifact |
-| Agent | [references/self-improvement.md](../references/self-improvement.md) | The growth flywheel: harvest → report upstream → promote durable lessons |
+| Agent | [references/trigger-eval.md](../references/trigger-eval.md) | Should-trigger / should-not-trigger fixture that catches drift in the mode-parsing rule and the Use/Don't-use boundary |
+| Agent | [references/evals.md](../references/evals.md) | The companion output-quality fixture (`evals/evals.json`): given wgm triggers, is the result actually good? |
+| Agent | [references/self-improvement.md](../references/self-improvement.md) | The growth flywheel: harvest internal lessons + cross-pollinate external research → report upstream → promote durable lessons |
 
 ## Plans & roadmap
 

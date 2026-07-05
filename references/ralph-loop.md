@@ -48,8 +48,9 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   diff the files actually touched against the task's declared files/areas in
   `IMPLEMENTATION_PLAN.md`. A mismatch (e.g. a task scoped to `schema/` touching UI files) is a
   cheap, early signal of scope or spec drift — worth flagging before spending the validation budget
-  on a run that was never going to prove the right thing. Adapted from `saitarrun/devforge-ai`'s
-  `ralph-loop` skill (its "Sentinel" health check, which also flags "context drift" — a new log
+  on a run that was never going to prove the right thing. Adapted from
+  [`saitarrun/devforge-ai`](https://github.com/saitarrun/devforge-ai)'s `ralph-loop` skill (its
+  "Sentinel" health check, which also flags "context drift" — a new log
   entry conspicuously shorter than prior ones).
 - Include at least one **end-to-end demo check** that exercises the spec's smallest demo path —
   narrow unit/build checks can pass while the actual user flow is broken.

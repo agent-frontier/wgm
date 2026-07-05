@@ -12,6 +12,12 @@ or the use/don't-use bullets that silently widens or narrows when wgm activates.
 - **When editing `SKILL.md`'s frontmatter `description:`, "Use this when," "Do NOT use this when,"**
   **or the mode-parsing rule in "Invocation & modes":** re-check every row below still holds. A row
   whose verdict would flip is a signal the edit changed the trigger boundary — intentional or not.
+- **A mode-parsing-rule edit must also re-check `evals/evals.json`.** Two of its seed cases
+  (`trivial-edit-no-trigger`, `mode-vs-request-disambiguation`) intentionally mirror this file's rows
+  13 and 5 respectively (see `references/evals.md`'s "What's in `evals/evals.json`"). Neither
+  `scripts/check-docs.sh` nor `scripts/check-evals.sh` checks cross-file agreement — both only
+  validate structure/schema within their own file — so a mode-parsing edit that flips one of those
+  rows' verdict but skips its mirrored `evals.json` case is a silent semantic-divergence risk.
 - **This is a fixture for a host/LLM to judge against, not a script wgm runs itself** — no live
   agent-skill host is available inside this repo to actually invoke the skill-selection classifier.
   Treat each row as a structured example a maintainer (or a future automated judge, per the

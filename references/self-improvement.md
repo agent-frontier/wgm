@@ -45,21 +45,34 @@ Reach for it opportunistically, or when a user asks wgm to grow/improve itself. 
 2. **Evaluate** each candidate the same way an internal lesson is judged: durable? Would it help in a
    *different* codebase, not just cosmetic to this one? Can it be sanitized (cite the source repo,
    respect its licence)?
-3. **Land it directly.** Because this is discovered while already working *in* `agent-frontier/wgm`,
-   skip the outbound `[learn]`-issue round-trip below — that pipeline exists specifically for lessons
-   learned while dogfooding wgm *in a different host repo*. Implement the change directly and cite
-   the source in `heuristics.md`'s **Provenance** field, exactly as existing entries already do
-   (e.g. "ghuntley/Ralph standing guardrail," "Superpowers two-stage review," "octopusgarden").
+3. **Land it directly.** This shortcuts the outbound `[learn]`-issue round-trip described in
+   **Report** below — but only when *both* conditions hold: the finding came from **external
+   research**, *and* it was found while already working in `agent-frontier/wgm`. An *internal*
+   lesson discovered mid-session in this same repo does not qualify for this shortcut — the Report
+   pipeline exists specifically for lessons learned while dogfooding wgm *in a different host repo*,
+   and still takes that outbound round-trip. When both conditions do hold, implement the change
+   directly and cite the source in `heuristics.md`'s **Provenance** field as `external research,
+   <owner/repo>'s <thing>` (e.g. `external research, saitarrun/devforge-ai's ralph-loop skill`) —
+   the expected prefix for this provenance category, distinguishing it from a bare design-lineage
+   citation predating this mechanism (e.g. "ghuntley/Ralph standing guardrail," "Superpowers
+   two-stage review," "octopusgarden") or an internal `wgm dogfood, [learn] issue #N` entry.
 4. **Not every finding is a change.** A candidate that only confirms an existing design choice is
    already sound is worth a one-line citation, not a behavior change — record the "why we didn't
    change this" so a future pass doesn't re-litigate settled ground.
+5. **A single research session's findings may be batched into one or a few PRs.** The Report
+   section's "one lesson per report" discipline (below) guards against an unrelated flood of separate
+   `[learn]` issues arriving from different dogfood runs; that "flood the maintainer" risk doesn't
+   apply the same way to one contributor's own direct-land research pass over a single sitting.
+   Batching a session's related findings into one or a few PRs is fine — it is the real, repeated
+   practice so far, not an exception to be justified each time.
 
 **Worked example (this session):** researched `saitarrun/devforge-ai` (a sibling `ralph-loop`
 skill), `mattpocock/skills` (the credited origin of wgm's `grill-me`-inspired Grill phase), and
 `agentskills/agentskills` (the specification wgm's `SKILL.md` already conforms to). Landed: a
 spec-drift pre-check in `references/ralph-loop.md`, the `evals/` self-test convention in
 `references/evals.md`, and a citation in `references/grilling.md` confirming an existing design
-choice. See `references/heuristics.md` for the graduated entries.
+choice — all three batched into one PR rather than three separate ones (see step 5). See
+`references/heuristics.md` for the graduated entries.
 
 ## Report (outbound, opt-in)
 File the candidate to [`agent-frontier/wgm`](https://github.com/agent-frontier/wgm) as a `[learn]`
@@ -100,6 +113,7 @@ buffer. Prune the buffer aggressively; only graduated lessons persist.
 - Not a dumping ground — a lesson earns a ledger entry only by being durable and cross-project.
 
 ## Cross-links
-[`heuristics.md`](heuristics.md) · [`ralph-loop.md`](ralph-loop.md) (memory) ·
+[`heuristics.md`](heuristics.md) · [`evals.md`](evals.md) (a Cross-pollinate-landed capability) ·
+[`ralph-loop.md`](ralph-loop.md) (memory) ·
 [`artifacts.md`](artifacts.md) (memory format + token economy) ·
 [`docs/plans/2026-06-16_GROWTH_LOOP.md`](../docs/plans/2026-06-16_GROWTH_LOOP.md) (the full design).
