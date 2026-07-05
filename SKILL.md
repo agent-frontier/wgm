@@ -115,6 +115,8 @@ Read `references/grilling.md`. Core rules:
 - [ ] Goal is known.
 - [ ] User-visible success criteria are known.
 - [ ] Major constraints are known.
+- [ ] Acceptance criteria are consistent, non-redundant, and have explicit defaults/boundaries — no
+      vague thresholds, no undefined referenced concepts (full detail: `references/grilling.md`).
 - [ ] Each unknown is answered, explored from code, or recorded as an explicit assumption.
 - [ ] User said "go" OR remaining ambiguity is immaterial.
 
@@ -163,13 +165,14 @@ runs once a plan exists (`references/artifacts.md`).
 Before looping, score the plan's readiness **0–100** (goal/JTBD clarity · observable success
 criteria · scenario coverage of the demo path · each acceptance criterion mapped to backpressure ·
 scope edges). See `references/scoring.md`. Also verify the project's working tree is clean (`git
-status`) before starting the Loop — an uncommitted clean baseline means `git checkout -- .` can
-always undo one iteration's file changes.
+status`, skip if not a git repo) before starting the Loop — an uncommitted clean baseline means `git
+checkout -- .` can always undo one iteration's file changes.
 
 **Preflight-exit gate:**
 - [ ] **Standard/Full:** readiness ≥ **80** (recommended). Below it, return to Grill/Plan and fix the
       weakest dimension first — do not start building. **Quick may skip Preflight** (per the Triage
       track table) — its inline deterministic check is the backpressure.
+- [ ] Working tree is clean (`git status`) before the first loop iteration (skip if not a git repo).
 
 ## Phase 3 — Loop (build)
 Read `references/ralph-loop.md`. Run iterations until the plan's must-have tasks are `done` or a
@@ -210,8 +213,9 @@ stop condition fires. **One task per iteration.** Each iteration:
    legend**; human-facing artifacts (the plan, specs) stay readable (`references/artifacts.md`).
 
 **On a stall** — any *struggle signal*: satisfaction flat ~2 iterations, a task failing its check
-repeatedly, the diff churning without moving a signal, or the same tool/setup error repeating — stop
-generating and run **wonder → reflect**, and consider **model escalation**, before recording a
+repeatedly, the diff churning without moving a signal, the same tool/setup error repeating, or an
+A→B→A→B oscillation across the last 4 iterations — stop generating and run **wonder → reflect**, and
+consider **model escalation**, before recording a
 blocker (`references/stall-recovery.md`). Capture what you learn in `.wgm/memories.md` so the next
 iteration starts ahead of the stall.
 

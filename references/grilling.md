@@ -69,11 +69,11 @@ Stop interviewing and move to planning when **all** hold:
 - [ ] Goal is known.
 - [ ] User-visible success criteria are known.
 - [ ] Major constraints are known.
-- [ ] Acceptance criteria are mutually consistent: no contradictions, no vague thresholds without
-      measurable definitions, and all referenced concepts are defined. (Kiro's requirements
-      consistency pass: https://kiro.dev/docs/specs/analyze-requirements/)
-- [ ] No redundant or contradictory statements remain. (`foundatron/octopusgarden`'s `economy`
-      dimension)
+- [ ] Acceptance criteria are mutually consistent and free of redundant or contradictory statements;
+      no vague thresholds without measurable definitions; all referenced concepts are defined.
+      (Kiro's requirements-consistency pass: https://kiro.dev/docs/specs/analyze-requirements/ +
+      `foundatron/octopusgarden`'s `economy` dimension — two research threads that landed
+      overlapping "no contradictions" checks, merged into one item here.)
 - [ ] Default values, limits, and boundary conditions are explicit, not left implicit.
       (`foundatron/octopusgarden`'s `defaults_and_boundaries` dimension)
 - [ ] Each unknown is answered, explored from code, or recorded as an explicit assumption.

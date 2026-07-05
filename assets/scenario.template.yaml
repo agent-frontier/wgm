@@ -8,6 +8,10 @@ description: <one line summary of the journey and why it matters>
 # Difficulty tier — 1 = smoke/happy-path, 2 = normal, 3 = hard/edge. Drives stratified validation.
 tier: 1
 
+# Optional: tag this as a per-component scenario for Composed convergence (gene-transfusion.md).
+# Omit entirely for a whole-system integration scenario (the default).
+# component: <name>
+
 # How to reach the running software (optional; omit for pure library/unit journeys).
 target:
   kind: <http | cli | tui>

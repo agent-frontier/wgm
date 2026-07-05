@@ -25,6 +25,10 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 - **Ralph-full** — the stronger mode: genuinely fresh context per iteration via `scripts/loop.sh`
   or by restarting with a clean context. Use it for large or ambiguous builds. Fresh context is the
   whole point of Ralph; honor it when the work is big.
+- **Multi-layer builds** — when `references/gene-transfusion.md`'s genes artifact reveals a clear
+  component dependency DAG, neither mode has to converge the whole system in one monolithic pass:
+  see that reference's "Composed convergence" section for topologically-sorted per-component
+  mini-loops that finish with an integration-validation pass.
 
 ## The per-iteration algorithm
 `Analyze → Implement → Validate → Review → Record`
@@ -79,7 +83,8 @@ Inject these into **every** iteration — they prevent recurring loop failures:
   conceptual keywords, and search those exact names first. For each hit, also inspect what imports
   or calls it; the defining file is only half the surface area. Deprioritize identifiers that show
   up everywhere (generic helpers, framework builtins) — they are usually noise, not signal.
-  Adapted from `Aider-AI/aider`'s `aider/repomap.py`. **Widen the search past the local repo:**
+  Adapted from [`Aider-AI/aider`](https://github.com/Aider-AI/aider)'s `aider/repomap.py`. **Widen
+  the search past the local repo:**
   also check declared dependencies, mandated companion tools, and the platform/runtime for the
   capability — a project's "additive to X, never duplicate X" rule is only enforceable if Analyze
   actually inspects X. If a dependency or companion already ships it, drop the build task,

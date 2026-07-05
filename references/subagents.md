@@ -125,15 +125,26 @@ dissent-preservation and Agent-vs-Operator classification is the part easy to ge
 ## Tool-restriction schema (per agent)
 Today the `.github/agents/*.agent.md` files describe tool access in prose ("Primary tools: ...").
 For clearer contracts — and future hosts that can enforce them — each agent can also declare a Roo
-Code-style `groups:` array (`RooCodeInc/Roo-Code`, `packages/types/src/mode.ts`):
+Code-style `groups:` array ([`RooCodeInc/Roo-Code`](https://github.com/RooCodeInc/Roo-Code)'s
+`packages/types/src/tool.ts` `toolGroups` enum, referenced from `mode.ts`):
 - `read` — view/grep/glob/search only; no writes or shell.
 - `edit` — write/create, optionally scoped with `fileRegex`.
 - `command` — terminal / run-command access.
 - `mcp` — host integrations beyond repo-local read/write.
 
-Example mappings:
+Roo Code's real enum has a 5th group, `modes` (governs `switch_mode`/`new_task` — sub-orchestration
+permission), not presented above as exhaustive: it's omitted from the four subagent-facing groups
+because it describes the *sheepdog's* own dispatch permission, not a dog's — the group most directly
+relevant to wgm's own orchestrator/sheepdog role, not to any of the archetypes in the table above.
+Add it if wgm ever wants to formalize the orchestrator's own permission set too.
+
+Example mappings — cross-checked against each archetype's own `.github/agents/*.agent.md` "Tools"
+section, the source of truth:
 - `wgm-griller` → `groups: [read, ["edit", {fileRegex: "^specs/CONTEXT\\.md$"}]]`
-- `wgm-spec-reviewer` / `wgm-quality-reviewer` / `wgm-validator` → `groups: [read]`
+- `wgm-spec-reviewer` / `wgm-quality-reviewer` / `wgm-validator` → `groups: [read, command]` — all
+  three list `run_command` (re-run tests/probes) alongside view/grep/glob, so `read` alone
+  undersells their actual access. `wgm-validator` additionally uses a container runtime (podman) for
+  live scenario runs — container-runtime access doesn't map cleanly onto any of these four groups.
 - `wgm-implementer` / `wgm-diagnostician` → `groups: [read, edit, command]`
 
 This is documentation clarity first, not a false claim of enforcement: wgm is a prompt-defined
