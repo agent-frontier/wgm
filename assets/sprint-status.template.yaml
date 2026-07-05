@@ -4,7 +4,7 @@
 # See references/artifacts.md for artifact roles and placement.
 
 tasks:
-  - id: <task-id-from-implementation-plan>
+  - id: <task-id-from-implementation-plan>   # e.g. T1
     status: <pending | in_progress | done | blocked>
     notes:
       - <short status note>

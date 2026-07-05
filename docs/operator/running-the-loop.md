@@ -176,8 +176,9 @@ noted in [`docs/plans/2026-06-16_PLAN.md`](../plans/2026-06-16_PLAN.md).
 wgm ships the **loop runner and its output files**, not a bundled operator UI. If you want a live
 dashboard, build it **externally** against the files and hooks `loop.sh` already exposes — the same
 "runner emits durable state; a separate tool renders it" pattern noted for
-[`ralph-orchestrator`](../plans/2026-06-16_RALPH_LANDSCAPE.md) and `codeburn` in the landscape
-survey.
+[`ralph-orchestrator`](https://github.com/mikeyobrien/ralph-orchestrator) and
+[`codeburn`](https://github.com/getagentseal/codeburn) in the
+[landscape survey](../plans/2026-06-16_RALPH_LANDSCAPE.md).
 
 ### Pattern: a ledger-backed TUI/dashboard (ralph-orchestrator style)
 

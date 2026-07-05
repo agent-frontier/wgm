@@ -285,6 +285,8 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
   triggers, is the result actually good? Adopted from the `agentskills.io` spec's own eval
   discipline.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
+- `references/memory-patterns.md` — optional structured/layered memory upgrades for long Full-track
+  builds that outgrow the flat `.wgm/memories.md` log (the flat log stays the default).
 - `references/subagents.md` — the eleven role-specialized subagents (griller · implementer ·
   two-stage review · validator · diagnostician · the five-role docs-audit swarm) and how the Loop
   dispatches them ("swarm" mode).
@@ -301,7 +303,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/self-improvement.md` — the growth flywheel: harvest internal lessons and
   cross-pollinate from external research, report them upstream, and promote durable ones;
   `references/heuristics.md` is the curated ledger.
-- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`), plus `state.template.toon` (compact agent-only state) and `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`).
+- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`), plus `state.template.toon` (compact agent-only state) and `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`).
 - `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

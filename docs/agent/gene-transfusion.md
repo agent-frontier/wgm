@@ -19,7 +19,9 @@ flowchart LR
 
 Use it in Triage/Plan when a high-quality exemplar exists — a reference repo, a sibling service, an
 existing module, or a design system. Skip it for pure greenfield with no exemplar: there are no genes
-to transfuse.
+to transfuse. Before reaching for an external exemplar, do the zero-cost pass over **the current
+repo itself** first (`CONTRIBUTING.md`, lint/format config, an existing `AGENTS.md`) — see the
+authoritative steps in [`references/gene-transfusion.md`](../../references/gene-transfusion.md).
 
 Drive it with `loop.sh extract --source DIR` (see
 [running-the-loop.md](../operator/running-the-loop.md)).

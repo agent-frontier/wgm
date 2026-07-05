@@ -254,8 +254,8 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics · docs-audit · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
-├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · evals · plugin-template · wgm.example.yml · state.toon templates
+├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics · docs-audit · adr · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · state.toon templates
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · install.sh · install.ps1
 ├── .github/agents/   # the eleven role-specialized subagents (the swarm), incl. the docs-audit swarm
 └── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)

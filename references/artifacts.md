@@ -123,7 +123,7 @@ Rules:
   A tracker ID is a documented traceability pattern, not a built integration. If the host or operator
   already has tracker capability, the Record step may update both `IMPLEMENTATION_PLAN.md` and the
   external tracker status together; otherwise, update the plan alone. This pattern was borrowed from
-  [`ralph-starter`](https://github.com/rubenmarcus/ralph-starter), already noted in
+  [`ralph-starter`](https://github.com/multivmlabs/ralph-starter), already noted in
   [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md).
 - **Optional machine-readable sidecar:** if a build wants tooling-friendly task state, mirror the
   statuses in `assets/sprint-status.template.yaml` — but `IMPLEMENTATION_PLAN.md` stays the
@@ -147,6 +147,10 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
 - **Distinct from the other artifacts.** `IMPLEMENTATION_PLAN.md` holds task *state*, `AGENTS.md` the
   curated *how-to*, `.wgm/scores.md` the *numeric* trajectory; memories hold the raw *lessons*.
 - **Placement:** always under `.wgm/` — it is per-build scratch, not a deliverable.
+- **Outgrown the flat log?** For a long **Full-track** build where this log keeps hitting its token
+  budget and trimming lessons you later need, `references/memory-patterns.md` documents two
+  **optional** named alternatives (Beads-style structured records, compaction-surviving layered
+  memory) — the flat log above stays the default for everything else.
 
 ## `docs/audit/*.md` — the docs-audit paper trail
 The durable record that the docs-audit swarm ran and what it found — evidence of work done for a
@@ -166,6 +170,32 @@ discipline (cadence, personas, consolidation algorithm, severity taxonomy) is in
   guidance for a project wgm is building for someone else.
 - **Written by** the `wgm-docs-writer` role, after the four persona reviewers
   (`wgm-docs-junior` / `-senior` / `-principal` / `-pm`) have reported (`references/subagents.md`).
+
+## `docs/handoff/*.md` — the morning-after run-report handoff
+A durable snapshot for a human (or a fresh agent) picking up a larger or multi-session build cold —
+what shipped, the live validation state, what remains, and how to resume — built from durable
+sources (the plan file, PR/CI state), not transcript archaeology. Source from
+`assets/morning-report.template.md`; the "morning-after run report" pattern is borrowed from
+[elves](https://github.com/aigorahub/elves), noted in
+[`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md).
+
+- **Optional, size-gated.** Write one for a larger or multi-session build where someone needs to
+  resume cold; skip it for a small build finished in one sitting, where `IMPLEMENTATION_PLAN.md`
+  alone is already enough to resume from.
+- **Placement** follows the same root vs `.wgm/` rule as the other artifacts — `docs/handoff/` for a
+  greenfield project, `.wgm/docs/handoff/` for an existing project that already has `AGENTS.md` /
+  `IMPLEMENTATION_PLAN.md` / `specs/`.
+- **Naming:** `docs/handoff/<UTC-timestamp>_<slug>.md`, mirroring `docs/audit/`'s convention. Unlike
+  `docs/audit/`, an index file is **not required**: a handoff report is a point-in-time snapshot for
+  whoever resumes the build next, not a running paper trail queried across many runs the way the
+  docs-audit index is. A project that accumulates several may still keep a
+  `docs/handoff/README.md` newest-first index the same way `docs/audit/README.md` does, if that
+  proves useful — just not mandatory.
+- **Never gitignored by default** — the same rule, and the same reasoning, as `docs/audit/*.md`: it
+  is operator-facing evidence of a build's state, not agent scratch, so a downstream project commits
+  it like any other deliverable. This repo's own `.gitignore` does not exclude `docs/` at all, so a
+  real `docs/handoff/*.md` produced while dogfooding wgm here would need to be committed the same way
+  a `docs/audit/*.md` report is — there is no repo-specific exception for this artifact.
 
 ## `evals/evals.json` — wgm's own output-quality self-test
 Not one of the per-build templates above — `assets/evals.template.json` is the skeleton for
