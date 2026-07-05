@@ -16,6 +16,13 @@ or the use/don't-use bullets that silently widens or narrows when wgm activates.
   agent-skill host is available inside this repo to actually invoke the skill-selection classifier.
   Treat each row as a structured example a maintainer (or a future automated judge, per the
   LLM-as-judge pattern in `references/scoring.md`) can grade the current `SKILL.md` text against.
+- **If/when a live host is available, this table can be mechanized:** convert the rows to a JSON
+  array of `{"query":"...","should_trigger":true|false}` and run it through
+  [`anthropics/skills`' `skill-creator/scripts/run_eval.py`](https://github.com/anthropics/skills/tree/main/skills/skill-creator).
+  That harness runs `claude -p` queries in parallel, detects triggering early from stream-JSON
+  `content_block_start` tool-use events (`Skill` / `Read`), repeats each query three times by
+  default for stochasticity, and in a Claude Code environment strips `CLAUDECODE` before spawning
+  the nested CLI. That is how this *could* be executed here later; it is not wired up now.
 - **Structural backpressure that *does* run today:** every row must have all four columns filled in
   (no blank `Mode`/`Reason`), and `TRIGGER` rows must name a mode while `NO-TRIGGER` rows must not —
   see the validation command below.

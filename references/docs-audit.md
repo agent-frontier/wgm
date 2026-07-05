@@ -51,6 +51,7 @@ single artifact an operator actually reads. It does not add new opinions of its 
    actions), do **not** average or silently pick a winner. Record it explicitly as a `Dissent` note,
    the same discipline `references/subagents.md` already uses for the two-stage code review — applied
    here across four voices instead of two.
+   If all four reports converge with zero dissent, say so in the header — `Unanimous: no dissent recorded` — adapted from `BMAD-METHOD`'s Anti-Consensus Club (`src/core-skills/bmad-party-mode/customize.toml`), surfacing easy agreement as a data point instead of silently assuming it.
 3. **Classify strictly by kind of action, never by persona.** Every surviving finding becomes exactly
    one of:
    - **Agent action** — the agent can execute this directly and deterministically (fix a broken

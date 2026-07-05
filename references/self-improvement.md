@@ -23,6 +23,13 @@ A lesson that fails any of the three stays local. One that passes is a candidate
 report across more than one project (e.g. a persona repeatedly flags the same category of drift),
 that pattern is exactly the kind of durable, cross-project, sanitized lesson this harvest step looks
 for — treat it the same as a `.wgm/memories.md` entry (`references/docs-audit.md`).
+- **Flag plan-invalidating discoveries in the plan itself.** If a lesson learned during this build
+  invalidates an assumption behind a still-`pending` task in `IMPLEMENTATION_PLAN.md`, annotate that
+  task explicitly (for example `[INVALIDATES: task T7's assumption about X]`) rather than only
+  silently appending the lesson to memories. This is the lightweight version of the "significant
+  discovery" check from [`BMAD-METHOD`](https://github.com/bmad-code-org/BMAD-METHOD)'s
+  `src/bmm-skills/4-implementation/bmad-retrospective/SKILL.md`, not BMAD's full ceremony — wgm
+  has no epic/story structure to retro against.
 
 ## Cross-pollinate (a second channel — external research)
 The flywheel above harvests *internal* lessons from this project's own dogfooding. wgm also grows by

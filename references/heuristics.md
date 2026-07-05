@@ -69,6 +69,19 @@ memory it graduates from.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** when a skill already has an eval fixture, standardize the *graded* output on a
+  per-run `grading.json` plus a cross-run `benchmark.json` before inventing bespoke summaries.
+  **Why:** fixed schemas make manual judging automatable later, preserve assertion-level evidence,
+  and make with-skill vs. baseline deltas comparable across runs. **Provenance:** external
+  research, `anthropics/skills` `skill-creator` (`agents/grader.md`,
+  `scripts/aggregate_benchmark.py`, `references/schemas.md`). **Landed in:**
+  `references/evals.md` (Automated grading protocol).
+- **Heuristic:** a trigger-eval table can be made executable by converting it to
+  `{query, should_trigger}` JSON and detecting tool-use events early in the host stream, rather
+  than waiting for full completion. **Why:** repeated trigger checks are stochastic and expensive;
+  early event detection makes parallel trigger-rate measurement tractable. **Provenance:** external
+  research, `anthropics/skills` `skill-creator/scripts/run_eval.py`. **Landed in:**
+  `references/trigger-eval.md` (How to use this).
 - **Heuristic:** adopt a formal `evals/evals.json` fixture (prompt + expected_output + assertions,
   graded with/without the skill) as a skill's own output-quality self-test, distinct from a
   trigger-classification fixture. **Why:** a skill's prompt-engineering (its `SKILL.md`/references
@@ -103,6 +116,18 @@ memory it graduates from.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** treat a zero-findings PASS as a claim that must be justified in one sentence, not a
+  silent default. **Why:** "PASS, nothing to say" hides whether the reviewer actually examined the
+  artifact; requiring a clean-pass rationale keeps review high-signal without importing a
+  false-positive culture. **Provenance:** external research, `BMAD-METHOD`
+  `docs/explanation/adversarial-review.md` (adapted, not its "must find issues" rule). **Landed
+  in:** `references/subagents.md` · `wgm-spec-reviewer` + `wgm-quality-reviewer`.
+- **Heuristic:** route credible issues that clearly pre-date the current diff into a durable
+  deferred-work ledger instead of blocking the present task. **Why:** pre-existing defects are real,
+  but making every current change pay their cost confuses review signal and stalls unrelated
+  progress; a dated ledger preserves them without misattributing them to the diff. **Provenance:**
+  external research, `BMAD-METHOD` code-review triage/presentation steps (`step-03-triage.md`,
+  `step-04-present.md`). **Landed in:** `references/subagents.md` (`.wgm/deferred-work.md` lane).
 - **Heuristic:** run two independent review passes — spec-compliance, then code-quality.
   **Why:** a single reviewer conflates "right thing" with "built correctly" and blesses its own
   assumptions. **Provenance:** Superpowers two-stage review. **Landed in:** `references/subagents.md`

@@ -42,6 +42,26 @@ assertion PASS/FAIL with concrete evidence (quote the transcript, don't just ass
 Compare token/time cost against the baseline; a change that improves pass rate but triples tokens is
 a different trade-off than one that's both better and cheaper.
 
+## Automated grading protocol (when a live agent-skill host is available)
+This repo's current automation still stops at `bash scripts/check-evals.sh`: **schema only**. The
+protocol below is what to follow by hand or via future automation; it is **not** a new script
+landing in this PR.
+
+- **Target output schema:** use the `grading.json` shape from
+  [`anthropics/skills`' `skill-creator`](https://github.com/anthropics/skills/tree/main/skills/skill-creator)
+  `references/schemas.md` as the canonical per-run output —
+  `{"expectations":[{"text","passed","evidence"}],"summary":{"passed","failed","total","pass_rate"}}`.
+  wgm's own `evals/evals.json` assertions are already plain strings, so they map directly onto the
+  grader's expected inputs.
+- **Grader-agent pattern:** for each wgm run, spawn a grader subagent that follows
+  `anthropics/skills` `agents/grader.md`, hand it the run transcript plus the case's assertions, and
+  have it write `grading.json` with a cited evidence snippet for every assertion.
+- **Aggregation:** once you have multiple paired runs with and without wgm, run
+  `python -m scripts.aggregate_benchmark <workspace>` from the same `skill-creator` repo. That
+  produces a `benchmark.json` with mean/stddev/min/max for pass rate, time, and tokens, plus the
+  delta between the with-wgm and baseline configurations — the concrete schema
+  `evaluating-skills.mdx` names without pinning down for wgm.
+
 ## Adding a case
 - Start small (2-3), vary phrasing and formality, include at least one edge case.
 - Write assertions that are specific and checkable ("a `Gate check:` block is printed"), not vague
