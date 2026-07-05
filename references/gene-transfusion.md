@@ -12,6 +12,13 @@ Use it in **Triage/Plan** when a high-quality exemplar exists:
 
 Skip it for pure greenfield with no exemplar — there are no genes to transfuse.
 
+Before picking any external exemplar, do the zero-cost pass over the **current repo itself**:
+`CONTRIBUTING.md`, `.editorconfig`, lint/format config, and any existing `AGENTS.md` are the free
+source of the house style already in force here. Check those before reaching for gene transfusion's
+optional external survey. This "standards discovery from the current repo" idea was already called
+out in [`docs/plans/2026-06-16_PLAN.md`](../docs/plans/2026-06-16_PLAN.md)'s also-ran list, citing
+[`buildermethods/agent-os`](https://github.com/buildermethods/agent-os).
+
 ## How it works (agent-driven)
 Point at a source directory and survey it. octopusgarden's actual `extract` prompt asks for
 **PATTERN**, **INVARIANTS**, **EDGE CASES**, **STACK**, **STRUCTURE**, **BOOT**, **BUILD**, and

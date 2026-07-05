@@ -291,6 +291,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/docs-audit.md` — the mandatory docs-audit paper trail: four dev/PM personas plus a
   technical-writer consolidator, Agent-vs-Operator action classification, and artifact placement.
 - `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, and AGENTS.md.
+- `references/adr.md` — ADR discipline for hard-to-reverse, cross-cutting decisions.
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
 - `references/stall-recovery.md` — wonder/reflect + model escalation on a stall.
