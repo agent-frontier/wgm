@@ -82,14 +82,20 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
    | **Quick** | Bug fix or small 1–5 file change with an obvious check, and completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions) | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
    | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged; the docs-audit swarm runs once, at Ship/Handoff |
    | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation · a Plan-exit **baseline** docs-audit pass |
-4. Decide loop mode:
-   - **Ralph-lite** (default): run the loop in-session for small/medium work.
-   - **Ralph-full**: for large/ambiguous builds, prefer genuinely fresh context per iteration — run
-     the bundled loop runner (`scripts/loop.sh` **inside this skill's own directory**, the base dir
-     this `SKILL.md` loads from) **from the target project's root**, or restart with a clean context
-     between iterations. Fresh context is the stronger mode; in-session work must compensate with
-     strict persistence. For independent slices, fan out in parallel with `scripts/swarm.sh` — one
-     git worktree + branch per stream, merged back branch by branch.
+4. Decide loop mode — **prefer Ralph-full whenever it is practically invocable**:
+   - **Ralph-full (preferred default)**: genuinely fresh context per iteration is the purer, stronger
+     form of the technique — reach for it whenever a non-interactive agent invocation is available
+     (an operator-set `WGM_AGENT`, or a known CLI — `copilot`, `claude`, `codex`, `aider` — on `PATH`
+     with a print/non-interactive mode). Run the bundled loop runner (`scripts/loop.sh` **inside this
+     skill's own directory**, the base dir this `SKILL.md` loads from) **from the target project's
+     root**, or restart with a clean context between iterations. For a locally sandboxed, disk-
+     conscious run, add `--devcontainer` (`references/devcontainers.md`). For independent slices, fan
+     out in parallel with `scripts/swarm.sh` — one git worktree + branch per stream, merged back
+     branch by branch.
+   - **Ralph-lite (fallback)**: run the loop in-session when no headless invocation is available (a
+     purely interactive host) or the track is **Quick** (a whole subprocess loop is overkill for one
+     short prompt). In-session work must compensate for accumulating context with strict persistence
+     to `IMPLEMENTATION_PLAN.md`.
 5. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
    load it — its principles govern every later decision.
@@ -300,10 +306,12 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
+- `references/devcontainers.md` — running the loop itself sandboxed in a disk-conscious local
+  devcontainer (shared base image, `scripts/devcontainer.sh`).
 - `references/self-improvement.md` — the growth flywheel: harvest internal lessons and
   cross-pollinate from external research, report them upstream, and promote durable ones;
   `references/heuristics.md` is the curated ledger.
-- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`), plus `state.template.toon` (compact agent-only state) and `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`).
-- `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.
+- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
+- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.
