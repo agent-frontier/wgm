@@ -5,8 +5,17 @@
 > A companion to [the roadmap](2026-06-16_PLAN.md). That doc compared wgm to the spec-driven crowd
 > (Spec Kit, BMAD, Superpowers…); this one tracks wgm against **the Ralph ecosystem itself** — the
 > loop runners, orchestrators, and tool-specific implementations catalogued in `awesome-ralph`.
-> "wgm vs the world." Re-run the survey periodically and refresh the table, watchlist, and the
-> *Adjacent ecosystems* scan (agent-skills + ai-coding).
+> "wgm vs the world."
+>
+> **Point-in-time snapshot, not a living tracker.** This survey has not been re-run since
+> 2026-06-16 and does not reflect any research or cross-pollination landed since (e.g. BMAD-METHOD,
+> Spec Kit, GSD, `saitarrun/devforge-ai`, `mattpocock/skills`, `agentskills/agentskills`, Kiro,
+> `Aider-AI/aider`, `foundatron/octopusgarden`, `RooCodeInc/Roo-Code` — several of which squarely
+> match this doc's own "Ralph ecosystem" scope). For an up-to-date, continuously-maintained record
+> of what wgm has actually looked at and assimilated, check each entry's **Provenance** field in
+> [`references/heuristics.md`](../../references/heuristics.md) instead — that ledger updates every
+> round; this snapshot does not. Refresh the table, watchlist, and *Adjacent ecosystems* scan below
+> only if someone chooses to re-run the full survey.
 
 ## The one-line difference
 
@@ -155,8 +164,8 @@ agent-skills-eval and Anthropic's "test with real usage") · **listing wgm in sk
 metrics ledger · optional **MCP code-intel** (serena-style) as a retrieval layer under the loop.
 
 ## How this was tracked
-Surveyed on 2026-06-16 (re-run periodically to refresh the gap analysis against the latest field),
-against a curated list plus four live GitHub topic feeds:
+Surveyed once, on 2026-06-16, against a curated list plus four live GitHub topic feeds — see the
+point-in-time disclosure at the top of this doc; it has not been re-run since:
 - [awesome-ralph](https://github.com/snwfdhmp/awesome-ralph) — a hand-curated list (the Ralph projects above).
 - [topics/ralph-loop](https://github.com/topics/ralph-loop) — the **live** Ralph feed; new tagged repos
   surface here first (e.g. Claude-Code orchestration frameworks with layered memory + parallel teams).

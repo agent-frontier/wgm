@@ -56,6 +56,10 @@ Reach for it opportunistically, or when a user asks wgm to grow/improve itself. 
    the expected prefix for this provenance category, distinguishing it from a bare design-lineage
    citation predating this mechanism (e.g. "ghuntley/Ralph standing guardrail," "Superpowers
    two-stage review," "octopusgarden") or an internal `wgm dogfood, [learn] issue #N` entry.
+   **Hyperlink the citation's fullest or first mention** in the landed reference content itself —
+   `` [`owner/repo`](https://github.com/owner/repo) ``, not just a bare backticked name (the
+   `heuristics.md` Provenance field stays a plain compact citation regardless); later, secondary
+   mentions of the same repo elsewhere may stay bare backticks.
 4. **Not every finding is a change.** A candidate that only confirms an existing design choice is
    already sound is worth a one-line citation, not a behavior change — record the "why we didn't
    change this" so a future pass doesn't re-litigate settled ground.
@@ -65,6 +69,13 @@ Reach for it opportunistically, or when a user asks wgm to grow/improve itself. 
    apply the same way to one contributor's own direct-land research pass over a single sitting.
    Batching a session's related findings into one or a few PRs is fine — it is the real, repeated
    practice so far, not an exception to be justified each time.
+6. **Sync the summary docs in the same PR.** If the landed change modifies a checklist or schema
+   inside a `references/*.md` file, grep `SKILL.md` and `docs/agent/*.md` for any restatement of the
+   same content (an inline gate checklist, a mirrored signal list, a restated field) and update it in
+   the same PR. Two references/*.md checklist changes drifted from their `SKILL.md` mirrors this way
+   in one round before this rule existed (round-3 docs audit, `docs/audit/` — the Grill-exit gate and
+   the stall-signal list) — don't defer the sync to a later audit pass; the audit is a backstop, not
+   the mechanism that's supposed to catch this.
 
 **Worked example (this session):** researched `saitarrun/devforge-ai` (a sibling `ralph-loop`
 skill), `mattpocock/skills` (the credited origin of wgm's `grill-me`-inspired Grill phase), and

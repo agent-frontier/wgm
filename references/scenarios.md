@@ -27,6 +27,8 @@ Each scenario file (`scenarios/<name>.yaml`):
 name: <short-id>
 description: <one line: the journey and why it matters>
 tier: 1                     # 1 = smoke/happy-path, 2 = normal, 3 = hard/edge
+component: <name>           # optional: per-component scenario tag for Composed convergence
+                            # (gene-transfusion.md); omit for a whole-system integration scenario
 target:                     # how to reach the running software (optional)
   kind: http               # http | cli | tui
   start: <command/url>     # how to start it, or where it listens
@@ -40,7 +42,10 @@ steps:
 ```
 
 Keep it minimal; add fields only when a scenario needs them. The judge scores each `expect` against
-observed behavior (see `references/scoring.md`).
+observed behavior (see `references/scoring.md`). The optional `component:` field only matters for
+Composed-convergence builds (`references/gene-transfusion.md`): it marks a scenario as scoped to one
+architectural component's mini-loop rather than the final integration pass — untagged scenarios are
+treated as integration-level by default.
 
 ## Difficulty tiers (for stratified validation)
 - **Tier 1** — smoke / happy path: the core magic moment works at all.

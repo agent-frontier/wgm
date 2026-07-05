@@ -12,7 +12,9 @@ changed how wgm behaves *everywhere*, not just in one build. See
 - **Landed in** — the skill artifact that now enforces it.
 
 Prune or merge entries that a protocol change has made redundant — the ledger stays lean, like the
-memory it graduates from.
+memory it graduates from. (Status: zero entries pruned across 3 consolidation rounds so far — 33
+entries and counting; not yet a problem at this size, but a future round should watch for when a
+prune becomes due — `docs/audit/README.md`.)
 
 ## Triage & Grill
 - **Heuristic:** run a cross-requirement consistency scan before leaving Grill: contradictions,
@@ -195,11 +197,15 @@ memory it graduates from.
   issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
 
 ## Swarm & parallelism
-- **Heuristic:** declare each subagent's tool budget in machine-readable groups, not prose alone.
+- **Heuristic:** document each subagent's tool budget as a proposed machine-readable `groups:`
+  schema, not prose alone — even before any host actually enforces it.
   **Why:** prompt text says what a role *should* do; structured `read` / `edit` / `command` /
   `mcp` groups make the contract portable to hosts that can actually enforce it and clarify which
   roles are read-only. **Provenance:** external research, `RooCodeInc/Roo-Code`'s
-  `packages/types/src/mode.ts`. **Landed in:** `references/subagents.md`.
+  `packages/types/src/tool.ts`. **Landed in:** `references/subagents.md` (illustrative example
+  mappings only, cross-checked against each archetype's real tool list — no `.github/agents/*.agent.md`
+  file has a `groups:` frontmatter field yet, and no host enforces one; this entry describes a
+  documented proposal, not yet an applied rule).
 - **Heuristic:** partition a worktree swarm's file ownership, not just its features; route shared
   additions into each stream's own module and treat any unavoidable shared declaration file as a
   known, append-only merge point. **Why:** worktree isolation only prevents *live* contention — two

@@ -59,13 +59,21 @@ flowchart LR
   T3 -->|>= threshold| Done[converged]
 ```
 
+**Regression detection.** After each validated iteration, compare every scenario's score to that
+scenario's score in the previous validated iteration. If a scenario that previously cleared its
+tier's threshold now drops below it, name it explicitly as a **regression** — e.g. `scenario
+'checkout happy path' dropped 82→71 (iteration 3→4)` — and stop to diagnose before adding more code.
+A flat or even rising overall average can otherwise mask one scenario quietly breaking.
+
 ## Running the judge
 
 Keep the judge prompt tight and separate from the generator: give it the step's expectation and the
 observed evidence (HTTP response, CLI output, terminal state — captured from a real or containerized
-run, see [containers](../operator/containers.md)) and ask for `{score, one-line why}`. Record the
-prompt, score, and justification in `IMPLEMENTATION_PLAN.md` (or an append-only `.wgm/scores.md`), and
-accept that scores vary run to run.
+run, see [containers](../operator/containers.md)) and ask for `{score, one-line why, diagnostics?}`.
+The optional `diagnostics` array (short category slugs such as `auth` or `http-status`, each with a
+one-line detail) makes recurring failure *classes* trackable across iterations instead of burying
+them in free-form prose. Record the prompt, score, and justification in `IMPLEMENTATION_PLAN.md` (or
+an append-only `.wgm/scores.md`), and accept that scores vary run to run.
 
 ## When the score stalls
 

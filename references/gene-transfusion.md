@@ -15,8 +15,9 @@ Skip it for pure greenfield with no exemplar — there are no genes to transfuse
 ## How it works (agent-driven)
 Point at a source directory and survey it. octopusgarden's actual `extract` prompt asks for
 **PATTERN**, **INVARIANTS**, **EDGE CASES**, **STACK**, **STRUCTURE**, **BOOT**, **BUILD**, and
-optionally **COMPONENTS** (`foundatron/octopusgarden`, `internal/gene/analyze.go`); wgm keeps that
-shape in spirit but adapts the survey to its own house-style artifact.
+optionally **COMPONENTS** ([`foundatron/octopusgarden`](https://github.com/foundatron/octopusgarden),
+`internal/gene/analyze.go`); wgm keeps that shape in spirit but adapts the survey to its own
+house-style artifact.
 
 Distill genes across:
 - **Pattern** — the primary architectural pattern the exemplar repeats.
