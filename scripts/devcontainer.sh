@@ -182,7 +182,9 @@ cmd_run() {
   # work across a different base distro — this is a convenience, not a guarantee (see
   # references/devcontainers.md).
   local npm_prefix=""
-  npm_prefix="$(command -v npm >/dev/null 2>&1 && npm config get prefix 2>/dev/null || true)"
+  if command -v npm >/dev/null 2>&1; then
+    npm_prefix="$(npm config get prefix 2>/dev/null || true)"
+  fi
   # Every container this launches IS, by definition, a wgm devcontainer sandbox — set this
   # unconditionally so anything running inside (e.g. a re-exec'd loop.sh --devcontainer) can detect
   # it's already sandboxed and never try to nest another container from within this one.
