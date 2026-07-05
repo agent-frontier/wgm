@@ -63,6 +63,18 @@ A binary verdict can hide a real signal: a reviewer that PASSes may still hold a
 reservation**, and the two reviewers may **disagree**. Collapsing that into a single PASS is *false
 consensus* — the minority concern is rationalized away and never revisited. So:
 - Each reviewer emits its verdict **plus any reservations** — concerns that don't block this task.
+- A PASS with zero findings is a **claim, not a default** — before either reviewer emits a clean
+  PASS with no reservations, it states in one sentence what it examined and why it found nothing; an
+  unexplained zero-findings PASS is treated as an incomplete review and returned. Adapted from
+  [`BMAD-METHOD`](https://github.com/bmad-code-org/BMAD-METHOD)'s
+  `docs/explanation/adversarial-review.md`; wgm adopts only the "justify a clean pass" discipline,
+  not BMAD's tolerance for false positives.
+- A credible issue that clearly **pre-dates** the current diff gets a third lane:
+  **pre-existing / deferred**, not CHANGES-REQUESTED and not a vague reservation. Record it with
+  the date and originating task in `.wgm/deferred-work.md`, then let the current task's PASS stand
+  if the diff itself is clean. Adapted from `BMAD-METHOD`'s code-review triage/presentation steps
+  (`src/bmm-skills/4-implementation/bmad-code-review/steps/step-03-triage.md` and
+  `step-04-present.md`).
 - The orchestrator **records reservations and any reviewer disagreement** as a durable follow-up — a
   task in `IMPLEMENTATION_PLAN.md` or a note in `.wgm/memories.md` — even when the verdict is PASS.
 - The deterministic gate + both PASS verdicts still decide "done"; dissent is **preserved, not
