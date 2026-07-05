@@ -269,6 +269,9 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/grilling.md` — the interview discipline.
 - `references/trigger-eval.md` — a hand-curated should/should-not-trigger fixture to catch drift in
   the mode-parsing rule or the "Use this when"/"Do NOT use this when" boundary.
+- `references/evals.md` — the companion output-quality fixture (`evals/evals.json`): given wgm
+  triggers, is the result actually good? Adopted from the `agentskills.io` spec's own eval
+  discipline.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
 - `references/subagents.md` — the eleven role-specialized subagents (griller · implementer ·
   two-stage review · validator · diagnostician · the five-role docs-audit swarm) and how the Loop
@@ -283,7 +286,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
 - `references/self-improvement.md` — the growth flywheel: harvest lessons, report them upstream, and promote durable ones; `references/heuristics.md` is the curated ledger.
-- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`), plus `state.template.toon` — compact agent-only state.
+- `assets/` — fill-in templates (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, `evals`), plus `state.template.toon` — compact agent-only state.
 - `scripts/loop.sh` — optional external Ralph loop; `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

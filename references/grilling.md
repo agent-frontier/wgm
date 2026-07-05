@@ -21,6 +21,10 @@ Walk down each branch of the decision tree, resolving dependencies between decis
    For anything else, record a recommended assumption in the spec and proceed.
 6. **Cap the interrogation.** After about five consecutive questions, pause: summarize the
    assumptions so far and offer **"proceed with defaults."** Autonomy beats interrogation theater.
+   (The origin `grill-me` skill this phase is adapted from deliberately has *no* hard cap — see
+   `mattpocock/skills`'s `.out-of-scope/question-limits.md`: "some plans need three questions, some
+   need fifty." wgm's cap is soft — an offer, never a forced stop — so both concerns hold: no
+   arbitrary ceiling on a hard problem, no interrogation theater on an easy one.)
 7. **Capture as you go.** Every resolved decision and every assumption lands in a spec
    (`assets/spec.template.md`). The interview is worthless if the answers evaporate.
 

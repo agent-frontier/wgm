@@ -34,8 +34,9 @@ lint: ## ShellCheck + bash syntax for every script
 	shellcheck $(SCRIPTS)
 	for s in $(SCRIPTS); do bash -n "$$s"; done
 
-docs: ## Docs backpressure (structure, links, mermaid, placeholders)
+docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixture schema)
 	bash scripts/check-docs.sh
+	bash scripts/check-evals.sh
 
 test: ## Run the bash harnesses (install, loop, swarm)
 	bash scripts/test-install.sh

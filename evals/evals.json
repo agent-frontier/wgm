@@ -1,0 +1,55 @@
+{
+  "skill_name": "wgm",
+  "evals": [
+    {
+      "id": "full-lifecycle-greenfield-build",
+      "prompt": "Build a CLI todo app with add/list/complete commands, from scratch.",
+      "expected_output": "wgm runs Triage (states a Track) -> Grill (asks aligned questions with recommendations, or self-answers from an empty repo) -> Plan (writes IMPLEMENTATION_PLAN.md with per-task validation commands) -> Loop (implements the first task, runs its validation command, prints an Iteration-exit gate PASS/FAIL block) before claiming any task done.",
+      "assertions": [
+        "A Track (Quick/Standard/Full) is explicitly stated",
+        "IMPLEMENTATION_PLAN.md (or .wgm/IMPLEMENTATION_PLAN.md) is created with at least one task naming a validation command",
+        "A 'Gate check:' block is printed at least once with PASS/FAIL per item",
+        "No task is marked done without its validation command having been run and shown to exit 0"
+      ]
+    },
+    {
+      "id": "plan-only-scoped-request",
+      "prompt": "/wgm plan: add OAuth login to this existing Express API",
+      "expected_output": "wgm writes specs + IMPLEMENTATION_PLAN.md per Phase 2, then hard-stops at the Plan-exit gate without starting the Loop.",
+      "assertions": [
+        "IMPLEMENTATION_PLAN.md is written or updated",
+        "The Plan-exit gate checklist is printed",
+        "No Loop iteration (Implement/Validate/Review/Record) runs after Plan-exit"
+      ]
+    },
+    {
+      "id": "trivial-edit-no-trigger",
+      "prompt": "Fix the typo in line 42 of README.md",
+      "expected_output": "wgm recognizes this as a trivial one-file edit and does not invoke its own lifecycle -- no Grill interview, no IMPLEMENTATION_PLAN.md or specs/ artifacts.",
+      "assertions": [
+        "No Grill-phase questions are asked",
+        "No IMPLEMENTATION_PLAN.md or specs/ artifacts are created",
+        "The typo is fixed directly"
+      ]
+    },
+    {
+      "id": "mode-vs-request-disambiguation",
+      "prompt": "/wgm build the auth module",
+      "expected_output": "wgm treats this as a full-lifecycle request (not `build` mode) per the Invocation & modes rule 2 disambiguation, since 'build' is followed by more request text rather than end-of-input/only/a colon.",
+      "assertions": [
+        "wgm does not silently assume an existing IMPLEMENTATION_PLAN.md and jump straight to a single build iteration",
+        "Grill and/or Plan phases are visible before any implementation, consistent with full-lifecycle handling"
+      ]
+    },
+    {
+      "id": "quick-track-obvious-fix",
+      "prompt": "There's an off-by-one bug in this pagination function -- here's the failing test, fix it.",
+      "expected_output": "wgm recognizes Track: Quick, skips a lengthy grill (the ask is unambiguous), fixes the code, and reruns the failing test to green -- skipping holdout scenarios, Preflight, and the docs-audit swarm.",
+      "assertions": [
+        "Track is stated as Quick, or the ceremony is visibly scaled down to match",
+        "The previously-failing test is rerun and shown green before completion",
+        "No scenarios/*.yaml files or Preflight readiness score are produced for this fix"
+      ]
+    }
+  ]
+}

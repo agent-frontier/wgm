@@ -66,6 +66,8 @@ awk -F'|' 'NR>4 && NF>=6 {
 ## Cross-links
 [`SKILL.md`](../SKILL.md) ("Invocation & modes," "Use this when," "Do NOT use this when") ·
 [`references/scoring.md`](scoring.md) (the LLM-as-judge pattern this fixture is designed to be graded
-by) · [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md) (the
+by) · [`references/evals.md`](evals.md) (the companion fixture: given wgm *does* trigger, is the
+output good? — this file only grades whether it *should* trigger) ·
+[`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md) (the
 watchlist item this closes) · [`docs/plans/2026-06-16_PLAN.md`](../docs/plans/2026-06-16_PLAN.md)
 ("also-ran candidates," where the ≈20-query shape was first scoped).
