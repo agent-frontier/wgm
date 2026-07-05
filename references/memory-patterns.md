@@ -41,4 +41,6 @@ Inspired by [elves](https://github.com/aigorahub/elves)' layered memory describe
   repeated trimming, missed prior lessons, or a brief that no longer stays lean.
 
 ## Cross-links
-`ralph-loop.md` · `artifacts.md` · `heuristics.md`
+`ralph-loop.md` · `artifacts.md`. A pattern here that proves durable and cross-project across a real
+build is a `heuristics.md` ledger candidate (`self-improvement.md`'s Harvest step) — not yet a
+promoted entry itself.

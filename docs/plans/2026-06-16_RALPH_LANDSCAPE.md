@@ -36,7 +36,7 @@ on **discipline** (grill → governed plan → holdout-judged loop), not on bein
 - [ralph-claude-code](https://github.com/frankbria/ralph-claude-code) — exit detection, rate limiting, circuit breaker.
 - [choo-choo-ralph](https://github.com/mj-meyer/choo-choo-ralph) — Beads-powered 5-phase workflow; compounding knowledge.
 - [smart-ralph](https://github.com/tzachbon/smart-ralph) — spec-driven (research / requirements / design / tasks).
-- [ralph-starter](https://github.com/rubenmarcus/ralph-starter) — GitHub/Linear/Notion integrations; presets; **cost tracking**.
+- [ralph-starter](https://github.com/multivmlabs/ralph-starter) — GitHub/Linear/Notion integrations; presets; **cost tracking**.
 - [snarktank/ralph](https://github.com/snarktank/ralph) — PRD-driven; auto-branching; flowchart visualization.
 - [iannuttall/ralph](https://github.com/iannuttall/ralph) — minimal file-based loop (codex/claude/droid/opencode).
 - [nitodeco/ralph](https://github.com/nitodeco/ralph), [oh-my-ralph](https://github.com/vivganes/oh-my-ralph), [ralph-wiggum-bdd](https://github.com/marcindulak/ralph-wiggum-bdd) (BDD), [ml-ralph](https://github.com/pentoai/ml-ralph) (ML experiments).
@@ -123,6 +123,13 @@ layered/compaction-surviving memory and the dissent-preserving review.
 - **Watchlist (borrow next):** semantic exit / response analysis (ralph-claude-code) · task-tracker
   integrations (Linear / Notion / GitHub) · a TUI / dashboard · Beads-style structured knowledge
   (choo-choo-ralph).
+  **Note (round 4):** all four items above have since been *documented* as optional/future patterns
+  elsewhere (`references/ralph-loop.md`, `references/artifacts.md`, `docs/operator/running-the-loop.md`,
+  `references/memory-patterns.md`) without this landscape doc being refreshed or `heuristics.md`
+  being touched — this snapshot can be overtaken by a reference-doc addition that never lands in
+  `heuristics.md`'s Provenance ledger. The docs-audit PM checklist (`references/docs-audit.md`) now
+  sweeps `references/*.md` generally, not only `heuristics.md`, so this class of drift is caught
+  going forward.
 
 ## Adjacent ecosystems — agent-skills & ai-coding
 

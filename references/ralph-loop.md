@@ -61,7 +61,8 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
   iteration by process exit code only, which can miss a "succeeded but did nothing useful" response
   or treat a semantically empty exit-0 turn as progress. A future enhancement pattern is
   **semantic exit / response analysis** — inspect the response content as well as the exit code, as
-  `ralph-claude-code` does — but that is a candidate upgrade, not a current `loop.sh` capability.
+  [`ralph-claude-code`](https://github.com/frankbria/ralph-claude-code) does — but that is a
+  candidate upgrade, not a current `loop.sh` capability.
 - **Spec-drift pre-check (optional, cheap).** Before running the task's full validation command,
   diff the files actually touched against the task's declared files/areas in
   `IMPLEMENTATION_PLAN.md`. A mismatch (e.g. a task scoped to `schema/` touching UI files) is a
@@ -152,9 +153,11 @@ progress is lost. wgm's rule:
 - The same task fails ~3 times, or the satisfaction score stalls → first run a **wonder/reflect**
   recovery and consider model escalation (`stall-recovery.md`); if still stuck, record the blocker,
   stop, ask or regenerate the plan. Regenerating the plan is cheap; a loop going in circles is not.
-- If "significant discovery" flags keep piling up across still-pending tasks, a stall pattern keeps
-  recurring on *different* tasks, or the build's actual path no longer matches the spec's magic
-  moment / demo path, treat it as **plan drift**, not just one task needing a better Record step.
+- If `[INVALIDATES: ...]` flags (the plan-invalidating-discovery tag from
+  `references/self-improvement.md`'s Harvest step) keep piling up across still-pending tasks, a
+  stall pattern keeps recurring on *different* tasks, or the build's actual path no longer matches
+  the spec's magic moment / demo path, treat it as **plan drift**, not just one task needing a
+  better Record step.
 - When the plan is structurally stale, regenerate `IMPLEMENTATION_PLAN.md` from the current spec,
   the completed work, and the accumulated memories instead of incrementally patching a plan whose
   assumptions no longer hold.

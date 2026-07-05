@@ -20,6 +20,18 @@ Write an ADR only when **all three** of these hold:
 If any of those fail, prefer ordinary spec/plan notes. Not every decision needs an ADR; otherwise
 the practice turns into ceremony and the important records disappear into noise.
 
+**Worked example, anchoring criterion 3 ("a reasonable engineer could have gone another way"):**
+- **Yes — write one:** *"Adopt the root-vs-`.wgm/` placement split for every artifact"*
+  (`references/artifacts.md`). Hard to reverse once specs/plans/scenarios exist at one location and
+  tooling assumes it; cross-cutting (every artifact in the system inherits the rule); genuinely
+  debatable (always writing to the project root is simpler, and a reasonable engineer could default
+  to that until the "don't clobber an existing `AGENTS.md`" risk is considered).
+- **No — skip it:** *"Require every operator doc to open with an `## Executive overview` section"*
+  (`scripts/check-docs.sh` check 6). Cheap to reverse (a heading rename touches a handful of files);
+  not cross-cutting (it constrains one doc-formatting convention, not an architectural boundary); and
+  not genuinely debatable once stated — no credible competing alternative was on the table. An
+  ordinary spec/plan note (or just the check itself) is enough; this stays out of `specs/adr/`.
+
 ## What it captures
 
 An ADR records:

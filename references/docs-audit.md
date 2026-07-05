@@ -55,8 +55,13 @@ Severity taxonomy, used by all four: **RED** (blocker — actively wrong or misl
 For the **PM** lens, also check whether
 [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md)'s
 "point-in-time snapshot" has fallen meaningfully behind the sources that have since been
-assimilated into [`references/heuristics.md`](heuristics.md)'s **Provenance** fields. If it has,
-flag that drift as a finding; do not silently treat the landscape snapshot as current.
+assimilated. Sweep **both** of these, not just the first: (a)
+[`references/heuristics.md`](heuristics.md)'s **Provenance** fields, and (b) any new external-tool
+citation landing anywhere else in `references/*.md` this round — a watchlist item can be overtaken
+by a topical reference file (a new pattern doc, a loop-mechanics addition) documenting it as an
+optional/future pattern without ever touching `heuristics.md`, which is invisible to a check scoped
+to (a) alone. If either has drifted, flag it as a finding; do not silently treat the landscape
+snapshot as current.
 
 ## The technical writer (consolidation)
 One additional role — the **technical writer** — takes all four persona outputs and produces the
