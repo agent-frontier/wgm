@@ -267,6 +267,8 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 
 ## References
 - `references/grilling.md` — the interview discipline.
+- `references/trigger-eval.md` — a hand-curated should/should-not-trigger fixture to catch drift in
+  the mode-parsing rule or the "Use this when"/"Do NOT use this when" boundary.
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
 - `references/subagents.md` — the eleven role-specialized subagents (griller · implementer ·
   two-stage review · validator · diagnostician · the five-role docs-audit swarm) and how the Loop
