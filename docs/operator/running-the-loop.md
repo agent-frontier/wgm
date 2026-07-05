@@ -2,15 +2,18 @@
 
 ## Executive overview
 
-- **For:** operators running large or ambiguous builds who want Ralph's strongest mode.
-- **The choice:** `/wgm` runs in-session (Ralph-lite); `scripts/loop.sh` gives the agent a fresh
-  context every iteration (Ralph-full).
+- **For:** operators who want Ralph's strongest, truest mode — reach for it whenever a headless
+  agent invocation is available, not just for large or ambiguous builds.
+- **The choice:** `/wgm` runs in-session (Ralph-lite, the fallback); `scripts/loop.sh` gives the
+  agent a fresh context every iteration (Ralph-full, the preferred default whenever invocable).
 - **Fastest path:** set `WGM_AGENT`, then `./scripts/loop.sh build 20`.
 - **Key knobs:** `--threshold` (satisfaction target), `--stratified` (converge tier 1 → 2 → 3),
-  `--container`, plus frugal ↔ powerful model escalation.
+  `--container`, `--devcontainer` (sandbox the loop itself, disk-conscious), plus frugal ↔ powerful
+  model escalation.
 - **Safety:** non-destructive by default — no commits or pushes without `--commit`; stop anytime
   with `Ctrl+C` or a `STOP` sentinel.
 - **Next:** [containers.md](containers.md) for live-service scenarios ·
+  [devcontainers.md](devcontainers.md) for sandboxing the loop itself ·
   [troubleshooting.md](troubleshooting.md).
 
 wgm runs in-session when you invoke `/wgm`, but its strongest mode gives the agent a **fresh context
@@ -31,10 +34,13 @@ flowchart LR
   end
 ```
 
-- **Ralph-lite** — run the loop inside one agent session. Fine for small/medium work; compensate for
+- **Ralph-lite** — run the loop inside one agent session. The fallback: use when no headless agent
+  invocation is available (a purely interactive host) or the work is Quick-track; compensate for
   accumulating context with strict persistence to `IMPLEMENTATION_PLAN.md`.
-- **Ralph-full** — `loop.sh` invokes your agent once per iteration with a clean context. Use it for
-  large or ambiguous builds. The plan file is the only memory between passes.
+- **Ralph-full** — `loop.sh` invokes your agent once per iteration with a clean context. **The
+  preferred default whenever it's invocable** — not reserved for large/ambiguous builds only. The
+  plan file is the only memory between passes. Add `--devcontainer` to run it sandboxed without
+  inflating disk usage per project (one shared base image; see [devcontainers.md](devcontainers.md)).
 
 See [`references/ralph-loop.md`](../../references/ralph-loop.md) for the underlying mechanics.
 

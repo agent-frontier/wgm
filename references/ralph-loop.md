@@ -18,13 +18,26 @@ The plan file is the memory; each iteration is otherwise disposable. wgm adapts 
 - **Move outside the loop.** The human sits *on* the loop, not *in* it: observe failure patterns
   and add signs (a prompt note, a utility, a spec clarification) rather than hand-holding each step.
 
-## Ralph-lite vs Ralph-full
-- **Ralph-lite** — run the loop in-session. Fine for small/medium work. Compensate for context
-  accumulation with strict persistence: after every iteration, write the next state into
-  `IMPLEMENTATION_PLAN.md` so a fresh agent could continue.
-- **Ralph-full** — the stronger mode: genuinely fresh context per iteration via `scripts/loop.sh`
-  or by restarting with a clean context. Use it for large or ambiguous builds. Fresh context is the
-  whole point of Ralph; honor it when the work is big.
+## Ralph-lite vs Ralph-full — prefer Ralph-full whenever it's invocable
+Geoffrey Huntley's original definition is blunt: *"Ralph is a technique. In its purest form, Ralph is
+a Bash loop"* — `while :; do cat PROMPT.md | agent; done` — a single monolithic process, one task per
+loop, with progress living on disk (not the model's context) between passes
+(`ghuntley/how-to-ralph-wiggum`, ghuntley.com/loop). Staying in-session for convenience is the
+*weaker*, compromise form of the technique, not the default to reach for out of habit.
+- **Ralph-full (preferred whenever it's invocable)** — genuinely fresh context per iteration via
+  `scripts/loop.sh`, or by restarting with a clean context. Reach for it whenever a non-interactive
+  agent invocation is available: an operator-set `WGM_AGENT`, or a known CLI (`copilot`, `claude`,
+  `codex`, `aider`) on `PATH` with a print/non-interactive mode. **Detecting capability:** if you
+  (the in-session agent) can shell out to invoke a CLI agent non-interactively — the same check
+  `scripts/loop.sh`'s wiring already assumes (`docs/operator/running-the-loop.md` "Wiring up your
+  agent") — prefer launching the loop over continuing in-session, even for small/medium work. Run it
+  **sandboxed and disk-conscious** with `--devcontainer` (`references/devcontainers.md`) when you
+  want the loop isolated from the host without a new multi-GB image per project.
+- **Ralph-lite (fallback)** — run the loop in-session when no headless invocation exists (a purely
+  interactive host) or the work is **Quick**-track (a whole subprocess loop is overkill for one short
+  prompt once clarification lands). Compensate for context accumulation with strict persistence:
+  after every iteration, write the next state into `IMPLEMENTATION_PLAN.md` so a fresh agent could
+  continue.
 - **Multi-layer builds** — when `references/gene-transfusion.md`'s genes artifact reveals a clear
   component dependency DAG, neither mode has to converge the whole system in one monolithic pass:
   see that reference's "Composed convergence" section for topologically-sorted per-component

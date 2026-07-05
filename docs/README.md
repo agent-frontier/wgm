@@ -46,6 +46,7 @@ flowchart TD
 | Operator | [installation.md](operator/installation.md) | Install on Linux/macOS/Windows/WSL, user vs project |
 | Operator | [running-the-loop.md](operator/running-the-loop.md) | `loop.sh` + the **swarm** (parallel worktrees), limits, retry/circuit-breaker, the metrics ledger, thresholds, escalation |
 | Operator | [containers.md](operator/containers.md) | Podman/OCI validation environment |
+| Operator | [devcontainers.md](operator/devcontainers.md) | Disk-conscious local devcontainer sandbox for running the loop *itself* (`loop.sh --devcontainer`), distinct from `containers.md`'s app-under-test validation |
 | Operator | [troubleshooting.md](operator/troubleshooting.md) | Common failures and fixes |
 | Agent | [lifecycle.md](agent/lifecycle.md) | The phase/gate state machine |
 | Agent | [attractor-loop.md](agent/attractor-loop.md) | Convergence: generate → test → score → feedback |
@@ -57,6 +58,7 @@ flowchart TD
 | Agent | [references/trigger-eval.md](../references/trigger-eval.md) | Should-trigger / should-not-trigger fixture that catches drift in the mode-parsing rule and the Use/Don't-use boundary |
 | Agent | [references/evals.md](../references/evals.md) | The companion output-quality fixture (`evals/evals.json`): given wgm triggers, is the result actually good? |
 | Agent | [references/self-improvement.md](../references/self-improvement.md) | The growth flywheel: harvest internal lessons + cross-pollinate external research → report upstream → promote durable lessons |
+| Agent | [references/devcontainers.md](../references/devcontainers.md) | Sandboxing the loop itself in a disk-conscious local devcontainer — mechanics, permission-parity gotcha, `scripts/devcontainer.sh` |
 
 ## Plans & roadmap
 
@@ -67,6 +69,9 @@ flowchart TD
   against the loop runners and orchestrators catalogued in awesome-ralph ("wgm vs the world").
 - [2026-06-16 — the growth flywheel](plans/2026-06-16_GROWTH_LOOP.md) — how wgm harvests lessons
   from every codebase, reports them upstream, and promotes the durable ones back into the skill.
+- [2026-07-05 — prefer true Ralph + a disk-conscious local devcontainer sandbox](plans/2026-07-05_TRUE_RALPH_AND_DEVCONTAINERS_PLAN.md) —
+  biasing the Triage default toward Ralph-full, plus `scripts/devcontainer.sh` for sandboxing the
+  loop itself without inflating disk usage across projects.
 
 ## Provenance
 

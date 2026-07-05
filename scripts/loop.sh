@@ -59,6 +59,11 @@
 #   --max-cost N         stop the build loop once cumulative cost (summed from --cost-cmd's output,
 #                        whatever unit it emits) reaches N; 0 = unlimited (default: 0). Requires
 #                        --cost-cmd to have anything to sum — warns at startup if set without it.
+#   --devcontainer       run this ENTIRE invocation sandboxed in wgm's disk-conscious local
+#                        devcontainer (scripts/devcontainer.sh) — one shared base image reused
+#                        across every project, never a per-project build. See
+#                        references/devcontainers.md. A no-op with --dry-run (annotates the
+#                        preview instead of launching a container).
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             git add -A && git commit after each build iteration (off by default)
 #   -h | --help          show this help
@@ -72,6 +77,9 @@
 #     must-have task remains, so the loop self-terminates.
 
 set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORIGINAL_ARGV=("$@")
 
 # ----- defaults -------------------------------------------------------------
 MODE="build"
@@ -104,6 +112,7 @@ METRICS_FILE=""
 COST_CMD=""
 MAX_COST=0
 CUM_COST=0
+USE_DEVCONTAINER=0
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -114,6 +123,7 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --commit)  DO_COMMIT=1; shift ;;
+    --devcontainer) USE_DEVCONTAINER=1; shift ;;
     --agent)   [[ $# -ge 2 ]] || { echo "--agent requires a command" >&2; exit 2; }; AGENT="$2"; shift 2 ;;
     --frugal-agent) [[ $# -ge 2 ]] || { echo "--frugal-agent requires a command" >&2; exit 2; }; FRUGAL_AGENT="$2"; shift 2 ;;
     --request) [[ $# -ge 2 ]] || { echo "--request requires text" >&2; exit 2; }; REQUEST="$2"; shift 2 ;;
@@ -254,6 +264,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "retries=${MAX_RETRIES} retry_base=${RETRY_BASE_DELAY}s retry_max=${RETRY_MAX_DELAY}s circuit_breaker=${MAX_CONSEC_FAIL}"
   echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set} max_cost=${MAX_COST}"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
+  echo "devcontainer=${USE_DEVCONTAINER}$([[ $USE_DEVCONTAINER -eq 1 ]] && echo ' (would re-exec this whole invocation inside scripts/devcontainer.sh — skipped for --dry-run)')"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
   echo "--- prompt ---"; printf '%s\n' "$PROMPT"
@@ -269,6 +280,24 @@ fi
 if [[ ${#AGENT_ARGV[@]} -eq 0 && -z "$AGENT" && -z "$FRUGAL_AGENT" ]]; then
   echo "No agent configured. Set \$WGM_AGENT, pass --agent \"CMD\", --frugal-agent \"CMD\", or append -- argv. See --help." >&2
   exit 2
+fi
+
+# ----- optional: re-exec this whole invocation inside a disk-conscious devcontainer sandbox ------
+# WGM_IN_DEVCONTAINER is set by devcontainer.sh's own `run` on every container it launches (not
+# just when asked to), so this guard also prevents any accidental nested re-wrap if --devcontainer
+# somehow reaches an invocation already running inside one.
+if [[ "$USE_DEVCONTAINER" -eq 1 && -z "${WGM_IN_DEVCONTAINER:-}" ]]; then
+  SKILL_ROOT="$(cd "$HERE/.." && pwd)"
+  REEXEC_ARGV=()
+  for _a in "${ORIGINAL_ARGV[@]}"; do
+    [[ "$_a" == "--devcontainer" ]] || REEXEC_ARGV+=("$_a")
+  done
+  ENV_FLAGS=()
+  [[ -n "${WGM_AGENT:-}" ]] && ENV_FLAGS+=(--env WGM_AGENT)
+  [[ -n "${WGM_FRUGAL_AGENT:-}" ]] && ENV_FLAGS+=(--env WGM_FRUGAL_AGENT)
+  [[ -n "${WGM_PROMPT_STDIN:-}" ]] && ENV_FLAGS+=(--env WGM_PROMPT_STDIN)
+  exec "$HERE/devcontainer.sh" run --skill-dir "$SKILL_ROOT" "${ENV_FLAGS[@]}" -- \
+    /opt/wgm-skill/scripts/loop.sh "${REEXEC_ARGV[@]}"
 fi
 
 # ----- run the loop ---------------------------------------------------------
