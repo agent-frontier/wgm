@@ -143,6 +143,12 @@ discipline (cadence, personas, consolidation algorithm, severity taxonomy) is in
 - **Written by** the `wgm-docs-writer` role, after the four persona reviewers
   (`wgm-docs-junior` / `-senior` / `-principal` / `-pm`) have reported (`references/subagents.md`).
 
+## `evals/evals.json` — wgm's own output-quality self-test
+Not one of the per-build templates above — `assets/evals.template.json` is the skeleton for
+wgm-the-skill's own self-test fixture, not something scaffolded into every downstream build. Its
+content, schema, and placement discipline (repo root, beside `SKILL.md`) live in
+`references/evals.md`, not duplicated here.
+
 ## Token economy — keep reloaded state cheap
 `IMPLEMENTATION_PLAN.md` and `.wgm/memories.md` are reloaded **every iteration**, so they are a token
 hotspot that grows over a long build. Two registers, two rules:

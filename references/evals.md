@@ -4,9 +4,13 @@ A structured, repo-root fixture (`evals/evals.json`) of realistic prompts paired
 outcome and a set of checkable assertions — adopted from the
 [`agentskills.io` specification's own `evaluating-skills.mdx`](https://github.com/agentskills/agentskills/blob/main/docs/skill-creation/evaluating-skills.mdx),
 the standard wgm's `SKILL.md` already conforms to for structure and validation
-(`skills-ref validate wgm`). This closes the gap
-[`references/trigger-eval.md`](trigger-eval.md) explicitly flagged when it shipped: wgm had no way
-to mechanically self-test end-to-end.
+(`skills-ref validate wgm`). This closes half of the "skill-behaviour eval" gap
+[`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md)'s watchlist
+called for (trigger + lifecycle tests):
+[`references/trigger-eval.md`](trigger-eval.md) shipped the trigger half; this is the lifecycle
+half. To be precise about what "closes" means here — the *fixture format* now exists; running and
+grading it end-to-end still requires a maintainer or a future automated judge (see "How this
+differs" and "Automated grading protocol" below).
 
 ## How this differs from `trigger-eval.md`
 The two fixtures are complementary, not duplicative — they grade different questions:

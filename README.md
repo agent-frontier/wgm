@@ -177,6 +177,13 @@ flowchart LR
   **Agent action** or **Operator action** (never by persona), and the report is indexed the same way
   this README indexes its own docs. No need to ask for it — it runs automatically at Ship/Handoff
   (`references/docs-audit.md`).
+- **Trigger eval** — a hand-curated should/should-not-trigger fixture that catches drift in
+  `SKILL.md`'s mode-parsing rule and the "Use this when"/"Do NOT use this when" boundary
+  (`references/trigger-eval.md`).
+- **Output-quality evals** — given wgm *does* trigger, is the result actually good? A structured
+  `evals/evals.json` fixture (prompt + expected output + assertions), schema-checked by
+  `scripts/check-evals.sh` and graded by a maintainer or a future automated judge
+  (`references/evals.md`).
 - **EARS acceptance criteria** — *Easy Approach to Requirements Syntax*: phrase each criterion in a
   testable trigger/state/response shape (e.g. "When X, the system shall Y") so a check or judge can
   settle it (`references/artifacts.md`).
@@ -247,8 +254,8 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics · docs-audit
-├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · state.toon templates
+├── references/       # grilling · ralph-loop · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · self-improvement · heuristics · docs-audit · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · evals · plugin-template · wgm.example.yml · state.toon templates
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · install.sh · install.ps1
 ├── .github/agents/   # the eleven role-specialized subagents (the swarm), incl. the docs-audit swarm
 └── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)

@@ -26,6 +26,18 @@ evidence.
 A missing or failing audit at a required gate blocks Ship the same way a failing test does — see the
 Ship/Handoff step in `SKILL.md`.
 
+**Batching across a same-session run of PRs (Standard track).** A dedicated audit MAY be deferred
+across multiple same-session Standard-track PRs — an agent shipping several small PRs back-to-back
+in one session need not stop and dispatch the full four-persona swarm after every single one. What
+stays mandatory: a **consolidated pass runs before the session ends**, or before a small cap of
+further Standard-track PRs land (the same ~3-5 range already used as the loop's own concurrent-open-PR
+ceiling — `references/heuristics.md`, "Loop discipline"), whichever comes first. This deferral is a
+cadence, not an exemption: the requirement that a full pass eventually happens over every shipped PR
+is never waived, only its batching made explicit instead of silently practiced. A consolidated report
+that explicitly names the PR range it covers (the "Covers" column in `docs/audit/README.md`) is
+exactly this mechanism working as intended — see `docs/audit/README.md`'s index for a live example of
+one dedicated pass consolidating several same-session PRs at once.
+
 ## The four personas
 Each persona reviews the same doc set through one lens and produces a short, structured finding list
 — **observation → severity → recommended action**. No persona edits anything; each only reports.
