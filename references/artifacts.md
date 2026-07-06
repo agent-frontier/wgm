@@ -11,6 +11,9 @@ continue the work. Fill them from the templates in `assets/`.
   `.wgm/scenarios/`, `.wgm/AGENTS.md`, `.wgm/docs/audit/` — to avoid clobbering the project's files.
 - **Never overwrite an existing `AGENTS.md`.** Touch root `AGENTS.md` only with explicit approval.
 - Decide root vs `.wgm/` **once, in Triage**, and stay consistent for the whole run.
+- **One exception to the root-vs-`.wgm/` split: `.github/wgm-hive.yml`.** It always lives at
+  `.github/`, regardless of greenfield/existing-project status, because it is a one-time, team-wide
+  decision meant to be committed and shared — not per-build state. See its own section below.
 
 ## `specs/CONSTITUTION.md` — project-wide principles
 The governing layer: principles every spec, plan, and task must honor — the code-quality bar, the
@@ -108,7 +111,9 @@ A prioritized task list — the memory of the loop. Source from
 - **validation command** — the backpressure that proves it (e.g. `npm test -- auth`, `pytest -k x`).
 - **acceptance criteria** — what "done" means for this task.
 - **tracker reference (optional)** — an external issue/ticket ID when useful for traceability
-  (e.g. `GH-142`, `ENG-204`, or "Task 7 (tracks GH-142)").
+  (e.g. `GH-142`, `ENG-204`, or "Task 7 (tracks GH-142)"). See `references/issue-intake.md` for the
+  fuller discipline: discovering candidate issues, prioritizing among several, and carrying the
+  reference into a `Closes #N` / `Fixes #N` commit or PR trailer.
 - **status** — `pending | in_progress | done | blocked` (+ a note for blocked).
 
 Rules:
@@ -151,6 +156,24 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
   budget and trimming lessons you later need, `references/memory-patterns.md` documents two
   **optional** named alternatives (Beads-style structured records, compaction-surviving layered
   memory) — the flat log above stays the default for everything else.
+
+## `.github/wgm-hive.yml` — the hive consent/levers file
+The one-time, committed, team-wide decision that gates the Hive Growth Loop's automatic upstream
+reporting. Source from `assets/wgm-hive.template.yml`. Full discipline in
+`references/self-improvement.md` ("Consent & continuous mode") and `references/issue-intake.md`.
+
+- **Placement is fixed at `.github/`** — the one exception to the root-vs-`.wgm/` split (above),
+  because this is a shared team decision, not per-build scratch. Never write it under `.wgm/`
+  (gitignored/local — it would silently re-ask on every clone or machine) and never treat it as
+  subject to the greenfield-vs-existing-project choice other artifacts make.
+- **Presence, not content, is the Triage trigger.** If the file doesn't exist yet, Triage asks the
+  one-time consent question *before* anything else — even before Grill's own first question — and
+  writes the file with whatever answer it gets. If the file exists (`consent: true` or `false`), wgm
+  never asks again; a human changes the answer by editing or deleting the file.
+- **Fields:** `consent` (bool, the master switch), `auto_report` (bool, defaults to mirroring
+  `consent`), `sources` (list — which capture channels feed the loop for this project).
+  **Anonymization is deliberately not a field** — it is mandatory on every path and cannot be turned
+  off from this file.
 
 ## `docs/audit/*.md` — the docs-audit paper trail
 The durable record that the docs-audit swarm ran and what it found — evidence of work done for a

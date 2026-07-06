@@ -1,0 +1,33 @@
+# .github/wgm-hive.yml — this project's one-time consent for wgm's Hive Growth Loop.
+#
+# Presence/absence of THIS FILE (committed to .github/, shared by the whole team — never .wgm/,
+# which is gitignored/local-only) is the trigger: if it doesn't exist yet, wgm's Triage phase asks
+# the question below as the very first thing it does on this project, before any other Triage or
+# Grill question. Whatever the answer, wgm writes this file so it is never asked again unless you
+# delete it. See references/self-improvement.md ("Consent & continuous mode") and
+# references/issue-intake.md for the full discipline this file gates.
+#
+# Question wgm asked: "May wgm automatically harvest anonymized lessons from building on this
+# project, and report them upstream to agent-frontier/wgm (the shared skill), so wgm improves for
+# everyone? You can change your mind any time by editing or deleting this file."
+
+# Master switch. false = wgm never files or updates an upstream issue automatically; it behaves like
+# today's ask-every-time Report step instead. true = the Report step runs on its own (see
+# auto_report below) with zero further per-run prompting.
+consent: false
+
+# Whether upstream filing actually fires automatically. Defaults to mirroring `consent` above --
+# only set this independently if you want to consent to LOCAL aggregation/anonymization (so you can
+# review a draft) without wgm ever filing anything upstream on its own.
+auto_report: false
+
+# Which capture channels feed the growth loop for this project. Trim this list to opt specific
+# sources out; it does not affect anonymization, which is always applied to every source.
+sources:
+  - dogfood      # this build's own .wgm/memories.md
+  - swarm        # scripts/swarm.sh node memories, consolidated (references/self-improvement.md)
+  - issues       # this project's own GitHub Issues, as backlog/context (references/issue-intake.md)
+  - cross-pollinate  # external research findings (references/self-improvement.md)
+
+# NOT a field here on purpose: anonymization is mandatory and always on for every source above,
+# regardless of consent or auto_report. It cannot be disabled from this file.

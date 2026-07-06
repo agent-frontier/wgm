@@ -21,6 +21,7 @@ that supports custom agents):
 | `wgm-docs-principal` | Docs audit | Reviews docs for constitution conformance, architecture fit, cross-doc consistency — read-only. |
 | `wgm-docs-pm` | Docs audit | Reviews docs for status accuracy, risk visibility, traceability — read-only. |
 | `wgm-docs-writer` | Docs audit | Consolidates the four persona reports into one paper-trail report; classifies every item Agent vs Operator action; preserves dissent. |
+| `wgm-hermes` | Ship/Handoff + standing after every swarm | Aggregates lessons from every Hive Growth Loop source, anonymizes them, checks `.github/wgm-hive.yml` consent, and publishes upstream when consented. |
 
 The swarm runs the lifecycle end to end — the sheepdog (orchestrator) dispatches each dog to its phase:
 
@@ -110,6 +111,26 @@ flowchart LR
   track, a Plan-exit baseline pass plus opportunistic passes on doc-touching diffs. Quick skips the
   swarm entirely and relies on `scripts/check-docs.sh`.
 
+## Hive courier (`wgm-hermes`)
+The Hive Growth Loop's messenger role: it aggregates lessons from every source
+(`references/self-improvement.md`'s Capture section), **always anonymizes** them, reads
+`.github/wgm-hive.yml` for consent, and — only when consented — publishes upstream to
+`agent-frontier/wgm` (`scripts/harvest-hive.sh`). Named for a researched Hermes-style multi-agent
+pattern (a shared knowledge bus with publish/subscribe exchange and provenance tracking), translated
+into this file's existing subagent-dispatch idiom rather than a new mechanism.
+
+- **Two dispatch points, not one:** standing, after every `scripts/swarm.sh` run (so node lessons
+  reach the hive without waiting for Ship/Handoff); and at Ship/Handoff for ordinary single-stream
+  builds, alongside the docs-audit swarm.
+- **Read-only about consent, not free to grant it.** `wgm-hermes` reads `.github/wgm-hive.yml`; it
+  does not decide policy. The one-time consent question itself is asked by Triage (`SKILL.md` Phase
+  0), before any subagent runs.
+- **Anonymize is not negotiable.** Unlike the docs-audit personas (which only read), `wgm-hermes` can
+  cause a real external side effect — filing a public issue — so its one hard constraint is that the
+  scrub always runs first, on every lesson, regardless of consent state.
+- **No merge authority.** `wgm-hermes` can file or update an issue; it never opens or merges a PR —
+  that boundary belongs to the ordinary human-reviewed Implement/Review path.
+
 ## Model selection
 Right-size the model per role: the **griller** and **implementer** can run on a frugal model for
 interview and mechanical work; the **reviewers**, the **validator**, and the **diagnostician** earn a
@@ -121,6 +142,9 @@ leaving it as loose advice.
 The same split applies to the docs-audit swarm: the four **persona reviewers** are frugal-model work
 (one bounded, single-lens read), while **`wgm-docs-writer`** earns a more capable model — correct
 dissent-preservation and Agent-vs-Operator classification is the part easy to get subtly wrong.
+**`wgm-hermes`** earns a more capable model too, for the same reason as the writer: anonymization is
+a judgment call with a real external side effect (a public issue) if it goes subtly wrong, not
+mechanical aggregation alone.
 
 ## Tool-restriction schema (per agent)
 Today the `.github/agents/*.agent.md` files describe tool access in prose ("Primary tools: ...").
@@ -167,4 +191,6 @@ swarm's context lean.
 ## Cross-links
 `references/ralph-loop.md` (loop + backpressure) · `references/scoring.md` (what validation must
 prove) · `references/stall-recovery.md` (escalation) · `references/docs-audit.md` (the docs-audit
-swarm's own discipline) · the archetype files in `.github/agents/`.
+swarm's own discipline) · `references/self-improvement.md` (`wgm-hermes`'s Hive Growth Loop) ·
+`references/issue-intake.md` (the GitHub-Issues source `wgm-hermes` also draws from) · the archetype
+files in `.github/agents/`.

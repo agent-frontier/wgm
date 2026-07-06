@@ -5,7 +5,8 @@
 # "Swarm coding": instead of one sequential loop, the sheepdog (this script) spawns several dogs that
 # work in PARALLEL on independent slices, each isolated in its own `git worktree` on its own branch so
 # they never collide. Each stream runs `scripts/loop.sh build` (the sibling runner). When they finish
-# you review and merge the branches — one thought per branch.
+# you review and merge the branches — one thought per branch — and any per-stream `.wgm/memories.md`
+# notes are always consolidated back into the invoking worktree before optional cleanup.
 #
 # Partition the work yourself: a --tasks file gives each stream a distinct scope (its loop.sh
 # --request), or -n COUNT runs COUNT identical streams (useful for racing/diversity). Each stream
@@ -149,6 +150,20 @@ for idx in "${!PIDS[@]}"; do
   if wait "${PIDS[$idx]}"; then st="ok"; else st="FAIL"; FAIL=1; fi
   commits="$(git rev-list --count "HEAD..${BRANCHES[$idx]}" 2>/dev/null || echo '?')"
   printf '%-7s %-24s %-6s %s\n' "$((idx + 1))" "${BRANCHES[$idx]}" "$st" "$commits"
+done
+
+MAIN_MEMORIES=".wgm/memories.md"
+for idx in "${!DIRS[@]}"; do
+  memories="${DIRS[$idx]}/.wgm/memories.md"
+  [[ -f "$memories" ]] || continue
+  mkdir -p .wgm
+  lines="$(wc -l < "$memories")"
+  {
+    printf '\n<!-- from %s -->\n\n' "${BRANCHES[$idx]}"
+    cat "$memories"
+    printf '\n'
+  } >> "$MAIN_MEMORIES"
+  echo "✓ stream $((idx + 1)): consolidated .wgm/memories.md (${lines} lines) from ${BRANCHES[$idx]}"
 done
 
 if [[ "$CLEANUP" -eq 1 ]]; then

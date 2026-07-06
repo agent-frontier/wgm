@@ -50,6 +50,7 @@ reset_swarm() {  # tear down every worktree under .wgm/worktrees + every wgm/* b
     git branch -D "$b" >/dev/null 2>&1 || true
   done < <(git for-each-ref --format='%(refname:short)' refs/heads/ | grep -E '^wgm/' || true)
   rm -rf .wgm/worktrees
+  rm -f .wgm/memories.md
 }
 
 # 1) --dry-run lists the streams and creates nothing
@@ -92,7 +93,22 @@ else
 fi
 reset_swarm
 
-# 5) re-running with an existing branch is skipped (no duplicate / clobbered run)
+# 5) per-stream memories are consolidated back into the main worktree
+AGENT_MEMORIES=(bash -c "printf -- '- did work\n' >> IMPLEMENTATION_PLAN.md; mkdir -p .wgm; printf 'lesson from %s\n' \"\$(git branch --show-current)\" >> .wgm/memories.md" _)
+run --tasks tasks.txt --max-iterations 1 -- "${AGENT_MEMORIES[@]}"
+if [[ "$RC" -eq 0 ]] \
+   && [[ -f .wgm/memories.md ]] \
+   && grep -q '<!-- from wgm/swarm/1 -->' .wgm/memories.md \
+   && grep -q '<!-- from wgm/swarm/2 -->' .wgm/memories.md \
+   && grep -q 'lesson from wgm/swarm/1' .wgm/memories.md \
+   && grep -q 'lesson from wgm/swarm/2' .wgm/memories.md; then
+  pass "stream memories are consolidated into the main worktree"
+else
+  fail "stream memories were not consolidated into the main worktree (rc=$RC)"
+fi
+reset_swarm
+
+# 6) re-running with an existing branch is skipped (no duplicate / clobbered run)
 run --tasks tasks.txt --max-iterations 1 -- "${AGENT_OK[@]}"   # first run creates the branches
 run --tasks tasks.txt --max-iterations 1 -- "${AGENT_OK[@]}"   # second run: both already exist
 if [[ "$RC" -ne 0 ]] && grep -q "already exists" <<<"$OUT"; then
@@ -102,7 +118,7 @@ else
 fi
 reset_swarm
 
-# 6) a missing --tasks file is rejected before anything runs
+# 7) a missing --tasks file is rejected before anything runs
 run --tasks does-not-exist.txt -- "${AGENT_OK[@]}"
 if [[ "$RC" -eq 2 ]] && grep -q "tasks file not found" <<<"$OUT"; then
   pass "missing --tasks file is rejected"
