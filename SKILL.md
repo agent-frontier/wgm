@@ -215,7 +215,11 @@ stop condition fires. **One task per iteration.** Each iteration:
    so a fresh context never deletes it as an orphan. **Format only what you touched:** never run a
    project-wide auto-formatter mid-iteration — it buries the one-task diff in reformatting noise.
 3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
-   creating one **is** this iteration's task. No green signal → not done. Then **judge satisfaction
+   creating one **is** this iteration's task. No green signal → not done. **If the project has a
+   deploy pipeline distinct from its per-PR CI, PR-level green is not proof of a real deploy** —
+   check that separate workflow's own latest run when a task's acceptance criteria implies reaching
+   a running deployment, and treat a red one as a standing blocker surfaced now, not deferred to
+   Ship/Handoff (`references/ralph-loop.md`, Backpressure in depth). Then **judge satisfaction
    (0–100)** against this slice's holdout scenarios, converging by tier (stratified); run the app in
    a container if a scenario needs a live service (`references/scoring.md`,
    `references/validation-env.md`). Deterministic checks still gate "done."
@@ -265,6 +269,10 @@ next iteration is a consolidation task (help land existing PRs), not another net
 - For larger or multi-session builds, an optional morning-after run report may be left from `assets/morning-report.template.md` (pattern borrowed from [elves](https://github.com/aigorahub/elves)).
 - List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
 - Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
+- **If a separate deploy pipeline exists, confirm it's actually green** — not just the PR-level CI
+  that gated each merge (`references/ralph-loop.md`, Backpressure in depth). A merged, CI-green PR
+  can still sit behind a silently-failing post-merge deploy; don't report work "complete" on PR
+  status alone when the spec's demo path implies a live deployment.
 - **Audit the docs — mandatory, no need to ask (Standard/Full).** Dispatch the docs-audit swarm:
   four independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
   technical-writer role into one paper-trail report — every action item labeled strictly **Agent

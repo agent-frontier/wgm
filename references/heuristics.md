@@ -133,6 +133,15 @@ prune becomes due — `docs/audit/README.md`.)
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** when a project has a deploy pipeline distinct from its per-PR CI, treat PR-level
+  green as proof a change is safe to merge, never as proof it shipped — explicitly check the
+  separate deploy workflow's own latest run whenever a task's acceptance criteria implies reaching
+  a live deployment, and treat a red one as a standing blocker surfaced immediately, not deferred to
+  Ship/Handoff. **Why:** a real session merged 8 CI-green PRs while a separate post-merge deploy
+  workflow's migration step had been silently failing since the first merge — 7 consecutive failed
+  deploys, invisible for hours until the human asked why "complete" work wasn't live. **Provenance:**
+  wgm dogfood, `[learn]` issue #60. **Landed in:** `references/ralph-loop.md` (Backpressure in
+  depth) · `SKILL.md` (Loop Validate step · Ship/Handoff).
 - **Heuristic:** when a skill already has an eval fixture, standardize the *graded* output on a
   per-run `grading.json` plus a cross-run `benchmark.json` before inventing bespoke summaries.
   **Why:** fixed schemas make manual judging automatable later, preserve assertion-level evidence,
