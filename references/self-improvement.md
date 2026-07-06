@@ -8,30 +8,35 @@ once) automatic upstream reporting with no further per-run asking. See the origi
 consent/automation extension in
 [`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md).
 
-The flywheel: **capture → harvest → anonymize → report → curate → self-optimize → promote →
-re-install**.
+The flywheel: **capture → swarm harvest → harvest → anonymize → report → curate →
+self-optimize → promote → re-install**.
 
 ## Capture — four sources feed one funnel
 - `.wgm/memories.md` — gotchas, stall fixes, patterns, dead ends (token-budgeted, pruned).
 - `.wgm/scores.md` — the satisfaction trajectory that exposes stalls.
-- **Swarm-node memories (new).** Each `scripts/swarm.sh` stream keeps its own isolated
+- **Swarm-stream memories (new).** Each `scripts/swarm.sh` stream keeps its own isolated
   `.wgm/memories.md` in its own worktree; a standing post-run step consolidates every stream's file
   into the invoking worktree's `.wgm/memories.md`, tagged by origin branch, before any cleanup. See
   **Swarm harvest** below.
-- **This project's own GitHub Issues (new).** A project's open issues are backlog/context, not just
-  a place to file lessons — see [`issue-intake.md`](issue-intake.md) for the discovery and
-  traceability discipline. wgm's own `[learn]`-labelled issues are one specialized case of this same
-  channel (see **Relationship to `[learn]` issues** in that doc).
+- **This project's own GitHub Issues (new).** A project's open issues are backlog/context for
+  Triage's *discovery* step, not raw input `Harvest` scans the way it scans `.wgm/memories.md` — see
+  [`issue-intake.md`](issue-intake.md) for the discovery and traceability discipline. wgm's own
+  `[learn]`-labelled issues are one specialized case of this same channel (see **Relationship to
+  `[learn]` issues** in that doc).
 - Cross-pollinate / external research (below) is the fourth channel, feeding wgm-the-skill's own
   growth from sibling projects rather than from this build.
 
 These are the raw juice. They stay lean: only what helps the *next iteration* of *this* build — the
-swarm and issue channels widen where that juice comes from, they don't change how little of it wgm
-keeps around at once.
+swarm and issue channels widen where that juice comes from, but keeping the file small still depends
+on the later Record-step trim discipline; swarm consolidation itself appends the full per-stream
+files first.
 
-## Swarm harvest (consolidating parallel nodes)
+## Swarm harvest (consolidating parallel streams)
 `scripts/swarm.sh` fans work into parallel git worktrees so streams never collide — but that also
 means each stream's lessons stay stranded in its own worktree unless something brings them back.
+Terminology here is exact: **swarm** = the parallel-worktree mechanism in `scripts/swarm.sh`; a
+**stream** = one worktree/branch inside that swarm; the **hive** = the shared upstream
+`agent-frontier/wgm` that consented builds ultimately report to.
 The standing (unconditional, no flag) post-run step in `scripts/swarm.sh` does exactly that: after
 all streams finish and before any `--cleanup` removes their worktrees, it appends each stream's
 `.wgm/memories.md` into the invoking worktree's `.wgm/memories.md`, each block tagged with an HTML
@@ -39,6 +44,23 @@ comment naming its origin branch (e.g. `<!-- from wgm/swarm/2 -->`). This always
 run pays this small local cost, whether or not the project has consented to automatic upstream
 reporting (below). Harvest then reads the consolidated file exactly as it would a single-stream
 build's; a swarm-sourced lesson is just one more candidate, not a different kind of one.
+Important: `scripts/swarm.sh` does **not** trim after consolidation; it appends each per-stream file
+verbatim. The ~2000-token trim rule only re-enters later when an agent does the Record-step memory
+maintenance described in `references/ralph-loop.md` / `references/artifacts.md`, not during swarm
+consolidation itself.
+
+**Worked example:** if stream 1 and stream 2 each wrote their own `.wgm/memories.md`, the invoking
+worktree's consolidated file grows by tagged blocks in exactly this format:
+
+```md
+<!-- from wgm/swarm/1 -->
+
+- Retry after regenerating the lockfile before escalating the build harness.
+
+<!-- from wgm/swarm/2 -->
+
+- Capture the flaky seed before rerunning the validator.
+```
 
 ## Harvest (at Ship/Handoff)
 After the build is green, scan `.wgm/memories.md` for a lesson that is:
@@ -80,11 +102,12 @@ eliminate the need for the criteria in Harvest above. Anonymization applies whet
 filed by hand or automatically (below); it does not apply to Cross-pollinate's inbound direction
 (reading *other* repos' public source raises citation/licensing concerns, not host-data exposure).
 `wgm-hermes` (`references/subagents.md`) is the subagent role that owns this step end to end —
-aggregate, anonymize, check consent, publish — named for the messenger-god framing of a researched
-multi-agent knowledge-sharing pattern (a shared knowledge bus with publish/subscribe exchange and
-provenance tracking across agents), translated into wgm's existing subagent-dispatch idiom rather
-than a new mechanism; `heuristics.md`'s own **Provenance** field already gives wgm a version of that
-provenance tracking.
+aggregate, anonymize, check consent, publish — named for the messenger-god framing of this courier
+role, translated into wgm's existing subagent-dispatch idiom rather than a new mechanism;
+`heuristics.md`'s own **Provenance** field already gives wgm a concrete way to preserve where a
+lesson came from.
+
+**Worked example:** a raw memory line like `- Repro at https://build.internal/runbook from /home/alice/acme/service with TOKEN=ghp_example123; notify alice@example.com about acme/api.` is anonymized (verified against the actual script output) into `- Repro at <redacted-url> from <redacted-path> with <redacted-credential> notify <redacted-email> about <redacted-repo>.` — note the credential-token match also absorbs its trailing punctuation (the `;` disappears along with the token), a small but real artifact of the regex, not a typo here. Separately, a *standalone* internal-style hostname not already inside a URL — e.g. `- Saw it happen on build.internal again today.` — becomes `- Saw it happen on <redacted-host> again today.`; a hostname that's already part of a matched URL (like `build.internal` above) is redacted as part of that URL instead, not a second time.
 
 ## Cross-pollinate (a second channel — external research)
 The flywheel above harvests *internal* lessons from this project's own dogfooding. wgm also grows by
@@ -185,28 +208,51 @@ Rules:
   user asks or on a wgm dogfood run. Never auto-file from a client repo that hasn't consented.
 - **De-dup.** Search open `learning`-labelled issues first; add a comment to an existing one rather
   than opening a duplicate. This still applies on the automatic path.
-- **One lesson per report.** Keep each report a single thought, so it maps to a single PR later.
+- **One report per harvest run, not per lesson.** `scripts/harvest-hive.sh` anonymizes and files the
+  *current consolidated* `.wgm/memories.md` as a single report — it does not (yet) split a
+  multi-entry file into one issue per lesson. Keep the source file itself lean and single-threaded
+  (`references/artifacts.md`'s token budget already asks for this) so a report stays a coherently
+  single thought in practice; treat true per-lesson extraction as a known follow-up, not a shipped
+  guarantee.
 
 ### Consent & continuous mode
+This section is the canonical source for the one-time consent-question wording; other docs/templates
+(such as `SKILL.md`, `references/artifacts.md`, and `assets/wgm-hive.template.yml`) should cite this
+section rather than restating the prompt verbatim.
+
 Triage (`SKILL.md` Phase 0) checks the project root for `.github/wgm-hive.yml`
 (`assets/wgm-hive.template.yml` is the scaffold). Its presence or absence — not a per-run
 question — decides which path applies:
 
-- **Absent → ask once, then never again.** If the file doesn't exist, that absence is what makes
-  this "a new project" for consent purposes: wgm asks the consent question as the literal first
-  thing it does in Triage, before any other Triage or Grill question. Whatever the answer, wgm
+- **Absent, human present → ask once, then never again.** If the file doesn't exist, that absence is
+  what makes this "a new project" for consent purposes: wgm asks the consent question as the literal
+  first thing it does in Triage, before any other Triage or Grill question. Whatever the answer, wgm
   writes `.github/wgm-hive.yml` with it — `consent: true` or `consent: false` — so the question is
   never asked again on this project unless a human deletes the file. The file is committed (not
   `.wgm/`, which is gitignored/local-only) so the decision is made once for the whole team, not once
   per clone or machine.
-- **Present with `consent: true` (and `auto_report: true`, its default) → fully automatic.** `Report`
-  runs on its own — after every swarm (via Swarm harvest, above) and at Ship/Handoff — anonymized,
-  de-duped, and filed with no further per-run prompting. This is what makes "continuous automatic
-  growth" real instead of aspirational.
-- **Present with `consent: false` → today's ask-based path, permanently.** Local Capture/Harvest
-  still run (the `sources:` list in the file can trim which channels feed even that, though
+- **Absent, no human present (headless/non-interactive)** — `scripts/harvest-hive.sh` (dispatched
+  standing after every swarm, and at Ship/Handoff) never persists a decision on an absent human's
+  behalf: it declines *for that run only* and leaves the file unwritten, so the next interactive
+  Triage session still gets to ask a real person. This mirrors `references/stall-recovery.md`'s
+  existing unattended convention (preserve, don't guess) rather than inventing a new one. The same
+  safe degrade holds under concurrency too: if multiple non-interactive `scripts/harvest-hive.sh`
+  runs arrive at once (for example, nearby swarm streams finishing together), each one independently
+  declines for its own run and writes nothing, so there is no shared mutable `false` race to win.
+- **Present, `consent: true` and `auto_report: true` (its default)** — fully automatic. Filing
+  happens with no further per-run prompting: anonymized, de-duped, one report per harvest run. This
+  is what makes "continuous automatic growth" real instead of aspirational.
+- **Present, `consent: true` but `auto_report: false`** — local anonymize/harvest still runs and is
+  printed for a human to read, but nothing is filed upstream; use this to review drafts before
+  turning the last switch on.
+- **Present, `consent: false` (regardless of `auto_report`)** — today's ask-based path, permanently:
+  local Capture/Harvest still run (the `sources:` list can trim which channels feed even that, though
   anonymization itself is never a listed, toggle-able field); only the upstream publish leg waits for
   an explicit ask.
+- **Standing dispatch, consent-gated filing.** `scripts/swarm.sh` unconditionally hands its
+  just-consolidated memories to `scripts/harvest-hive.sh` after every run — that *dispatch* always
+  happens; whether it actually *files* anything upstream still depends entirely on the consent state
+  above, exactly as it would at Ship/Handoff.
 - **Automatic reporting still counts as self-referential when it's about wgm's own repo.** Filing a
   `[learn]` issue automatically doesn't change what it *is* — the **Health check** guardrail above
   still applies to it exactly as it would to a hand-filed one; automation is not a loophole around
@@ -240,10 +286,12 @@ ledger — and fold it into wherever it belongs:
 buffer. Prune the buffer aggressively; only graduated lessons persist.
 
 ## What this is not
-- **Not telemetry by default** — nothing is sent automatically unless a project has explicitly,
-  once, consented via `.github/wgm-hive.yml`; even then, every report is anonymized first and stays
-  a plain, human-readable GitHub issue — not silent instrumentation, and not something a project
-  can be enrolled into without a recorded, committed, reversible decision.
+- **No telemetry without consent, ever** — once a project consents, reporting genuinely is automatic
+  and unprompted per run; that's the honest trade being made, not a contradiction. What's guaranteed
+  instead: it can never start without an explicit, recorded, committed, reversible decision in
+  `.github/wgm-hive.yml`; it is never silent instrumentation (every report is anonymized first and
+  stays a plain, human-readable GitHub issue, not a telemetry payload); and it can be turned off
+  again just as explicitly by editing or deleting that same file.
 - Not auto-merge — the maintainer gates every promotion; consent only ever automates filing an
   issue, never opening or merging a PR.
 - Not a dumping ground — a lesson earns a ledger entry only by being durable and cross-project.

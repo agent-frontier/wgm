@@ -48,19 +48,24 @@ flowchart TD
 
 1. **Confirm the track.** wgm states it at Triage ("Track: Quick/Standard/Full — …"). If it picked
    wrong for the risk/size of the change, say so before Grill goes further.
-2. **Watch the Grill.** Each question should come with wgm's own recommended answer — replying "yes"
+2. **If this is the project's first `/wgm` run, expect the consent question first.** Before any
+   other Triage or Grill prompt, wgm asks whether it may automatically report anonymized lessons
+   upstream to `agent-frontier/wgm`. Your yes/no answer is written to `.github/wgm-hive.yml` and
+   won't be asked again unless that file is deleted. Full discipline:
+   [`references/self-improvement.md`](../../references/self-improvement.md).
+3. **Watch the Grill.** Each question should come with wgm's own recommended answer — replying "yes"
    should usually be enough. If you're being asked something wgm could have found in the code, say so.
-3. **Check the Plan-exit gate.** Every item should print PASS. On any FAIL, wgm should fix the
+4. **Check the Plan-exit gate.** Every item should print PASS. On any FAIL, wgm should fix the
    artifact or ask — it should not silently roll forward.
-4. **Check the Preflight score.** Standard/Full need readiness ≥ 80 before any code is written. Below
+5. **Check the Preflight score.** Standard/Full need readiness ≥ 80 before any code is written. Below
    that, expect wgm to go back to Grill/Plan, not start building anyway.
-5. **Let the Loop run, skim each iteration.** You don't need to review every diff live, but the
+6. **Let the Loop run, skim each iteration.** You don't need to review every diff live, but the
    `Gate check:` block at the end of each iteration should be all PASS. A task is `done` only if its
    validation command exited 0 — anything else should read `blocked` or `pending`, never `done`.
-6. **At Ship/Handoff, look for the docs-audit report first.** On Standard/Full tracks this is
+7. **At Ship/Handoff, look for the docs-audit report first.** On Standard/Full tracks this is
    mandatory — wgm should not declare Ship complete without one. See the next section for how to
    read it.
-7. **Confirm the repo is left resumable.** `IMPLEMENTATION_PLAN.md` should be current enough that a
+8. **Confirm the repo is left resumable.** `IMPLEMENTATION_PLAN.md` should be current enough that a
    fresh `/wgm build` could pick up where this run left off.
 
 ## Per-gate PASS/FAIL cheat-sheet

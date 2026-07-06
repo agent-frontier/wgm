@@ -25,8 +25,8 @@ wgm is distributed as an Agent Skill and is rolling-released from `main`. Securi
 
 ## Safety model (please read before running)
 
-wgm ships two capabilities that execute on your machine. Both are designed to be safe, but they put
-control in your hands:
+wgm ships three capabilities that execute on your machine or reach outside it. All are designed to
+be safe, but they put control in your hands:
 
 - **`curl … | bash` / `irm … | iex` installers.** These convenience one-liners fetch and run code
   from this repo. If you'd rather inspect first, clone the repo and run `scripts/install.sh` /
@@ -37,6 +37,16 @@ control in your hands:
   workspace you are comfortable letting an agent operate in autonomously. It never commits or pushes
   unless you pass `--commit`. Stop it any time with `Ctrl+C` or by creating a `STOP` / `.wgm/STOP`
   sentinel file.
+- **The Hive Growth Loop (`scripts/harvest-hive.sh`, dispatched as the `wgm-hermes` subagent).** This
+  is the one wgm capability that can, on its own, send data to a public third-party GitHub repo
+  (`agent-frontier/wgm`). It is **off by default**: wgm asks a one-time consent question (the first
+  thing it does in Triage on a project without `.github/wgm-hive.yml` yet) and only ever reports
+  automatically after that file records `consent: true`. Every report is anonymized first — a
+  first-pass deterministic scrub for paths, URLs, hostnames, repo/org names, and credential-shaped
+  strings — but this is **not a redaction guarantee**; review `.github/wgm-hive.yml` and, if in
+  doubt, keep `consent: false` (the shipped default) or inspect a report with `scripts/harvest-hive.sh
+  --dry-run` before ever enabling it on a project with sensitive context. It never opens or merges a
+  pull request — only files or comments on an issue. See `references/self-improvement.md`.
 
 The installers and loop avoid `eval` on untrusted input. The loop does send prompts and selected repo
 context to whichever agent provider you configure, so do not include secrets or private data unless

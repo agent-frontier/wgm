@@ -62,6 +62,22 @@ else
   fail "anonymization did not redact every planted category: $OUT"
 fi
 
+# 2b) anonymization matches repo slugs case-insensitively and redacts Windows-style paths, but does
+#     not mistake a plain numeric fraction for a repo slug (a planted regression case: an earlier
+#     version of this scrub was lowercase-only and left mixed-case org/repo names exposed).
+printf 'note: prefer golang/go idioms; roughly 3/4 of tasks pass; see MyOrg/SecretRepo and C:\\Users\\bob\\project\\file.py\n' > memories-case.md
+run --dry-run --memories memories-case.md --consent-file consent-case.yml --repo agent-frontier/wgm
+if [[ "$RC" -eq 0 ]] \
+   && grep -q '<redacted-repo>' <<<"$OUT" \
+   && grep -q '<redacted-path>' <<<"$OUT" \
+   && grep -q '3/4' <<<"$OUT" \
+   && ! grep -qi 'MyOrg/SecretRepo' <<<"$OUT" \
+   && ! grep -q 'C:\\Users\\bob' <<<"$OUT"; then
+  pass "anonymization redacts mixed-case repo slugs and Windows paths, without mangling a plain fraction"
+else
+  fail "case-insensitive / Windows-path anonymization regressed: $OUT"
+fi
+
 # 3) an existing consent:false file takes the declined path for real (non-dry-run) and still never
 #    calls gh — this path is unconditionally network-free in harvest-hive.sh, so it's safe to run
 #    without --dry-run.
@@ -76,21 +92,23 @@ else
   fail "declined-consent real run misbehaved (rc=$RC): $OUT"
 fi
 
-# 4) a real (non-dry-run) first run with no consent file and non-interactive stdin still never
-#    calls gh — it defaults to declined and writes the file so it is asked only once.
+# 4) a real (non-dry-run) run with no consent file and non-interactive stdin never calls gh, and
+#    does NOT persist a decision on a human's behalf — no one was present to actually answer, so the
+#    file is left unwritten (only an interactive Triage session, or a human editing the file by hand,
+#    may record real consent) — this run is declined for itself only, not forever.
 run --memories memories.md --consent-file consent-first-real.yml --repo agent-frontier/wgm
 if [[ "$RC" -eq 0 ]] \
-   && grep -q "stdin is not interactive; treating this run as declined" <<<"$OUT" \
-   && [[ -f consent-first-real.yml ]] \
-   && grep -q "^consent: false$" consent-first-real.yml \
+   && grep -q "no human is present to answer, so treating only this run as declined" <<<"$OUT" \
+   && [[ ! -f consent-first-real.yml ]] \
    && ! grep -q "Created new learning issue" <<<"$OUT"; then
-  pass "first real run with non-interactive stdin defaults to declined and writes the file once"
+  pass "a non-interactive run with no consent file declines for itself only, without persisting"
 else
-  fail "first real run did not default safely (rc=$RC): $OUT"
+  fail "non-interactive first run did not default safely (rc=$RC): $OUT"
 fi
 
-# 5) re-running against the now-existing file from case 4 does not ask again.
-run --memories memories.md --consent-file consent-first-real.yml --repo agent-frontier/wgm
+# 5) an existing (human-authored) consent file is genuinely never asked about again.
+printf 'consent: false\nauto_report: false\nsources:\n  - dogfood\n' > consent-second-real.yml
+run --memories memories.md --consent-file consent-second-real.yml --repo agent-frontier/wgm
 if [[ "$RC" -eq 0 ]] && ! grep -q "Enable this for this project?" <<<"$OUT"; then
   pass "an existing consent file is never asked about again"
 else
@@ -121,7 +139,38 @@ else
   fail "--memories with no value was not rejected (rc=$RC): $OUT"
 fi
 
-# 9) --help prints usage without touching any file.
+# 9) multiple concurrent non-interactive first runs against the same missing consent file all decline
+#    in-memory only: nobody crashes, nobody persists consent, and nobody attempts to file anything.
+shared_consent="consent-concurrent.yml"
+out1="concurrent-1.out"
+out2="concurrent-2.out"
+out3="concurrent-3.out"
+"$HARVEST" --memories memories.md --consent-file "$shared_consent" --repo agent-frontier/wgm >"$out1" 2>&1 </dev/null &
+pid1=$!
+"$HARVEST" --memories memories.md --consent-file "$shared_consent" --repo agent-frontier/wgm >"$out2" 2>&1 </dev/null &
+pid2=$!
+"$HARVEST" --memories memories.md --consent-file "$shared_consent" --repo agent-frontier/wgm >"$out3" 2>&1 </dev/null &
+pid3=$!
+
+set +e
+wait "$pid1"; rc1=$?
+wait "$pid2"; rc2=$?
+wait "$pid3"; rc3=$?
+set -e
+
+combined_output="$(cat "$out1" "$out2" "$out3")"
+if [[ "$rc1" -eq 0 ]] \
+   && [[ "$rc2" -eq 0 ]] \
+   && [[ "$rc3" -eq 0 ]] \
+   && [[ ! -f "$shared_consent" ]] \
+   && ! grep -q "Created new learning issue" <<<"$combined_output" \
+   && ! grep -q "Updated existing learning issue" <<<"$combined_output"; then
+  pass "concurrent non-interactive first runs all decline safely without persisting or filing"
+else
+  fail "concurrent non-interactive first runs were not all safe (rcs=$rc1/$rc2/$rc3): $combined_output"
+fi
+
+# 10) --help prints usage without touching any file.
 run --help
 if [[ "$RC" -eq 0 ]] && grep -q "harvest-hive.sh" <<<"$OUT"; then
   pass "--help prints usage"

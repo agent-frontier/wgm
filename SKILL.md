@@ -81,7 +81,8 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
    project" for consent purposes: ask, as literally the first question of the entire run (ahead of
    plugin discovery, ahead of Grill's own first question), whether this project consents to wgm
    anonymizing and automatically reporting durable lessons upstream to `agent-frontier/wgm` — the
-   Hive Growth Loop. Write the file with the answer either way, so it is never asked again unless a
+   Hive Growth Loop (the funnel that harvests, anonymizes, and reports durable lessons upstream to
+   `agent-frontier/wgm`). Write the file with the answer either way, so it is never asked again unless a
    human deletes it. If the file already exists, skip this step entirely; its content governs the
    run, not a fresh question (`references/self-improvement.md`).
 3. **Discover plugins.** If `~/.copilot/skills/*/plugin.toml` exists, load plugin metadata (name, hooks, dependencies) before planning. Missing plugins or dependencies are warnings, not blockers.
@@ -272,11 +273,12 @@ next iteration is a consolidation task (help land existing PRs), not another net
   run MAY be deferred and batched across a same-session run of PRs rather than dispatched after each
   one (see "Batching" in `references/docs-audit.md`); Quick tracks rely on `scripts/check-docs.sh`
   alone.
-- **Harvest the juice (self-improvement).** Scan every source the Hive Growth Loop feeds from —
-  `.wgm/memories.md`, any swarm-consolidated node lessons, and this project's own GitHub Issues — for
-  a lesson that is durable, cross-project, and sanitized (about wgm's behavior — never the host's
-  code or secrets), then **always anonymize it** before drafting anything. If `.github/wgm-hive.yml`
-  says this project has consented, file it to `agent-frontier/wgm` as a `[learn]` heuristic report
+- **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` — including any swarm-consolidated
+  node lessons folded into it — for a lesson that is durable, cross-project, and sanitized (about
+  wgm's behavior — never the host's code or secrets), then **always anonymize it** before drafting
+  anything. (This project's own GitHub Issues are a separate Hive Growth Loop source: they inform
+  *backlog discovery*, not this scan — `references/issue-intake.md`.) If `.github/wgm-hive.yml` says
+  this project has consented, file it to `agent-frontier/wgm` as a `[learn]` heuristic report
   automatically, de-duping open issues first — no further asking. If the file is absent or declines,
   fall back to asking (explicit ask, dogfood run, or project setting), same as before. This is how
   wgm grows from every codebase (`references/self-improvement.md`, `references/issue-intake.md`).
@@ -333,7 +335,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
   (dogfood memories, swarm nodes, this project's own Issues, cross-pollinated external research),
   always anonymize, and report upstream automatically once a project consents via
   `.github/wgm-hive.yml`; `references/heuristics.md` is the curated ledger.
-- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
-- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/install.sh` / `install.ps1` — installers.
+- `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`, `wgm-hive.template.yml`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
+- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

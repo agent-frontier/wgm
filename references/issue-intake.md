@@ -4,6 +4,7 @@ wgm already knows how to turn a request into a plan and a loop. This note adds o
 channel: a project's own GitHub Issues. The discipline is generic to any repo wgm is building in,
 with `agent-frontier/wgm` as the first dogfood case, and it keeps issue handling attached to the
 existing lifecycle rather than inventing a parallel system.
+In projects that enable the Hive Growth Loop via `.github/wgm-hive.yml`, this same discovery-and-traceability discipline is also one of the four capture channels described in [`self-improvement.md`](self-improvement.md).
 
 ## Scope
 
@@ -119,4 +120,5 @@ This keeps issue intake inside the current state machine instead of bolting on a
 [`../SKILL.md`](../SKILL.md) (Phase 0 Triage · Phase 2 Plan · Phase 3 Record · Phase 4 Ship/Handoff) ·
 [`artifacts.md`](artifacts.md) (`tracker reference` and plan-task fields) ·
 [`ralph-loop.md`](ralph-loop.md) (concurrent-PR cap and consolidation heuristic) ·
-[`self-improvement.md`](self-improvement.md) (`[learn]` issues as the specialized subset).
+[`self-improvement.md`](self-improvement.md) (`[learn]` issues as the specialized subset) ·
+[`subagents.md`](subagents.md) (`wgm-hermes`, the courier that also draws on this source).

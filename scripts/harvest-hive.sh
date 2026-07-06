@@ -108,11 +108,11 @@ prompt_for_consent() {
   fi
 
   if [[ ! -t 0 ]]; then
-    printf 'stdin is not interactive; treating this run as declined.\n'
-    printf 'To enable later, copy %s to %s and edit consent/auto_report there.\n' "$TEMPLATE_HINT" "$CONSENT_FILE"
+    printf 'stdin is not interactive; no human is present to answer, so treating only this run as declined.\n'
+    printf 'Not persisting a decision on anyone'"'"'s behalf: %s is left unwritten so an interactive\n' "$CONSENT_FILE"
+    printf 'Triage session can still ask a real human later. To enable now, copy %s to %s.\n' "$TEMPLATE_HINT" "$CONSENT_FILE"
     CONSENT="false"
     AUTO_REPORT="false"
-    write_or_preview_consent "$CONSENT_FILE" "$CONSENT" "$AUTO_REPORT"
     return
   fi
 
@@ -154,18 +154,22 @@ load_memories() {
 }
 
 anonymize_content() {
-  # Best-effort deterministic scrub only; it lowers risk but is not a redaction guarantee.
+  # Best-effort deterministic scrub only; it lowers risk but is not a redaction guarantee. Matching
+  # is case-insensitive (the `I` sed flag) since real-world repo/org names and hostnames are mixed
+  # case at least as often as they're lowercase.
   printf '%s' "$1" | sed -E \
-    -e 's#https?://[^[:space:]]+#<redacted-url>#g' \
-    -e 's#(^|[^[:alnum:]_])([[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,})([^[:alnum:]_]|$)#\1<redacted-email>\3#g' \
+    -e 's#https?://[^[:space:]]+#<redacted-url>#gI' \
+    -e 's#(^|[^[:alnum:]_])([[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,})([^[:alnum:]_]|$)#\1<redacted-email>\3#gI' \
     -e 's#(^|[[:space:](])(/home/[^[:space:]]+/[^[:space:]]+(/[^\t[:space:])]+)*)([[:space:]),.;:!?)]|$)#\1<redacted-path>\4#g' \
-    -e 's#(^|[[:space:](])(/Users/[^[:space:]]+/[^[:space:]]+(/[^\t[:space:])]+)*)([[:space:]),.;:!?)]|$)#\1<redacted-path>\4#g' \
+    -e 's#(^|[[:space:](])(/Users/[^[:space:]]+/[^[:space:]]+(/[^\t[:space:])]+)*)([[:space:]),.;:!?)]|$)#\1<redacted-path>\4#gI' \
     -e 's#(^|[[:space:](])(~[^[:space:]]*/[^[:space:]]+(/[^\t[:space:])]+)+)([[:space:]),.;:!?)]|$)#\1<redacted-path>\4#g' \
+    -e 's#(^|[[:space:](])([A-Za-z]:\\[^[:space:]]+)([[:space:]),.;:!?)]|$)#\1<redacted-path>\3#g' \
     -e 's#(ghp_[A-Za-z0-9_]+|gho_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+)#<redacted-credential>#g' \
     -e 's#([Tt][Oo][Kk][Ee][Nn]|[Kk][Ee][Yy]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])=[^[:space:]]+#<redacted-credential>#g' \
     -e 's#(^|[^[:alnum:]_])([A-Za-z0-9+/=_-]{20,})([^[:alnum:]_]|$)#\1<redacted-credential>\3#g' \
-    -e 's#agent-frontier/wgm#<wgm-self-repo>#g' \
-    -e 's#(^|[^[:alnum:]_/-])([a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9_-]*)([^[:alnum:]_/-]|$)#\1<redacted-repo>\3#g' \
+    -e 's#(^|[[:space:](])([a-z0-9][a-z0-9-]*\.(internal|corp|local|lan))([[:space:]),.;:!?)]|$)#\1<redacted-host>\4#gI' \
+    -e 's#agent-frontier/wgm#<wgm-self-repo>#gI' \
+    -e 's#(^|[^[:alnum:]_/-])([a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*)([^[:alnum:]_/-]|$)#\1<redacted-repo>\3#gI' \
     -e 's#<wgm-self-repo>#agent-frontier/wgm#g'
 }
 
@@ -240,6 +244,7 @@ shared_keyword_count() {
   printf '%s' "$count"
 }
 
+# Heuristic keyword-overlap duplicate check only; it can miss reworded duplicates and can also collide on unrelated titles that happen to share terms.
 find_duplicate_issue() {
   local title="$1"
   local wanted

@@ -7,8 +7,9 @@ by concern:
   then install, drive the loop, validation containers, troubleshooting.
 - **[agent/](agent/)** — for the agent following the skill: the lifecycle state machine, the
   convergence loop, scenarios & scoring, stall recovery, gene transfusion. The deeper mechanics — the
-  role swarm (eleven subagents, including the five-role **docs-audit swarm**) and the
-  **self-improvement flywheel** (run at handoff) — live in [`references/`](../references/).
+  role swarm (twelve subagents, including the five-role **docs-audit swarm** and the hive courier
+  `wgm-hermes`) and the **Hive Growth Loop self-improvement flywheel** (run at handoff, and standing
+  after every swarm) — live in [`references/`](../references/).
 
 For the quickstart, see the top-level [README](../README.md). The authoritative protocol is
 [`SKILL.md`](../SKILL.md); these docs explain the *why* and the *how* behind it. The terse,
@@ -53,11 +54,12 @@ flowchart TD
 | Agent | [scenarios-and-scoring.md](agent/scenarios-and-scoring.md) | Holdout scenarios, judging, satisfaction, tiers |
 | Agent | [stall-recovery.md](agent/stall-recovery.md) | Wonder/reflect + model escalation |
 | Agent | [gene-transfusion.md](agent/gene-transfusion.md) | Seeding the build from an exemplar |
-| Agent | [references/subagents.md](../references/subagents.md) | The eleven role-specialized subagents (the swarm) + dissent-preserving review |
+| Agent | [references/subagents.md](../references/subagents.md) | The twelve role-specialized subagents (the swarm) + dissent-preserving review |
 | Agent | [references/docs-audit.md](../references/docs-audit.md) | The docs-audit swarm: four dev/PM personas + a technical-writer consolidator; the paper-trail artifact |
 | Agent | [references/trigger-eval.md](../references/trigger-eval.md) | Should-trigger / should-not-trigger fixture that catches drift in the mode-parsing rule and the Use/Don't-use boundary |
 | Agent | [references/evals.md](../references/evals.md) | The companion output-quality fixture (`evals/evals.json`): given wgm triggers, is the result actually good? |
-| Agent | [references/self-improvement.md](../references/self-improvement.md) | The growth flywheel: harvest internal lessons + cross-pollinate external research → report upstream → promote durable lessons |
+| Agent | [references/self-improvement.md](../references/self-improvement.md) | The Hive Growth Loop: harvest lessons from every source (memories, swarm nodes, this project's own Issues, cross-pollinated research), always anonymize, report upstream automatically once consented |
+| Agent | [references/issue-intake.md](../references/issue-intake.md) | Backlog discovery from a project's own GitHub Issues, tracker-reference traceability, and the `Closes #N` linking convention |
 | Agent | [references/devcontainers.md](../references/devcontainers.md) | Sandboxing the loop itself in a disk-conscious local devcontainer — mechanics, permission-parity gotcha, `scripts/devcontainer.sh` |
 
 ## Plans & roadmap
@@ -75,6 +77,10 @@ flowchart TD
 - [2026-07-05 — growth health check: are we at a good point, or an echo chamber?](plans/2026-07-05_GROWTH_HEALTH_CHECK.md) —
   an honest, evidence-based self-assessment that recent growth had become mostly self-referential,
   feeding the "real-dogfood cadence" guardrail in `references/self-improvement.md`.
+- [2026-07-06 — the Hive Growth Loop](plans/2026-07-06_HIVE_GROWTH_LOOP.md) — unifying swarm-node
+  memories, this project's own GitHub Issues, and cross-pollinated research into one funnel, with
+  mandatory anonymization and a one-time, committed consent gate (`.github/wgm-hive.yml`) for fully
+  automatic upstream reporting.
 
 ## Provenance
 

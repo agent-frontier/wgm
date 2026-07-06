@@ -11,9 +11,10 @@ continue the work. Fill them from the templates in `assets/`.
   `.wgm/scenarios/`, `.wgm/AGENTS.md`, `.wgm/docs/audit/` — to avoid clobbering the project's files.
 - **Never overwrite an existing `AGENTS.md`.** Touch root `AGENTS.md` only with explicit approval.
 - Decide root vs `.wgm/` **once, in Triage**, and stay consistent for the whole run.
-- **One exception to the root-vs-`.wgm/` split: `.github/wgm-hive.yml`.** It always lives at
-  `.github/`, regardless of greenfield/existing-project status, because it is a one-time, team-wide
-  decision meant to be committed and shared — not per-build state. See its own section below.
+- **One shared-deliverable placement exception to the root-vs-`.wgm/` split: `.github/wgm-hive.yml`.**
+  It always lives at `.github/`, regardless of greenfield/existing-project status, because it is a
+  one-time, team-wide decision meant to be committed and shared — not per-build state. See its own
+  section below (which also notes `.wgm/memories.md` as the opposite always-local deviation).
 
 ## `specs/CONSTITUTION.md` — project-wide principles
 The governing layer: principles every spec, plan, and task must honor — the code-quality bar, the
@@ -157,21 +158,31 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
   **optional** named alternatives (Beads-style structured records, compaction-surviving layered
   memory) — the flat log above stays the default for everything else.
 
-## `.github/wgm-hive.yml` — the hive consent/levers file
+## `.github/wgm-hive.yml` — the hive consent/config file
 The one-time, committed, team-wide decision that gates the Hive Growth Loop's automatic upstream
 reporting. Source from `assets/wgm-hive.template.yml`. Full discipline in
-`references/self-improvement.md` ("Consent & continuous mode") and `references/issue-intake.md`.
+`references/self-improvement.md` ("Consent & continuous mode") and `references/issue-intake.md`;
+the design rationale (why `.github/`, why one-time, why anonymize-always) is in
+[`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md).
 
-- **Placement is fixed at `.github/`** — the one exception to the root-vs-`.wgm/` split (above),
-  because this is a shared team decision, not per-build scratch. Never write it under `.wgm/`
-  (gitignored/local — it would silently re-ask on every clone or machine) and never treat it as
-  subject to the greenfield-vs-existing-project choice other artifacts make.
+- **Placement is fixed at `.github/`** — the one placement exception to the root-vs-`.wgm/` split
+  among shared, committed deliverables (above), because this is a shared team decision, not per-build
+  scratch. Never write it under `.wgm/` (gitignored/local — it would silently re-ask on every clone or
+  machine) and never treat it as subject to the greenfield-vs-existing-project choice other artifacts
+  make. (`.wgm/memories.md` below is the opposite deliberate deviation from the plain greenfield-root
+  default: it always stays under `.wgm/` because it is always-local scratch, never a shared
+  decision.)
 - **Presence, not content, is the Triage trigger.** If the file doesn't exist yet, Triage asks the
   one-time consent question *before* anything else — even before Grill's own first question — and
   writes the file with whatever answer it gets. If the file exists (`consent: true` or `false`), wgm
-  never asks again; a human changes the answer by editing or deleting the file.
+  never asks again; a human changes the answer by editing or deleting the file. A headless/unattended
+  run with no consent file present does **not** get to make this call on a human's behalf either — it
+  declines for that run only and leaves the file unwritten (`references/self-improvement.md`).
 - **Fields:** `consent` (bool, the master switch), `auto_report` (bool, defaults to mirroring
-  `consent`), `sources` (list — which capture channels feed the loop for this project).
+  `consent`), `sources` (list — which capture channels are *intended* to feed the loop for this
+  project; **not yet enforced by any shipped script** — trimming it today has no observable effect,
+  since `scripts/harvest-hive.sh` operates on the already-consolidated `.wgm/memories.md` without
+  per-origin filtering. Treat it as a stated intent pending that wiring, not a working control.).
   **Anonymization is deliberately not a field** — it is mandatory on every path and cannot be turned
   off from this file.
 
@@ -187,7 +198,7 @@ discipline (cadence, personas, consolidation algorithm, severity taxonomy) is in
 - **Naming:** `docs/audit/<UTC-timestamp>_<slug>.md`, indexed newest-first in `docs/audit/README.md`.
 - **Never gitignored by default.** Unlike `.wgm/memories.md`, this is not agent scratch — it is the
   operator-facing proof the audit happened, so a downstream project commits it like any other
-  deliverable. **This repo (wgm-the-tool) is the one exception:** its own `.gitignore` treats
+  deliverable. **This repo (wgm-the-tool) is the one git-tracking exception:** its own `.gitignore` treats
   `/IMPLEMENTATION_PLAN.md`, `/specs/`, `/scenarios/`, and `/.wgm/` as ephemeral dogfood scratch
   because the repo ships templates, not live plans — that repo-specific choice is never general
   guidance for a project wgm is building for someone else.
