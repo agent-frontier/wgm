@@ -85,6 +85,40 @@ spec-drift pre-check in `references/ralph-loop.md`, the `evals/` self-test conve
 choice — all three batched into one PR rather than three separate ones (see step 5). See
 `references/heuristics.md` for the graduated entries.
 
+## Health check (a standing guardrail against self-referential drift)
+Harvest is designed to be cross-project by definition (above: "it would help wgm in a *different*
+codebase"), and Cross-pollinate reads *other* GitHub repos' source for the same reason — both have
+delivered on that (issues #29-#37, #56-#57; the external-research citations throughout
+`heuristics.md`). The risk isn't that either channel is structurally confined to this repo; it's
+that both are cheaper to keep running than the thing that actually feeds Harvest real material:
+**running wgm on an unfamiliar real project and reporting what genuinely broke.** A run of
+self-referential meta-work (auditing this repo's own docs) or Cross-pollinate assimilation (reading
+about other tools without ever running wgm against a real one) can quietly substitute for that,
+because neither leaves the repo to go find out. Nothing else in this file polices that balance, so
+make it explicit and checkable rather than something a maintainer has to reconstruct by hand:
+
+- **Real-dogfood cadence — update this line whenever a new one lands:** last real, cross-project
+  `[learn]` issue(s) — issues **#56-#57, #59** (2026-07-05), sourced from two genuinely different
+  real projects (`SchwartzKamel/floci-az`, Java/Quarkus, and `SchwartzKamel/blogster`, .NET);
+  issue #59 is the stale-clone / retired-target lesson harvested from the `blogster` run. Previously:
+  issues #29-#37 (2026-06-28/29), sourced from a Rust FFI crate's swarm file-ownership, an
+  `elm-pages`/`lamdera` build on a newer-than-LTS Node, a web-SEO/CWV comparative-scoring project,
+  and a feasibility-spike case.
+- **The rule:** a run of docs-audit passes and/or Cross-pollinate (external-research) PRs with *no*
+  real dogfood issue landing in between is not evidence that "no more growth is needed" — it is a
+  signal to go dogfood a real, different project before adding another audit round or another
+  assimilated finding. Concretely: after roughly 3 self-referential or external-research PRs in a
+  row with no real-dogfood issue between them, the next self-improvement action should be running
+  wgm on a real project, not another audit or assimilation pass.
+- **Target-freshness guardrail:** before counting a local clone as that next real dogfood
+  project, `git fetch` it and check for archival/retirement signals (`ARCHIVED.md`, a retirement
+  commit message, or GitHub's archived flag); a stale clone can masquerade as a live target and
+  waste a run on a project the owner already retired.
+- **Worked example:** [`docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md`](../docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md)
+  reconstructed exactly this pattern from the repo's own history (17 of 46 merged PRs, in one ~20-hour
+  stretch, almost entirely self-referential, with zero new real dogfood issues since 06-29) and used
+  it to justify pausing meta-work in favor of two fresh dogfood runs against unrelated real projects.
+
 ## Report (outbound, opt-in)
 File the candidate to [`agent-frontier/wgm`](https://github.com/agent-frontier/wgm) as a `[learn]`
 report using the [`heuristic_report.yml`](../.github/ISSUE_TEMPLATE/heuristic_report.yml) template
@@ -127,4 +161,6 @@ buffer. Prune the buffer aggressively; only graduated lessons persist.
 [`heuristics.md`](heuristics.md) · [`evals.md`](evals.md) (a Cross-pollinate-landed capability) ·
 [`ralph-loop.md`](ralph-loop.md) (memory) ·
 [`artifacts.md`](artifacts.md) (memory format + token economy) ·
-[`docs/plans/2026-06-16_GROWTH_LOOP.md`](../docs/plans/2026-06-16_GROWTH_LOOP.md) (the full design).
+[`docs/plans/2026-06-16_GROWTH_LOOP.md`](../docs/plans/2026-06-16_GROWTH_LOOP.md) (the full design) ·
+[`docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md`](../docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md)
+(the Health check section's worked example).

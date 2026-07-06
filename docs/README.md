@@ -72,6 +72,9 @@ flowchart TD
 - [2026-07-05 — prefer true Ralph + a disk-conscious local devcontainer sandbox](plans/2026-07-05_TRUE_RALPH_AND_DEVCONTAINERS_PLAN.md) —
   biasing the Triage default toward Ralph-full, plus `scripts/devcontainer.sh` for sandboxing the
   loop itself without inflating disk usage across projects.
+- [2026-07-05 — growth health check: are we at a good point, or an echo chamber?](plans/2026-07-05_GROWTH_HEALTH_CHECK.md) —
+  an honest, evidence-based self-assessment that recent growth had become mostly self-referential,
+  feeding the "real-dogfood cadence" guardrail in `references/self-improvement.md`.
 
 ## Provenance
 

@@ -44,5 +44,9 @@
 First task rule: if no validation signal exists yet in this project, make T1 = "create a
 validation signal" (a failing test, a build/type-check command, or an HTTP probe) before any
 feature work. The plan must also include the TZ demo-validation task above, which must pass
-before Ship/Handoff. A task may be marked `done` only if its validation command exited 0.
+before Ship/Handoff. **Quick-track exception:** if this build is genuinely one task (one fix, one
+validation command, no multi-step demo path), that task's own validation command *is* the
+demo-validation task — a separate TZ task is not required, and this file may be a single short
+paragraph instead of the full template (`references/heuristics.md`, `[learn]` issue #56). A task
+may be marked `done` only if its validation command exited 0.
 -->
