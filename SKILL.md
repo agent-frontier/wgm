@@ -39,7 +39,9 @@ implement / prototype something from rough intent.
 5. The optional trailing `only` is accepted on any mode for emphasis and always hard-stops after
    the named phase (redundant for the single-phase modes; meaningful for `build only`).
 6. A `:` lets a mode carry a request/scope, e.g. `/wgm plan: add OAuth login`.
-7. No input → operate on the current conversation context; begin at Triage.
+7. No input → operate on the current conversation context; begin at Triage. If the project has open
+   GitHub Issues and no request is otherwise evident, they are a candidate source for `<request>` —
+   never a silent override of one already given (`references/issue-intake.md`).
 
 | Invocation | Behavior |
 |---|---|
@@ -74,15 +76,23 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
 
 ## Phase 0 — Triage (always first)
 1. Parse the mode; confirm this skill applies (else say so and stop).
-2. **Discover plugins.** If `~/.copilot/skills/*/plugin.toml` exists, load plugin metadata (name, hooks, dependencies) before planning. Missing plugins or dependencies are warnings, not blockers.
-3. **Track (scale-adaptive).** Size the ceremony to the work's scale and risk, **state the chosen track** ("Track: Quick/Standard/Full — …"), and **default to Standard when unsure**. The deterministic backpressure gate is never skipped — only the surrounding ceremony flexes.
+2. **Check consent — before anything else.** Look for `.github/wgm-hive.yml`
+   (`assets/wgm-hive.template.yml`). If it doesn't exist yet, this absence is what makes it "a new
+   project" for consent purposes: ask, as literally the first question of the entire run (ahead of
+   plugin discovery, ahead of Grill's own first question), whether this project consents to wgm
+   anonymizing and automatically reporting durable lessons upstream to `agent-frontier/wgm` — the
+   Hive Growth Loop. Write the file with the answer either way, so it is never asked again unless a
+   human deletes it. If the file already exists, skip this step entirely; its content governs the
+   run, not a fresh question (`references/self-improvement.md`).
+3. **Discover plugins.** If `~/.copilot/skills/*/plugin.toml` exists, load plugin metadata (name, hooks, dependencies) before planning. Missing plugins or dependencies are warnings, not blockers.
+4. **Track (scale-adaptive).** Size the ceremony to the work's scale and risk, **state the chosen track** ("Track: Quick/Standard/Full — …"), and **default to Standard when unsure**. The deterministic backpressure gate is never skipped — only the surrounding ceremony flexes.
 
    | Track | When | Ceremony |
    |---|---|---|
    | **Quick** | Bug fix or small 1–5 file change with an obvious check, and completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions) | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
    | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged; the docs-audit swarm runs once, at Ship/Handoff |
    | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation · a Plan-exit **baseline** docs-audit pass |
-4. Decide loop mode — **prefer Ralph-full whenever it is practically invocable**:
+5. Decide loop mode — **prefer Ralph-full whenever it is practically invocable**:
    - **Ralph-full (preferred default)**: genuinely fresh context per iteration is the purer, stronger
      form of the technique — reach for it whenever a non-interactive agent invocation is available
      (an operator-set `WGM_AGENT`, or a known CLI — `copilot`, `claude`, `codex`, `aider` — on `PATH`
@@ -91,15 +101,16 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
      root**, or restart with a clean context between iterations. For a locally sandboxed, disk-
      conscious run, add `--devcontainer` (`references/devcontainers.md`). For independent slices, fan
      out in parallel with `scripts/swarm.sh` — one git worktree + branch per stream, merged back
-     branch by branch.
+     branch by branch; every swarm run also standingly consolidates each stream's `.wgm/memories.md`
+     lessons back into the main worktree (`references/self-improvement.md`, "Swarm harvest").
    - **Ralph-lite (fallback)**: run the loop in-session when no headless invocation is available (a
      purely interactive host) or the track is **Quick** (a whole subprocess loop is overkill for one
      short prompt). In-session work must compensate for accumulating context with strict persistence
      to `IMPLEMENTATION_PLAN.md`.
-5. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
+6. Set up the working directory (see **Artifact safety**). Decide root vs `.wgm/` **before**
    writing anything. If a `specs/CONSTITUTION.md` (or `.wgm/specs/CONSTITUTION.md`) already exists,
    load it — its principles govern every later decision.
-6. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
+7. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
    to seed the build in the house style (`references/gene-transfusion.md`).
 
 ## Phase 1 — Grill (align)
@@ -261,11 +272,14 @@ next iteration is a consolidation task (help land existing PRs), not another net
   run MAY be deferred and batched across a same-session run of PRs rather than dispatched after each
   one (see "Batching" in `references/docs-audit.md`); Quick tracks rely on `scripts/check-docs.sh`
   alone.
-- **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` for a lesson that is durable,
-  cross-project, and sanitized (about wgm's behavior — never the host's code or secrets). If upstream
-  reporting is enabled for this project (opt-in — explicit ask, dogfood run, or project setting), file
-  it to `agent-frontier/wgm` as a `[learn]` heuristic report, de-duping open issues first. This is how
-  wgm grows from every codebase (`references/self-improvement.md`).
+- **Harvest the juice (self-improvement).** Scan every source the Hive Growth Loop feeds from —
+  `.wgm/memories.md`, any swarm-consolidated node lessons, and this project's own GitHub Issues — for
+  a lesson that is durable, cross-project, and sanitized (about wgm's behavior — never the host's
+  code or secrets), then **always anonymize it** before drafting anything. If `.github/wgm-hive.yml`
+  says this project has consented, file it to `agent-frontier/wgm` as a `[learn]` heuristic report
+  automatically, de-duping open issues first — no further asking. If the file is absent or declines,
+  fall back to asking (explicit ask, dogfood run, or project setting), same as before. This is how
+  wgm grows from every codebase (`references/self-improvement.md`, `references/issue-intake.md`).
 
 ## Artifact safety (hard rules)
 - **Never overwrite or edit an existing `AGENTS.md` by default** — use `.wgm/AGENTS.md` instead.
@@ -297,12 +311,15 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
 - `references/memory-patterns.md` — optional structured/layered memory upgrades for long Full-track
   builds that outgrow the flat `.wgm/memories.md` log (the flat log stays the default).
-- `references/subagents.md` — the eleven role-specialized subagents (griller · implementer ·
-  two-stage review · validator · diagnostician · the five-role docs-audit swarm) and how the Loop
-  dispatches them ("swarm" mode).
+- `references/subagents.md` — the twelve role-specialized subagents (griller · implementer ·
+  two-stage review · validator · diagnostician · the five-role docs-audit swarm · `wgm-hermes`, the
+  hive courier) and how the Loop dispatches them ("swarm" mode).
 - `references/docs-audit.md` — the mandatory docs-audit paper trail: four dev/PM personas plus a
   technical-writer consolidator, Agent-vs-Operator action classification, and artifact placement.
-- `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, and AGENTS.md.
+- `references/issue-intake.md` — backlog discovery from a project's own GitHub Issues, tracker-
+  reference traceability, and the `Closes #N` linking convention.
+- `references/artifacts.md` — formats + placement rules for specs, scenarios, plan, AGENTS.md, and
+  `.github/wgm-hive.yml`.
 - `references/adr.md` — ADR discipline for hard-to-reverse, cross-cutting decisions.
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
@@ -312,9 +329,10 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
 - `references/devcontainers.md` — running the loop itself sandboxed in a disk-conscious local
   devcontainer (shared base image, `scripts/devcontainer.sh`).
-- `references/self-improvement.md` — the growth flywheel: harvest internal lessons and
-  cross-pollinate from external research, report them upstream, and promote durable ones;
-  `references/heuristics.md` is the curated ledger.
+- `references/self-improvement.md` — the Hive Growth Loop: harvest lessons from every source
+  (dogfood memories, swarm nodes, this project's own Issues, cross-pollinated external research),
+  always anonymize, and report upstream automatically once a project consents via
+  `.github/wgm-hive.yml`; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
 - `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
