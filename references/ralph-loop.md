@@ -61,6 +61,21 @@ loop, with progress living on disk (not the model's context) between passes
    Make it fresh-agent-resumable.
 
 ## Backpressure in depth
+- **PR-level CI green is not proof of a real deploy.** When a project has a deploy pipeline distinct
+  from its per-PR checks — a common shape: PR-triggered checks run tests/lint/build-smoke, while a
+  *separate* workflow, triggered only on push to the default branch after merge, does the real
+  build-push-migrate-deploy — treat `gh pr checks` going green as proof the *change is safe to
+  merge*, never as proof it *shipped*. Whenever a task's acceptance criteria implies reaching a
+  running deployment (not just a merged commit), explicitly check that separate deploy workflow's
+  own most-recent run status too (e.g. `gh run list --workflow=<deploy-workflow-file> --limit 1`).
+  A real dogfood run merged 8 PRs across a multi-hour session, each only after its own PR-level CI
+  was green, while a separate post-merge deploy workflow's database-migration step had been silently
+  failing since the very first merge — 7 consecutive failed deploys, invisible because nothing ever
+  checked that second workflow's run history, discovered only when the human asked why "complete"
+  work wasn't visible on the live site. Treat a currently-red deploy workflow as a standing blocker
+  surfaced immediately (mid-loop, at Record — not deferred to a Ship/Handoff afterthought), since
+  every later iteration otherwise silently builds on an environment that never received the earlier
+  "done" work (`[learn]` issue #60).
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
 - **Check the toolchain is present before checking it's compatible.** Before reasoning about whether
