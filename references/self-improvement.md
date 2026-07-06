@@ -8,13 +8,13 @@ once) automatic upstream reporting with no further per-run asking. See the origi
 consent/automation extension in
 [`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md).
 
-The flywheel: **capture → harvest → anonymize → report → curate → self-optimize → promote →
-re-install**.
+The flywheel: **capture → swarm harvest → harvest → anonymize → report → curate →
+self-optimize → promote → re-install**.
 
 ## Capture — four sources feed one funnel
 - `.wgm/memories.md` — gotchas, stall fixes, patterns, dead ends (token-budgeted, pruned).
 - `.wgm/scores.md` — the satisfaction trajectory that exposes stalls.
-- **Swarm-node memories (new).** Each `scripts/swarm.sh` stream keeps its own isolated
+- **Swarm-stream memories (new).** Each `scripts/swarm.sh` stream keeps its own isolated
   `.wgm/memories.md` in its own worktree; a standing post-run step consolidates every stream's file
   into the invoking worktree's `.wgm/memories.md`, tagged by origin branch, before any cleanup. See
   **Swarm harvest** below.
@@ -27,12 +27,16 @@ re-install**.
   growth from sibling projects rather than from this build.
 
 These are the raw juice. They stay lean: only what helps the *next iteration* of *this* build — the
-swarm and issue channels widen where that juice comes from, they don't change how little of it wgm
-keeps around at once.
+swarm and issue channels widen where that juice comes from, but keeping the file small still depends
+on the later Record-step trim discipline; swarm consolidation itself appends the full per-stream
+files first.
 
-## Swarm harvest (consolidating parallel nodes)
+## Swarm harvest (consolidating parallel streams)
 `scripts/swarm.sh` fans work into parallel git worktrees so streams never collide — but that also
 means each stream's lessons stay stranded in its own worktree unless something brings them back.
+Terminology here is exact: **swarm** = the parallel-worktree mechanism in `scripts/swarm.sh`; a
+**stream** = one worktree/branch inside that swarm; the **hive** = the shared upstream
+`agent-frontier/wgm` that consented builds ultimately report to.
 The standing (unconditional, no flag) post-run step in `scripts/swarm.sh` does exactly that: after
 all streams finish and before any `--cleanup` removes their worktrees, it appends each stream's
 `.wgm/memories.md` into the invoking worktree's `.wgm/memories.md`, each block tagged with an HTML
@@ -40,6 +44,23 @@ comment naming its origin branch (e.g. `<!-- from wgm/swarm/2 -->`). This always
 run pays this small local cost, whether or not the project has consented to automatic upstream
 reporting (below). Harvest then reads the consolidated file exactly as it would a single-stream
 build's; a swarm-sourced lesson is just one more candidate, not a different kind of one.
+Important: `scripts/swarm.sh` does **not** trim after consolidation; it appends each per-stream file
+verbatim. The ~2000-token trim rule only re-enters later when an agent does the Record-step memory
+maintenance described in `references/ralph-loop.md` / `references/artifacts.md`, not during swarm
+consolidation itself.
+
+**Worked example:** if stream 1 and stream 2 each wrote their own `.wgm/memories.md`, the invoking
+worktree's consolidated file grows by tagged blocks in exactly this format:
+
+```md
+<!-- from wgm/swarm/1 -->
+
+- Retry after regenerating the lockfile before escalating the build harness.
+
+<!-- from wgm/swarm/2 -->
+
+- Capture the flaky seed before rerunning the validator.
+```
 
 ## Harvest (at Ship/Handoff)
 After the build is green, scan `.wgm/memories.md` for a lesson that is:
@@ -81,11 +102,12 @@ eliminate the need for the criteria in Harvest above. Anonymization applies whet
 filed by hand or automatically (below); it does not apply to Cross-pollinate's inbound direction
 (reading *other* repos' public source raises citation/licensing concerns, not host-data exposure).
 `wgm-hermes` (`references/subagents.md`) is the subagent role that owns this step end to end —
-aggregate, anonymize, check consent, publish — named for the messenger-god framing of a researched
-multi-agent knowledge-sharing pattern (a shared knowledge bus with publish/subscribe exchange and
-provenance tracking across agents), translated into wgm's existing subagent-dispatch idiom rather
-than a new mechanism; `heuristics.md`'s own **Provenance** field already gives wgm a version of that
-provenance tracking.
+aggregate, anonymize, check consent, publish — named for the messenger-god framing of this courier
+role, translated into wgm's existing subagent-dispatch idiom rather than a new mechanism;
+`heuristics.md`'s own **Provenance** field already gives wgm a concrete way to preserve where a
+lesson came from.
+
+**Worked example:** a raw memory line like `- Repro at https://build.internal/runbook from /home/alice/acme/service with TOKEN=ghp_example123; notify alice@example.com about acme/api.` is anonymized (verified against the actual script output) into `- Repro at <redacted-url> from <redacted-path> with <redacted-credential> notify <redacted-email> about <redacted-repo>.` — note the credential-token match also absorbs its trailing punctuation (the `;` disappears along with the token), a small but real artifact of the regex, not a typo here. Separately, a *standalone* internal-style hostname not already inside a URL — e.g. `- Saw it happen on build.internal again today.` — becomes `- Saw it happen on <redacted-host> again today.`; a hostname that's already part of a matched URL (like `build.internal` above) is redacted as part of that URL instead, not a second time.
 
 ## Cross-pollinate (a second channel — external research)
 The flywheel above harvests *internal* lessons from this project's own dogfooding. wgm also grows by
@@ -194,6 +216,10 @@ Rules:
   guarantee.
 
 ### Consent & continuous mode
+This section is the canonical source for the one-time consent-question wording; other docs/templates
+(such as `SKILL.md`, `references/artifacts.md`, and `assets/wgm-hive.template.yml`) should cite this
+section rather than restating the prompt verbatim.
+
 Triage (`SKILL.md` Phase 0) checks the project root for `.github/wgm-hive.yml`
 (`assets/wgm-hive.template.yml` is the scaffold). Its presence or absence — not a per-run
 question — decides which path applies:
@@ -209,7 +235,10 @@ question — decides which path applies:
   standing after every swarm, and at Ship/Handoff) never persists a decision on an absent human's
   behalf: it declines *for that run only* and leaves the file unwritten, so the next interactive
   Triage session still gets to ask a real person. This mirrors `references/stall-recovery.md`'s
-  existing unattended convention (preserve, don't guess) rather than inventing a new one.
+  existing unattended convention (preserve, don't guess) rather than inventing a new one. The same
+  safe degrade holds under concurrency too: if multiple non-interactive `scripts/harvest-hive.sh`
+  runs arrive at once (for example, nearby swarm streams finishing together), each one independently
+  declines for its own run and writes nothing, so there is no shared mutable `false` race to win.
 - **Present, `consent: true` and `auto_report: true` (its default)** — fully automatic. Filing
   happens with no further per-run prompting: anonymized, de-duped, one report per harvest run. This
   is what makes "continuous automatic growth" real instead of aspirational.

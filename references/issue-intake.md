@@ -4,6 +4,7 @@ wgm already knows how to turn a request into a plan and a loop. This note adds o
 channel: a project's own GitHub Issues. The discipline is generic to any repo wgm is building in,
 with `agent-frontier/wgm` as the first dogfood case, and it keeps issue handling attached to the
 existing lifecycle rather than inventing a parallel system.
+In projects that enable the Hive Growth Loop via `.github/wgm-hive.yml`, this same discovery-and-traceability discipline is also one of the four capture channels described in [`self-improvement.md`](self-improvement.md).
 
 ## Scope
 

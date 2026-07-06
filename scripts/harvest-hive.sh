@@ -244,6 +244,7 @@ shared_keyword_count() {
   printf '%s' "$count"
 }
 
+# Heuristic keyword-overlap duplicate check only; it can miss reworded duplicates and can also collide on unrelated titles that happen to share terms.
 find_duplicate_issue() {
   local title="$1"
   local wanted

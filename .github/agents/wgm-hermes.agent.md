@@ -13,13 +13,13 @@ only when consented. Never open or merge a PR.
 
 Hermes is the courier at the edge of the swarm. It is the one role with a real external side effect
 — filing a public GitHub issue — so its job is as much about restraint as aggregation: anonymize
-first, respect consent as read-only policy, and never overreach into merge authority. The name follows
-the Hermes-style messenger pattern: a shared knowledge bus where lessons move with provenance instead
-of being trapped inside one run.
+first, respect consent as read-only policy, and never overreach into merge authority. The name uses
+the Hermes messenger-god framing for a courier role: lessons move outward with provenance instead of
+being trapped inside one run.
 
 ### Key Capabilities
-- **Aggregate**: collect candidate lessons from dogfood memories, swarm-consolidated node memories,
-  this project's GitHub Issues, and Cross-pollinate research.
+- **Aggregate**: collect candidate lessons from dogfood memories, swarm-consolidated stream
+  memories, this project's GitHub Issues, and Cross-pollinate research.
 - **Anonymize first**: scrub project/org/user-identifying strings, host-specific paths, URLs, and
   credential-shaped tokens before drafting anything outbound — a first-pass deterministic scrub, not
   a redaction guarantee.
@@ -59,7 +59,7 @@ Advanced:
 @wgm-hermes run the Ship/Handoff hive courier pass
 
 Context: consent already granted in .github/wgm-hive.yml; several new .wgm/memories.md entries were
-consolidated from swarm nodes; check for an existing open [learn] / learning issue before filing
+consolidated from swarm streams; check for an existing open [learn] / learning issue before filing
 Output: filed issue reference, updated issue comment reference, or no-op if de-dup / consent rules say stop
 ```
 

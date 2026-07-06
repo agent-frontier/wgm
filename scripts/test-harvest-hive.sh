@@ -139,7 +139,38 @@ else
   fail "--memories with no value was not rejected (rc=$RC): $OUT"
 fi
 
-# 9) --help prints usage without touching any file.
+# 9) multiple concurrent non-interactive first runs against the same missing consent file all decline
+#    in-memory only: nobody crashes, nobody persists consent, and nobody attempts to file anything.
+shared_consent="consent-concurrent.yml"
+out1="concurrent-1.out"
+out2="concurrent-2.out"
+out3="concurrent-3.out"
+"$HARVEST" --memories memories.md --consent-file "$shared_consent" --repo agent-frontier/wgm >"$out1" 2>&1 </dev/null &
+pid1=$!
+"$HARVEST" --memories memories.md --consent-file "$shared_consent" --repo agent-frontier/wgm >"$out2" 2>&1 </dev/null &
+pid2=$!
+"$HARVEST" --memories memories.md --consent-file "$shared_consent" --repo agent-frontier/wgm >"$out3" 2>&1 </dev/null &
+pid3=$!
+
+set +e
+wait "$pid1"; rc1=$?
+wait "$pid2"; rc2=$?
+wait "$pid3"; rc3=$?
+set -e
+
+combined_output="$(cat "$out1" "$out2" "$out3")"
+if [[ "$rc1" -eq 0 ]] \
+   && [[ "$rc2" -eq 0 ]] \
+   && [[ "$rc3" -eq 0 ]] \
+   && [[ ! -f "$shared_consent" ]] \
+   && ! grep -q "Created new learning issue" <<<"$combined_output" \
+   && ! grep -q "Updated existing learning issue" <<<"$combined_output"; then
+  pass "concurrent non-interactive first runs all decline safely without persisting or filing"
+else
+  fail "concurrent non-interactive first runs were not all safe (rcs=$rc1/$rc2/$rc3): $combined_output"
+fi
+
+# 10) --help prints usage without touching any file.
 run --help
 if [[ "$RC" -eq 0 ]] && grep -q "harvest-hive.sh" <<<"$OUT"; then
   pass "--help prints usage"

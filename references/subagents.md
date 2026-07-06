@@ -115,14 +115,14 @@ flowchart LR
 The Hive Growth Loop's messenger role: it aggregates lessons from every source
 (`references/self-improvement.md`'s Capture section), **always anonymizes** them, reads
 `.github/wgm-hive.yml` for consent, and — only when consented — publishes upstream to
-`agent-frontier/wgm` (`scripts/harvest-hive.sh`). Named for a researched Hermes-style multi-agent
-pattern (a shared knowledge bus with publish/subscribe exchange and provenance tracking), translated
-into this file's existing subagent-dispatch idiom rather than a new mechanism. Design rationale:
+`agent-frontier/wgm` (`scripts/harvest-hive.sh`). Named for the messenger-god framing of this
+courier role, translated into this file's existing subagent-dispatch idiom rather than a new
+mechanism. Design rationale:
 [`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md).
 
-- **Two dispatch points, not one:** standing, after every `scripts/swarm.sh` run (so node lessons
-  reach the hive without waiting for Ship/Handoff); and at Ship/Handoff for ordinary single-stream
-  builds, alongside the docs-audit swarm.
+- **Two dispatch points, not one:** standing, after every `scripts/swarm.sh` run (so stream
+  lessons reach the hive without waiting for Ship/Handoff); and at Ship/Handoff for ordinary
+  single-stream builds, alongside the docs-audit swarm.
 - **Read-only about consent, not free to grant it.** `wgm-hermes` reads `.github/wgm-hive.yml`; it
   does not decide policy. The one-time consent question is normally asked by Triage (`SKILL.md`
   Phase 0), before any subagent runs. In its standing/headless dispatch, an absent file is never

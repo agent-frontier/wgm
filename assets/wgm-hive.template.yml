@@ -7,9 +7,8 @@
 # delete it. See references/self-improvement.md ("Consent & continuous mode") and
 # references/issue-intake.md for the full discipline this file gates.
 #
-# Question wgm asked: "May wgm automatically harvest anonymized lessons from building on this
-# project, and report them upstream to agent-frontier/wgm (the shared skill), so wgm improves for
-# everyone? You can change your mind any time by editing or deleting this file."
+# Runtime prompt wgm asks: "wgm can automatically anonymize and report lessons from this build
+# upstream to agent-frontier/wgm. Enable this for this project? [y/N]"
 
 # Master switch. false = wgm never files or updates an upstream issue automatically; it behaves like
 # today's ask-every-time Report step instead. true = the Report step runs on its own (see
@@ -19,10 +18,13 @@ consent: false
 # Whether upstream filing actually fires automatically. Defaults to mirroring `consent` above --
 # only set this independently if you want to consent to LOCAL aggregation/anonymization (so you can
 # review a draft) without wgm ever filing anything upstream on its own.
+# Note: `consent: false` + `auto_report: true` is representable YAML but a no-op today;
+# `scripts/harvest-hive.sh` only auto-files when BOTH fields are `true`.
 auto_report: false
 
-# Which capture channels feed the growth loop for this project. Trim this list to opt specific
-# sources out; it does not affect anonymization, which is always applied to every source.
+# Which capture channels feed the growth loop for this project. This list is accepted here but NOT
+# YET enforced by any shipped script, so trimming it currently has no observable effect; it does not
+# affect anonymization, which is always applied to every source.
 sources:
   - dogfood      # this build's own .wgm/memories.md
   - swarm        # scripts/swarm.sh node memories, consolidated (references/self-improvement.md)
