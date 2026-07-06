@@ -159,8 +159,9 @@ prune becomes due — `docs/audit/README.md`.)
   installed **at all** — a distinct, cheaper, more basic failure mode than a version mismatch.
   **Why:** a real dogfood run's very first validation attempt failed immediately because the
   sandbox had no `java`/`JAVA_HOME` installed, forcing a mid-task detour to fetch a repo-local JDK
-  before any real work could start — a one-line presence check at T1 would have surfaced this before
-  planning even began. **Provenance:** wgm dogfood, `[learn]` issue #57 (`SchwartzKamel/floci-az`,
+  before any real work could start — a one-line presence check at T1 is strictly cheaper than
+  proving full end-to-end runtime compatibility and catches this more basic failure mode first.
+  **Provenance:** wgm dogfood, `[learn]` issue #57 (`SchwartzKamel/floci-az`,
   Java/Quarkus). **Landed in:** `references/ralph-loop.md` (Backpressure in depth).
 - **Heuristic:** for native apps, games, GUIs, or engines, the *first* task is building the headless
   harness (output capture, state probes, crash soaks). **Why:** there is no natural unit test to
@@ -257,7 +258,7 @@ prune becomes due — `docs/audit/README.md`.)
   **Why:** a per-project `"build"` devcontainer.json costs a new multi-GB image per project — the
   literal disk-bloat failure mode a "manageable" local sandbox exists to avoid; an unlabeled prune
   either does nothing useful or risks touching a container/image it didn't create. **Provenance:**
-  external research, the [containers.dev](https://containers.dev) spec's prebuilt-image reuse
+  external research, `containers.dev`'s prebuilt-image reuse
   guidance + standard Docker/Podman disk-hygiene practice (`system df`, scoped `prune`).
   **Landed in:** `scripts/devcontainer.sh` · `references/devcontainers.md` ·
   `docs/operator/devcontainers.md`.

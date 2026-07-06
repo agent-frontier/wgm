@@ -3,6 +3,13 @@
 **Date:** 2026-06-16 · **Status:** design + Phase-1 spine shipping; the auto-dispatch CI is an
 **opt-in** Phase 2 (the operator's cost/security decision).
 
+> **Original design snapshot.** This doc's flywheel diagram and "three new mechanisms" describe the
+> design as it stood at Phase 1. Two mechanisms have since shipped that this doc doesn't depict:
+> **Cross-pollinate** (external-research assimilation) and **Health check** (a standing guardrail
+> against self-referential drift) — both documented, and kept current, in
+> [`references/self-improvement.md`](../../references/self-improvement.md), the living source. Treat
+> that file as authoritative where the two disagree.
+
 ## Executive overview
 
 wgm already *captures* lessons while it works — every build appends gotchas, stall fixes, and

@@ -86,18 +86,23 @@ choice — all three batched into one PR rather than three separate ones (see st
 `references/heuristics.md` for the graduated entries.
 
 ## Health check (a standing guardrail against self-referential drift)
-Harvest and Cross-pollinate above are both healthy, low-friction channels — but both stay entirely
-inside this repo (one reads `.wgm/memories.md` from *this* project's own dogfooding, the other reads
-*other* GitHub repos' source without ever running wgm against them). It is easy for that pair to
-crowd out the channel the whole flywheel exists to serve: **real dogfood harvest**, the lessons that
-only come from actually running wgm on an unfamiliar, real project. Nothing else in this file polices
-that balance, so make it explicit and checkable rather than something a maintainer has to
-reconstruct by hand:
+Harvest is designed to be cross-project by definition (above: "it would help wgm in a *different*
+codebase"), and Cross-pollinate reads *other* GitHub repos' source for the same reason — both have
+delivered on that (issues #29-#37, #56-#57; the external-research citations throughout
+`heuristics.md`). The risk isn't that either channel is structurally confined to this repo; it's
+that both are cheaper to keep running than the thing that actually feeds Harvest real material:
+**running wgm on an unfamiliar real project and reporting what genuinely broke.** A run of
+self-referential meta-work (auditing this repo's own docs) or Cross-pollinate assimilation (reading
+about other tools without ever running wgm against a real one) can quietly substitute for that,
+because neither leaves the repo to go find out. Nothing else in this file polices that balance, so
+make it explicit and checkable rather than something a maintainer has to reconstruct by hand:
 
 - **Real-dogfood cadence — update this line whenever a new one lands:** last real, cross-project
-  `[learn]` issue(s) — issues #29-#37 (2026-06-28/29), sourced from genuinely different projects (a
-  Rust FFI crate's swarm file-ownership, an `elm-pages`/`lamdera` build on a newer-than-LTS Node, a
-  web-SEO/CWV comparative-scoring project, a feasibility-spike case).
+  `[learn]` issue(s) — issues **#56-#57** (2026-07-05), sourced from two genuinely different real
+  projects (`SchwartzKamel/floci-az`, Java/Quarkus, and `SchwartzKamel/blogster`, .NET). Previously:
+  issues #29-#37 (2026-06-28/29), sourced from a Rust FFI crate's swarm file-ownership, an
+  `elm-pages`/`lamdera` build on a newer-than-LTS Node, a web-SEO/CWV comparative-scoring project,
+  and a feasibility-spike case.
 - **The rule:** a run of docs-audit passes and/or Cross-pollinate (external-research) PRs with *no*
   real dogfood issue landing in between is not evidence that "no more growth is needed" — it is a
   signal to go dogfood a real, different project before adding another audit round or another
@@ -105,7 +110,7 @@ reconstruct by hand:
   row with no real-dogfood issue between them, the next self-improvement action should be running
   wgm on a real project, not another audit or assimilation pass.
 - **Worked example:** [`docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md`](../docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md)
-  reconstructed exactly this pattern from the repo's own history (18 of 55 merged PRs, in one ~20-hour
+  reconstructed exactly this pattern from the repo's own history (17 of 46 merged PRs, in one ~20-hour
   stretch, almost entirely self-referential, with zero new real dogfood issues since 06-29) and used
   it to justify pausing meta-work in favor of two fresh dogfood runs against unrelated real projects.
 

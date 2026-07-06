@@ -149,7 +149,7 @@ path with no scenario — and fix or record each before scoring readiness. This 
 runs once a plan exists (`references/artifacts.md`).
 
 **Plan-exit gate:**
-- [ ] `IMPLEMENTATION_PLAN.md` exists.
+- [ ] `IMPLEMENTATION_PLAN.md` exists (see the Quick-track single-task exception below).
 - [ ] Every task has: objective · files/areas · **validation command** · acceptance criteria · status.
 - [ ] The first task is small enough for one iteration.
 - [ ] If no validation signal exists yet, the **first task is "create a validation signal"** — this
