@@ -98,8 +98,9 @@ because neither leaves the repo to go find out. Nothing else in this file police
 make it explicit and checkable rather than something a maintainer has to reconstruct by hand:
 
 - **Real-dogfood cadence — update this line whenever a new one lands:** last real, cross-project
-  `[learn]` issue(s) — issues **#56-#57** (2026-07-05), sourced from two genuinely different real
-  projects (`SchwartzKamel/floci-az`, Java/Quarkus, and `SchwartzKamel/blogster`, .NET). Previously:
+  `[learn]` issue(s) — issues **#56-#57, #59** (2026-07-05), sourced from two genuinely different
+  real projects (`SchwartzKamel/floci-az`, Java/Quarkus, and `SchwartzKamel/blogster`, .NET);
+  issue #59 is the stale-clone / retired-target lesson harvested from the `blogster` run. Previously:
   issues #29-#37 (2026-06-28/29), sourced from a Rust FFI crate's swarm file-ownership, an
   `elm-pages`/`lamdera` build on a newer-than-LTS Node, a web-SEO/CWV comparative-scoring project,
   and a feasibility-spike case.
@@ -109,6 +110,10 @@ make it explicit and checkable rather than something a maintainer has to reconst
   assimilated finding. Concretely: after roughly 3 self-referential or external-research PRs in a
   row with no real-dogfood issue between them, the next self-improvement action should be running
   wgm on a real project, not another audit or assimilation pass.
+- **Target-freshness guardrail:** before counting a local clone as that next real dogfood
+  project, `git fetch` it and check for archival/retirement signals (`ARCHIVED.md`, a retirement
+  commit message, or GitHub's archived flag); a stale clone can masquerade as a live target and
+  waste a run on a project the owner already retired.
 - **Worked example:** [`docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md`](../docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md)
   reconstructed exactly this pattern from the repo's own history (17 of 46 merged PRs, in one ~20-hour
   stretch, almost entirely self-referential, with zero new real dogfood issues since 06-29) and used

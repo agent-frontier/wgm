@@ -72,6 +72,14 @@ prune becomes due — `docs/audit/README.md`.)
   **Provenance:** external research, `RooCodeInc/Roo-Code`'s
   `src/services/checkpoints/ShadowCheckpointService.ts`. **Landed in:** `SKILL.md` (Phase 2.5 —
   Preflight).
+- **Heuristic:** before treating a local clone as a live dogfood target, `git fetch` it and
+  check for archival/retirement signals (`ARCHIVED.md`, a retirement/archive commit message, or
+  GitHub's archived-repository flag). **Why:** a stale local clone can silently hide that upstream
+  has already been retired, so wgm can do technically correct work and even open a real PR against a
+  project whose owner has already declared no further work is expected. **Provenance:** wgm
+  dogfood, `[learn]` issue #59 (`SchwartzKamel/blogster`, stale local clone masking upstream
+  retirement). **Landed in:** `references/self-improvement.md` (Health check target-freshness
+  guardrail).
 - **Heuristic:** treat an A→B→A→B alternation across four iterations as a named oscillation, and
   break it with a no-revert, different-architecture steer.
   **Why:** generic diff churn notices motion but misses the stronger signal that the loop is
