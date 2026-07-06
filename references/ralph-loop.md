@@ -63,6 +63,13 @@ loop, with progress living on disk (not the model's context) between passes
 ## Backpressure in depth
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
+- **Check the toolchain is present before checking it's compatible.** Before reasoning about whether
+  a runtime is *newer/odder* than a tool's tested baseline (below), do a trivial presence check first
+  — `which <tool>` or a version probe — that the required runtime/toolchain is installed **at all**.
+  A real dogfood run's first validation attempt failed immediately because the sandbox had no
+  `java`/`JAVA_HOME`, forcing a mid-task detour before any real work could start; a one-line presence
+  check at T1 is strictly cheaper than the end-to-end proof below and catches a more basic failure
+  mode (`[learn]` issue #57).
 - **De-risk an unusual runtime at T1.** If the build's host runtime is newer, older, or odder than a
   key tool's tested baseline (a bleeding-edge language major vs. a framework's LTS target), make the
   *first* task prove the whole toolchain end-to-end — install it, get a trivial hello-world through

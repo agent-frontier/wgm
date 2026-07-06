@@ -156,7 +156,11 @@ runs once a plan exists (`references/artifacts.md`).
       includes proving an unusually new/old runtime or toolchain end-to-end (not just a test
       harness) when it's riskier than a key tool's tested baseline (`references/ralph-loop.md`).
 - [ ] The plan includes a final **demo-validation task** that runs the spec's smallest end-to-end
-      demo path; it must pass before Ship/Handoff.
+      demo path; it must pass before Ship/Handoff. **Exception:** when a **Quick**-track build is
+      genuinely one task (one fix, one validation command, no multi-step demo path), that task's own
+      validation command *is* the demo-validation task — don't require a separate one, and a single
+      short paragraph may stand in for a formal plan/spec file (`references/heuristics.md`, `[learn]`
+      issue #56).
 - [ ] **Standard/Full** require at least one **tier-1 holdout scenario** covering the spec's demo
       path; **Quick** may substitute an inline deterministic check (per the Triage track table).
 - [ ] Every spec and task conforms to `specs/CONSTITUTION.md`, or records an intentional deviation.
