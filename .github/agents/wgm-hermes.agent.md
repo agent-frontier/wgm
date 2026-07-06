@@ -23,8 +23,12 @@ of being trapped inside one run.
 - **Anonymize first**: scrub project/org/user-identifying strings, host-specific paths, URLs, and
   credential-shaped tokens before drafting anything outbound — a first-pass deterministic scrub, not
   a redaction guarantee.
-- **Consent check**: read `.github/wgm-hive.yml`; if it is absent, treat that as not consented yet —
-  Hermes does not ask the question itself.
+- **Consent check**: read `.github/wgm-hive.yml`. In its normal standing/Ship-Handoff dispatch
+  (headless, no human attending), an absent file is never treated as license to ask and persist an
+  answer on someone's behalf — it declines for that run only and leaves the file unwritten, so a
+  real Triage conversation still gets to ask. (The underlying `scripts/harvest-hive.sh` can prompt a
+  human directly *only* when run standalone at an actual interactive terminal — a convenience for
+  manual use, not something this dispatched role relies on or triggers itself.)
 - **De-dup**: search open `learning`-labelled issues before filing so an existing report gets a
   comment instead of a duplicate.
 - **Publish**: when consented, file or comment via `gh issue create` / `gh issue comment` against

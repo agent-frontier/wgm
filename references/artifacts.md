@@ -160,18 +160,28 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
 ## `.github/wgm-hive.yml` — the hive consent/levers file
 The one-time, committed, team-wide decision that gates the Hive Growth Loop's automatic upstream
 reporting. Source from `assets/wgm-hive.template.yml`. Full discipline in
-`references/self-improvement.md` ("Consent & continuous mode") and `references/issue-intake.md`.
+`references/self-improvement.md` ("Consent & continuous mode") and `references/issue-intake.md`;
+the design rationale (why `.github/`, why one-time, why anonymize-always) is in
+[`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md).
 
-- **Placement is fixed at `.github/`** — the one exception to the root-vs-`.wgm/` split (above),
-  because this is a shared team decision, not per-build scratch. Never write it under `.wgm/`
-  (gitignored/local — it would silently re-ask on every clone or machine) and never treat it as
-  subject to the greenfield-vs-existing-project choice other artifacts make.
+- **Placement is fixed at `.github/`** — the one placement exception to the root-vs-`.wgm/` split
+  among shared, committed deliverables (above), because this is a shared team decision, not per-build
+  scratch. Never write it under `.wgm/` (gitignored/local — it would silently re-ask on every clone or
+  machine) and never treat it as subject to the greenfield-vs-existing-project choice other artifacts
+  make. (`.wgm/memories.md` below already deviates from greenfield-root the same way, for the
+  opposite reason — it's always-local scratch, never a shared decision — so this is the second
+  deliberate deviation from the plain greenfield-root default, not the only one.)
 - **Presence, not content, is the Triage trigger.** If the file doesn't exist yet, Triage asks the
   one-time consent question *before* anything else — even before Grill's own first question — and
   writes the file with whatever answer it gets. If the file exists (`consent: true` or `false`), wgm
-  never asks again; a human changes the answer by editing or deleting the file.
+  never asks again; a human changes the answer by editing or deleting the file. A headless/unattended
+  run with no consent file present does **not** get to make this call on a human's behalf either — it
+  declines for that run only and leaves the file unwritten (`references/self-improvement.md`).
 - **Fields:** `consent` (bool, the master switch), `auto_report` (bool, defaults to mirroring
-  `consent`), `sources` (list — which capture channels feed the loop for this project).
+  `consent`), `sources` (list — which capture channels are *intended* to feed the loop for this
+  project; **not yet enforced by any shipped script** — trimming it today has no observable effect,
+  since `scripts/harvest-hive.sh` operates on the already-consolidated `.wgm/memories.md` without
+  per-origin filtering. Treat it as a stated intent pending that wiring, not a working control.).
   **Anonymization is deliberately not a field** — it is mandatory on every path and cannot be turned
   off from this file.
 

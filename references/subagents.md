@@ -117,17 +117,21 @@ The Hive Growth Loop's messenger role: it aggregates lessons from every source
 `.github/wgm-hive.yml` for consent, and — only when consented — publishes upstream to
 `agent-frontier/wgm` (`scripts/harvest-hive.sh`). Named for a researched Hermes-style multi-agent
 pattern (a shared knowledge bus with publish/subscribe exchange and provenance tracking), translated
-into this file's existing subagent-dispatch idiom rather than a new mechanism.
+into this file's existing subagent-dispatch idiom rather than a new mechanism. Design rationale:
+[`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md).
 
 - **Two dispatch points, not one:** standing, after every `scripts/swarm.sh` run (so node lessons
   reach the hive without waiting for Ship/Handoff); and at Ship/Handoff for ordinary single-stream
   builds, alongside the docs-audit swarm.
 - **Read-only about consent, not free to grant it.** `wgm-hermes` reads `.github/wgm-hive.yml`; it
-  does not decide policy. The one-time consent question itself is asked by Triage (`SKILL.md` Phase
-  0), before any subagent runs.
+  does not decide policy. The one-time consent question is normally asked by Triage (`SKILL.md`
+  Phase 0), before any subagent runs. In its standing/headless dispatch, an absent file is never
+  treated as license to answer on a human's behalf — it declines for that run only, unwritten
+  (`references/self-improvement.md`'s Consent & continuous mode).
 - **Anonymize is not negotiable.** Unlike the docs-audit personas (which only read), `wgm-hermes` can
   cause a real external side effect — filing a public issue — so its one hard constraint is that the
-  scrub always runs first, on every lesson, regardless of consent state.
+  scrub always runs first, on every lesson, regardless of consent state. It is a first-pass
+  deterministic scrub, not a redaction guarantee.
 - **No merge authority.** `wgm-hermes` can file or update an issue; it never opens or merges a PR —
   that boundary belongs to the ordinary human-reviewed Implement/Review path.
 

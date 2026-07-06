@@ -6,7 +6,9 @@
 # work in PARALLEL on independent slices, each isolated in its own `git worktree` on its own branch so
 # they never collide. Each stream runs `scripts/loop.sh build` (the sibling runner). When they finish
 # you review and merge the branches — one thought per branch — and any per-stream `.wgm/memories.md`
-# notes are always consolidated back into the invoking worktree before optional cleanup.
+# notes are always consolidated back into the invoking worktree before optional cleanup, then handed
+# to `harvest-hive.sh` (the Hive Growth Loop's standing dispatch — safe to call unconditionally; it
+# owns every consent/anonymize decision itself and never fails the swarm run).
 #
 # Partition the work yourself: a --tasks file gives each stream a distinct scope (its loop.sh
 # --request), or -n COUNT runs COUNT identical streams (useful for racing/diversity). Each stream
@@ -153,6 +155,7 @@ for idx in "${!PIDS[@]}"; do
 done
 
 MAIN_MEMORIES=".wgm/memories.md"
+CONSOLIDATED_ANY=0
 for idx in "${!DIRS[@]}"; do
   memories="${DIRS[$idx]}/.wgm/memories.md"
   [[ -f "$memories" ]] || continue
@@ -164,7 +167,17 @@ for idx in "${!DIRS[@]}"; do
     printf '\n'
   } >> "$MAIN_MEMORIES"
   echo "✓ stream $((idx + 1)): consolidated .wgm/memories.md (${lines} lines) from ${BRANCHES[$idx]}"
+  CONSOLIDATED_ANY=1
 done
+
+# Standing hive dispatch: hand the just-consolidated memories to harvest-hive.sh unconditionally.
+# harvest-hive.sh itself owns every safety decision from here (no consent file yet -> declines for
+# this run only, without persisting anything on a human's behalf; consent false -> local preview
+# only; consent true -> real anonymized upstream report) -- swarm.sh does not duplicate that logic,
+# and a harvest hiccup never fails the swarm itself.
+if [[ "$CONSOLIDATED_ANY" -eq 1 && -x "$HERE/harvest-hive.sh" ]]; then
+  "$HERE/harvest-hive.sh" </dev/null || echo "(harvest-hive.sh had a non-zero exit; swarm result is unaffected)" >&2
+fi
 
 if [[ "$CLEANUP" -eq 1 ]]; then
   for d in "${DIRS[@]}"; do git worktree remove --force "$d" 2>/dev/null || true; done

@@ -106,6 +106,14 @@ if [[ "$RC" -eq 0 ]] \
 else
   fail "stream memories were not consolidated into the main worktree (rc=$RC)"
 fi
+# harvest-hive.sh is a sibling of swarm.sh in this checkout, so the standing dispatch above
+# actually ran against the just-consolidated memories -- assert it did, safely, with no consent
+# file and non-interactive stdin (declines for itself only, never blocks, never touches gh).
+if grep -q "no human is present to answer, so treating only this run as declined" <<<"$OUT"; then
+  pass "the standing post-swarm harvest-hive dispatch ran safely with no consent file yet"
+else
+  fail "swarm.sh did not dispatch harvest-hive.sh after consolidating memories: $OUT"
+fi
 reset_swarm
 
 # 6) re-running with an existing branch is skipped (no duplicate / clobbered run)

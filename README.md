@@ -167,10 +167,11 @@ flowchart LR
   (`assets/memories.template.md`).
 - **Context rotation** — when the window fills, summarize progress into the plan + memories and
   **rotate to fresh context** rather than grinding on a degraded one (`references/ralph-loop.md`).
-- **Two-stage subagent review (the role swarm)** — eleven role-specialized agents in total (griller ·
+- **Two-stage subagent review (the role swarm)** — twelve role-specialized agents in total (griller ·
   implementer · spec + quality reviewers · validator · diagnostician · the five-role docs-audit
-  swarm); the two code reviewers run independently and **preserve dissent** — a minority concern is
-  recorded, never collapsed into a silent PASS (`references/subagents.md`).
+  swarm · `wgm-hermes`, the hive courier); the two code reviewers run independently and **preserve
+  dissent** — a minority concern is recorded, never collapsed into a silent PASS
+  (`references/subagents.md`).
 - **Docs-audit paper trail** — a mandatory, automatic audit of documentation *quality* (not just
   structure) from four vantage points — junior dev, senior dev, principal dev, PM — consolidated by
   a technical-writer role into one committed report per run. Every action item is labeled strictly
@@ -192,8 +193,11 @@ flowchart LR
 - **Token economy** — human-facing artifacts stay readable, while agent-only state may use
   single-token keys (TOON, a compact serialization for agent-only files) to shrink what the agent
   must reread each iteration (`references/artifacts.md`).
-- **Self-improvement flywheel** — at handoff, harvest a durable, sanitized lesson and (opt-in) report
-  it upstream, so wgm grows from every codebase (`references/self-improvement.md`).
+- **Self-improvement flywheel (the Hive Growth Loop)** — at handoff, harvest a durable, sanitized,
+  **always-anonymized** lesson from every source (this build's memories, consolidated swarm-node
+  memories, this project's own GitHub Issues, cross-pollinated external research) and, once a
+  project consents once via a committed `.github/wgm-hive.yml`, report it upstream automatically —
+  no further per-run asking — so wgm grows from every codebase (`references/self-improvement.md`).
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).
@@ -261,10 +265,10 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · heuristics · docs-audit · adr · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
-├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · state.toon · devcontainer/ templates
-├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · devcontainer.sh (local sandbox) · install.sh · install.ps1
-├── .github/agents/   # the eleven role-specialized subagents (the swarm), incl. the docs-audit swarm
+├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
+├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
+├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · install.sh · install.ps1
+├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
 └── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)
 ```
 

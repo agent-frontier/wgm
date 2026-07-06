@@ -54,6 +54,9 @@ jobs:
       - name: Swarm harness (bash)
         run: bash scripts/test-swarm.sh
 
+      - name: Harvest-hive harness (bash)
+        run: bash scripts/test-harvest-hive.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |

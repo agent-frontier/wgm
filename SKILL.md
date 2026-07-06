@@ -272,11 +272,12 @@ next iteration is a consolidation task (help land existing PRs), not another net
   run MAY be deferred and batched across a same-session run of PRs rather than dispatched after each
   one (see "Batching" in `references/docs-audit.md`); Quick tracks rely on `scripts/check-docs.sh`
   alone.
-- **Harvest the juice (self-improvement).** Scan every source the Hive Growth Loop feeds from —
-  `.wgm/memories.md`, any swarm-consolidated node lessons, and this project's own GitHub Issues — for
-  a lesson that is durable, cross-project, and sanitized (about wgm's behavior — never the host's
-  code or secrets), then **always anonymize it** before drafting anything. If `.github/wgm-hive.yml`
-  says this project has consented, file it to `agent-frontier/wgm` as a `[learn]` heuristic report
+- **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` — including any swarm-consolidated
+  node lessons folded into it — for a lesson that is durable, cross-project, and sanitized (about
+  wgm's behavior — never the host's code or secrets), then **always anonymize it** before drafting
+  anything. (This project's own GitHub Issues are a separate Hive Growth Loop source: they inform
+  *backlog discovery*, not this scan — `references/issue-intake.md`.) If `.github/wgm-hive.yml` says
+  this project has consented, file it to `agent-frontier/wgm` as a `[learn]` heuristic report
   automatically, de-duping open issues first — no further asking. If the file is absent or declines,
   fall back to asking (explicit ask, dogfood run, or project setting), same as before. This is how
   wgm grows from every codebase (`references/self-improvement.md`, `references/issue-intake.md`).

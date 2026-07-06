@@ -47,6 +47,11 @@ Store ADRs under the same root-vs-`.wgm/` placement rule used by the other artif
 [`references/artifacts.md`](artifacts.md):
 - **Greenfield / root placement:** `specs/adr/NNNN-title.md`
 - **Existing-project / `.wgm/` placement:** `.wgm/specs/adr/NNNN-title.md`
+- **This repo (wgm-the-tool) is an exception**, mirroring `artifacts.md`'s docs/audit carve-out:
+  since `.gitignore` excludes root `specs/` and `.wgm/`, an ADR-worthy decision about wgm's own
+  protocol is recorded as a dated design record under `docs/plans/` instead — see
+  [`docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md`](../docs/plans/2026-07-06_HIVE_GROWTH_LOOP.md) for a
+  worked example of a plan doc following this file's decision/context/alternatives/consequences shape.
 
 Create the ADR during **Plan** if the decision is already known then, or during the **Loop** the
 moment a qualifying decision is actually made. Use [`assets/adr.template.md`](../assets/adr.template.md)

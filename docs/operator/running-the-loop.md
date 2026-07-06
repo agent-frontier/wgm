@@ -301,6 +301,12 @@ Each stream runs with `--commit`, so its branch carries the work. Worktrees live
 branch is skipped rather than clobbered. Partition the work yourself — the swarm is the sheepdog
 spawning the dogs, not an auto-splitter.
 
+**Every run also feeds the Hive Growth Loop.** After all streams finish, `swarm.sh` unconditionally
+folds each stream's `.wgm/memories.md` into the invoking worktree's own `.wgm/memories.md` (tagged
+by origin branch), then hands it to `scripts/harvest-hive.sh` — safe to run every time: with no
+`.github/wgm-hive.yml` yet it just previews and skips, never blocking the swarm or asking on your
+behalf unattended (`references/self-improvement.md`).
+
 ## Stopping the loop
 
 - `Ctrl+C` at any time.

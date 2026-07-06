@@ -119,4 +119,5 @@ This keeps issue intake inside the current state machine instead of bolting on a
 [`../SKILL.md`](../SKILL.md) (Phase 0 Triage · Phase 2 Plan · Phase 3 Record · Phase 4 Ship/Handoff) ·
 [`artifacts.md`](artifacts.md) (`tracker reference` and plan-task fields) ·
 [`ralph-loop.md`](ralph-loop.md) (concurrent-PR cap and consolidation heuristic) ·
-[`self-improvement.md`](self-improvement.md) (`[learn]` issues as the specialized subset).
+[`self-improvement.md`](self-improvement.md) (`[learn]` issues as the specialized subset) ·
+[`subagents.md`](subagents.md) (`wgm-hermes`, the courier that also draws on this source).
