@@ -41,6 +41,7 @@ Inspired by [elves](https://github.com/aigorahub/elves)' layered memory describe
   repeated trimming, missed prior lessons, or a brief that no longer stays lean.
 
 ## Cross-links
-`ralph-loop.md` · `artifacts.md`. A pattern here that proves durable and cross-project across a real
+`ralph-loop.md` · `artifacts.md` · `local-models.md` (tighter memory budgets specifically for
+small-context local models). A pattern here that proves durable and cross-project across a real
 build is a `heuristics.md` ledger candidate (`self-improvement.md`'s Harvest step) — not yet a
 promoted entry itself.

@@ -321,6 +321,9 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/ralph-loop.md` — loop mechanics, backpressure, context hygiene, Ralph-lite vs full.
 - `references/memory-patterns.md` — optional structured/layered memory upgrades for long Full-track
   builds that outgrow the flat `.wgm/memories.md` log (the flat log stays the default).
+- `references/local-models.md` — a token-input budget playbook for locally-hosted, small-context
+  models (e.g. ~65k tokens): narrower reads, earlier context rotation, tighter memory budgets, and
+  repurposing frugal/main escalation as a context-size tier.
 - `references/subagents.md` — the twelve role-specialized subagents (griller · implementer ·
   two-stage review · validator · diagnostician · the five-role docs-audit swarm · `wgm-hermes`, the
   hive courier) and how the Loop dispatches them ("swarm" mode).
