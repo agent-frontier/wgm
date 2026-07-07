@@ -7,11 +7,15 @@ the larger end of that range. This file tightens each lever for a small, hard in
 It extends `references/ralph-loop.md`'s "Context rotation" section — read that first.
 
 ## Why it matters (measured, not guessed)
-In this repo alone: `SKILL.md` is ~3,988 words (**≈5.5k tokens**), and all of `references/*.md`
-combined is ~26,841 words (**≈35k tokens**) — over **half of a 65k budget**. An agent that reads
-every reference file "just in case" before ever opening the plan, spec, or actual code has already
-spent more than half its window on skill material alone. The single biggest lever for a small-context
-run is which files get read at all, not just how they're written.
+In this repo alone, tokenized with `tiktoken` (`cl100k_base`) rather than a word-count guess —
+markdown prose with backticks/identifiers/punctuation tokenizes 25–40% denser than a naive
+words-to-tokens conversion: `SKILL.md` is **6,820 tokens**, and all of `references/*.md` combined is
+**49,766 tokens** — reading both wholesale is **~87% of a 65k budget**, before ever opening the
+plan, spec, or actual code. A realistic single-iteration read set — `SKILL.md` plus 1–2 relevant
+references — lands at roughly **12–13k tokens (≈20%)**, which is the actual target below. The single
+biggest lever for a small-context run is which files get read at all, not just how they're written.
+**Measure your own footprint the same way** (see "Measure it, don't guess" below) rather than trusting
+a word-count estimate — it will undercount.
 
 ## Read narrow, not wide (Analyze discipline)
 `ralph-loop.md` already says "read only what you need" — on a 65k model, make that a hard budget,
@@ -99,9 +103,64 @@ Verbose command output competes with everything else for the same small window:
 - Avoid running a project-wide formatter or verbose diff mid-iteration (`ralph-loop.md`'s "format
   only what you touched" already says this; it's doubly true when every line of output is budget).
 
+## Measure it, don't guess
+A word-count estimate of a file's token cost is unreliable — markdown-dense prose (backticks, code
+identifiers, punctuation) tokenizes 25–40% denser than plain words (see the corrected numbers above:
+an earlier word-count pass under-estimated this repo's own footprint by roughly that margin). Two
+concrete ways to get a real number instead of a guess:
+- **One-off:** tokenize any file with a real tokenizer before trusting a budget claim about it — for
+  example `python3 -c "import tiktoken; print(len(tiktoken.get_encoding('cl100k_base').encode(open('FILE').read())))"`.
+  It's a proxy (your local model's own tokenizer will differ somewhat), but it's far closer than a
+  word count, and it's what produced every number in this file.
+- **Per-iteration, ongoing:** wire `scripts/loop.sh --cost-cmd` to your local server's own reported
+  prompt-token count so the ~65k ceiling is tracked empirically across the whole build, not assumed
+  once and forgotten. Most local servers already report it:
+  - **Ollama** (`/api/generate`, `/api/chat`): the final JSON response includes `prompt_eval_count`
+    — the exact number of input tokens it just evaluated.
+  - **llama.cpp server** (`/completion`): the response includes `tokens_evaluated` (and
+    `timings.prompt_n`) for the same thing.
+  Point `--cost-cmd` at a small script that greps the last response for that field, pass
+  `--metrics FILE` to log it every iteration, and optionally `--max-cost` as a hard ceiling once you
+  know the real per-iteration number (`docs/operator/running-the-loop.md`, "Pattern: a token/cost
+  TUI"). This closes the loop between *this file's* guidance and *your* actual build.
+
+## Structure prompts for KV-cache reuse
+Beyond the raw input-token count, local inference servers (Ollama, llama.cpp) cache the model's
+internal state for a prompt **prefix** and can reuse it on the next call if that prefix is
+byte-identical — skipping re-computation for everything before the first changed token. This doesn't
+shrink the nominal token count, but it shrinks the *compute* actually paid per iteration, which
+matters as much as the budget on constrained local hardware:
+- **Keep the fixed part of the prompt first, and byte-identical, across iterations** — the skill
+  instructions, `specs/CONSTITUTION.md`, `AGENTS.md` — so the cache hits.
+- **Put the varying part last** — the current task, the plan's diff, this iteration's specific
+  files — so only the genuinely new tail has to be (re-)evaluated.
+- Avoid needlessly reformatting or reordering the fixed prefix between iterations (e.g. rewriting
+  `AGENTS.md`'s wording without a real content change) — it invalidates the cache for no benefit.
+- `scripts/loop.sh` already constructs one prompt template per run and only substitutes small pieces
+  per iteration (mode, task, plan reference) — the substituted pieces are near the *end* of the
+  template, which is already cache-friendly; don't undo this by hand-editing the flow to front-load
+  variable content.
+
+## Swarm concurrency on a single local backend
+`scripts/swarm.sh` fans out parallel streams (worktrees + branches) assuming each stream gets its own
+real compute. Against **one** locally-hosted model server, concurrent streams usually queue for the
+same backend rather than truly parallelizing, and each stream still owes its own full ~65k-budget
+prompt — so a wide swarm can cost more wall-clock time than sequential `loop.sh` runs, not less.
+Prefer `swarm.sh -n 1`–`2` (or plain sequential `loop.sh` calls) against a single local model; reserve
+a wider swarm for when you actually have multiple independent backends (several local model
+processes, or a mix of local + hosted agents) to spread the streams across.
+
+## Known limitation: SKILL.md's fixed load cost
+Track selection (Quick/Standard/Full) governs what an iteration reads *afterward*, not what loading
+the skill itself costs — `SKILL.md`'s full ~6.8k tokens load on every invocation regardless of mode
+or track, including a one-line Quick-track fix. This is a property of how the skill is loaded, not
+something a task or a `wgm.yml` can opt out of — budget for it as a fixed, unavoidable cost rather
+than expecting it to shrink with a smaller task.
+
 ## Cross-links
 `references/ralph-loop.md` (Context rotation, Standing guardrails) ·
 `references/memory-patterns.md` (memory budget alternatives) ·
 `references/artifacts.md` (TOON encoding) ·
 `references/stall-recovery.md` (frugal/main escalation) ·
-`docs/operator/running-the-loop.md` (`--frugal-agent`/`--agent` flags).
+`docs/operator/running-the-loop.md` (`--frugal-agent`/`--agent` flags, `--cost-cmd`/`--metrics`,
+the swarm).
