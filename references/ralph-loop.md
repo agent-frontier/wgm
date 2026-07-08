@@ -182,6 +182,9 @@ progress is lost. wgm's rule:
   relevant spec, `.wgm/memories.md`, and `specs/CONTEXT.md` — never the old transcript.
 - **Ralph-full already rotates** every iteration (a fresh process per loop); **Ralph-lite** rotates
   on the threshold. Either way the persistent files are the memory — keep them lean (`artifacts.md`).
+- **Small/local-context models (≲65–100k tokens):** the generic ~50% default under-rotates — the
+  fixed skill+plan+spec overhead is a bigger slice of a small window. Rotate earlier (~35–40% of the
+  window) and read narrower; see `references/local-models.md` for concrete budgets.
 
 ## Stop / regenerate conditions
 - All must-have tasks are `done` → ship/handoff.

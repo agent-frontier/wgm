@@ -113,6 +113,11 @@ flowchart LR
   Dn --> Fr
 ```
 
+The same flags double as a **context-size** tier, not just a cost tier: point `--frugal-agent` at a
+locally-hosted, small-context model (e.g. ~65k tokens) for routine iterations, and reserve `--agent`
+for a larger-context hosted model to escalate to on a stall or a genuinely wide-scope task. See
+`references/local-models.md` for the full token-budget playbook.
+
 See [stall-recovery.md](../agent/stall-recovery.md) for what the agent does inside an escalation.
 
 ## Operational limits & lifecycle hooks
