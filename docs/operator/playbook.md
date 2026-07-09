@@ -78,6 +78,12 @@ flowchart TD
 | Iteration-exit | Validation command ran and exited 0; plan updated; exactly one task advanced | Do not accept the task as `done` — send it back |
 | Ship/Handoff | Demo path green, satisfaction ≥ threshold, **docs-audit report exists** (Standard/Full) | Ask wgm to dispatch the docs-audit swarm before you accept the handoff |
 
+> **Why Triage/consent isn't a row above:** the `.github/wgm-hive.yml` consent check (Triage step 2,
+> `references/self-improvement.md`) is a one-time recorded answer, not a PASS/FAIL gate — "yes" and
+> "no" are both valid, terminal states once the file is written, so there's nothing for an operator
+> to send back. If you want to change your project's answer later, edit or delete that file directly;
+> wgm re-asks only when it's absent.
+
 ## Reading a docs-audit paper trail
 
 The docs-audit report is wgm's automatic evidence of work done — you should never have to ask for

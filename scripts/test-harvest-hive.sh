@@ -62,9 +62,9 @@ else
   fail "anonymization did not redact every planted category: $OUT"
 fi
 
-# 2b) anonymization matches repo slugs case-insensitively and redacts Windows-style paths, but does
-#     not mistake a plain numeric fraction for a repo slug (a planted regression case: an earlier
-#     version of this scrub was lowercase-only and left mixed-case org/repo names exposed).
+# 3) anonymization matches repo slugs case-insensitively and redacts Windows-style paths, but does
+#    not mistake a plain numeric fraction for a repo slug (a planted regression case: an earlier
+#    version of this scrub was lowercase-only and left mixed-case org/repo names exposed).
 printf 'note: prefer golang/go idioms; roughly 3/4 of tasks pass; see MyOrg/SecretRepo and C:\\Users\\bob\\project\\file.py\n' > memories-case.md
 run --dry-run --memories memories-case.md --consent-file consent-case.yml --repo agent-frontier/wgm
 if [[ "$RC" -eq 0 ]] \
@@ -78,7 +78,7 @@ else
   fail "case-insensitive / Windows-path anonymization regressed: $OUT"
 fi
 
-# 3) an existing consent:false file takes the declined path for real (non-dry-run) and still never
+# 4) an existing consent:false file takes the declined path for real (non-dry-run) and still never
 #    calls gh — this path is unconditionally network-free in harvest-hive.sh, so it's safe to run
 #    without --dry-run.
 run --memories memories.md --consent-file consent-false.yml --repo agent-frontier/wgm
@@ -92,7 +92,7 @@ else
   fail "declined-consent real run misbehaved (rc=$RC): $OUT"
 fi
 
-# 4) a real (non-dry-run) run with no consent file and non-interactive stdin never calls gh, and
+# 5) a real (non-dry-run) run with no consent file and non-interactive stdin never calls gh, and
 #    does NOT persist a decision on a human's behalf — no one was present to actually answer, so the
 #    file is left unwritten (only an interactive Triage session, or a human editing the file by hand,
 #    may record real consent) — this run is declined for itself only, not forever.
@@ -106,7 +106,7 @@ else
   fail "non-interactive first run did not default safely (rc=$RC): $OUT"
 fi
 
-# 5) an existing (human-authored) consent file is genuinely never asked about again.
+# 6) an existing (human-authored) consent file is genuinely never asked about again.
 printf 'consent: false\nauto_report: false\nsources:\n  - dogfood\n' > consent-second-real.yml
 run --memories memories.md --consent-file consent-second-real.yml --repo agent-frontier/wgm
 if [[ "$RC" -eq 0 ]] && ! grep -q "Enable this for this project?" <<<"$OUT"; then
@@ -115,7 +115,7 @@ else
   fail "re-run asked again despite an existing consent file (rc=$RC): $OUT"
 fi
 
-# 6) missing memories file (never harvested yet) is a clean no-op, not an error.
+# 7) missing memories file (never harvested yet) is a clean no-op, not an error.
 run --dry-run --memories does-not-exist.md --consent-file consent-missing-memories.yml --repo agent-frontier/wgm
 if [[ "$RC" -eq 0 ]] && grep -q "Nothing to harvest" <<<"$OUT"; then
   pass "a missing memories file is a clean no-op"
@@ -123,7 +123,7 @@ else
   fail "missing memories file was not handled as a no-op (rc=$RC): $OUT"
 fi
 
-# 7) an empty memories file is also a clean no-op.
+# 8) an empty memories file is also a clean no-op.
 run --dry-run --memories empty.md --consent-file consent-empty-memories.yml --repo agent-frontier/wgm
 if [[ "$RC" -eq 0 ]] && grep -q "Nothing to harvest" <<<"$OUT"; then
   pass "an empty memories file is a clean no-op"
@@ -131,7 +131,7 @@ else
   fail "empty memories file was not handled as a no-op (rc=$RC): $OUT"
 fi
 
-# 8) --memories with no value is rejected before anything runs.
+# 9) --memories with no value is rejected before anything runs.
 run --memories
 if [[ "$RC" -eq 2 ]] && grep -q "requires a file" <<<"$OUT"; then
   pass "--memories with no value is rejected"
@@ -139,8 +139,9 @@ else
   fail "--memories with no value was not rejected (rc=$RC): $OUT"
 fi
 
-# 9) multiple concurrent non-interactive first runs against the same missing consent file all decline
-#    in-memory only: nobody crashes, nobody persists consent, and nobody attempts to file anything.
+# 10) multiple concurrent non-interactive first runs against the same missing consent file all
+#     decline in-memory only: nobody crashes, nobody persists consent, and nobody attempts to file
+#     anything.
 shared_consent="consent-concurrent.yml"
 out1="concurrent-1.out"
 out2="concurrent-2.out"
@@ -170,7 +171,7 @@ else
   fail "concurrent non-interactive first runs were not all safe (rcs=$rc1/$rc2/$rc3): $combined_output"
 fi
 
-# 10) --help prints usage without touching any file.
+# 11) --help prints usage without touching any file.
 run --help
 if [[ "$RC" -eq 0 ]] && grep -q "harvest-hive.sh" <<<"$OUT"; then
   pass "--help prints usage"

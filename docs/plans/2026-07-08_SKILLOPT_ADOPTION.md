@@ -1,8 +1,8 @@
-# ADR: adopt SkillOpt's grading discipline, not the SkillOpt package
+# SkillOpt's grading discipline — adopt the idea, not the package
 
 **Date:** 2026-07-08 · **Status:** accepted · **Trigger:** direct research request ("look at
 https://github.com/microsoft/SkillOpt can we optimize wgm with it? plan it out and let's see if
-there's value in doing so at all") · Follows the ADR shape from
+there's value in doing so at all") · Follows the ADR (Architecture Decision Record) shape from
 [`references/adr.md`](../../references/adr.md) / [`assets/adr.template.md`](../../assets/adr.template.md);
 recorded under `docs/plans/` per that file's own carve-out for this repo (root `/specs/adr/` is
 gitignored scratch here — see `.gitignore`).

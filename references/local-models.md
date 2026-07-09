@@ -9,13 +9,16 @@ It extends `references/ralph-loop.md`'s "Context rotation" section — read that
 ## Why it matters (measured, not guessed)
 In this repo alone, tokenized with `tiktoken` (`cl100k_base`) rather than a word-count guess —
 markdown prose with backticks/identifiers/punctuation tokenizes 25–40% denser than a naive
-words-to-tokens conversion: `SKILL.md` is **6,820 tokens**, and all of `references/*.md` combined is
-**49,766 tokens** — reading both wholesale is **~87% of a 65k budget**, before ever opening the
+words-to-tokens conversion: `SKILL.md` is **~7,000 tokens**, and all of `references/*.md` combined is
+**~51,600 tokens** — reading both wholesale is **~90% of a 65k budget**, before ever opening the
 plan, spec, or actual code. A realistic single-iteration read set — `SKILL.md` plus 1–2 relevant
 references — lands at roughly **12–13k tokens (≈20%)**, which is the actual target below. The single
 biggest lever for a small-context run is which files get read at all, not just how they're written.
-**Measure your own footprint the same way** (see "Measure it, don't guess" below) rather than trusting
-a word-count estimate — it will undercount.
+**These figures are a point-in-time measurement** (as of commit `96ee54a`, 2026-07-09) that will
+drift upward as `SKILL.md`/`references/*.md` grow — a prior revision of this file cited figures that
+were already ~3% stale by the very next PR. **Measure your own footprint the same way** (see "Measure
+it, don't guess" below) rather than trusting either this snapshot or a word-count estimate — both
+undercount over time.
 
 ## Read narrow, not wide (Analyze discipline)
 `ralph-loop.md` already says "read only what you need" — on a 65k model, make that a hard budget,
@@ -108,8 +111,9 @@ A word-count estimate of a file's token cost is unreliable — markdown-dense pr
 identifiers, punctuation) tokenizes 25–40% denser than plain words (see the corrected numbers above:
 an earlier word-count pass under-estimated this repo's own footprint by roughly that margin). Two
 concrete ways to get a real number instead of a guess:
-- **One-off:** tokenize any file with a real tokenizer before trusting a budget claim about it — for
-  example `python3 -c "import tiktoken; print(len(tiktoken.get_encoding('cl100k_base').encode(open('FILE').read())))"`.
+- **One-off:** tokenize any file with a real tokenizer before trusting a budget claim about it —
+  first `pip install tiktoken`, then for example
+  `python3 -c "import tiktoken; print(len(tiktoken.get_encoding('cl100k_base').encode(open('FILE').read())))"`.
   It's a proxy (your local model's own tokenizer will differ somewhat), but it's far closer than a
   word count, and it's what produced every number in this file.
 - **Per-iteration, ongoing:** wire `scripts/loop.sh --cost-cmd` to your local server's own reported
@@ -162,5 +166,7 @@ than expecting it to shrink with a smaller task.
 `references/memory-patterns.md` (memory budget alternatives) ·
 `references/artifacts.md` (TOON encoding) ·
 `references/stall-recovery.md` (frugal/main escalation) ·
+`references/subagents.md` (Model selection — the same frugal/main flag pair, along the cost axis
+rather than this file's context-size axis) ·
 `docs/operator/running-the-loop.md` (`--frugal-agent`/`--agent` flags, `--cost-cmd`/`--metrics`,
 the swarm).

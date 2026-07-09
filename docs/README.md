@@ -58,7 +58,7 @@ flowchart TD
 | Agent | [references/docs-audit.md](../references/docs-audit.md) | The docs-audit swarm: four dev/PM personas + a technical-writer consolidator; the paper-trail artifact |
 | Agent | [references/trigger-eval.md](../references/trigger-eval.md) | Should-trigger / should-not-trigger fixture that catches drift in the mode-parsing rule and the Use/Don't-use boundary |
 | Agent | [references/evals.md](../references/evals.md) | The companion output-quality fixture (`evals/evals.json`): given wgm triggers, is the result actually good? |
-| Agent | [references/self-improvement.md](../references/self-improvement.md) | The Hive Growth Loop: harvest lessons from every source (memories, swarm nodes, this project's own Issues, cross-pollinated research), always anonymize, report upstream automatically once consented |
+| Agent | [references/self-improvement.md](../references/self-improvement.md) | The Hive Growth Loop: harvest lessons from every source (memories, swarm streams, this project's own Issues, cross-pollinated research), always anonymize, report upstream automatically once consented |
 | Agent | [references/issue-intake.md](../references/issue-intake.md) | Backlog discovery from a project's own GitHub Issues, tracker-reference traceability, and the `Closes #N` linking convention |
 | Agent | [references/devcontainers.md](../references/devcontainers.md) | Sandboxing the loop itself in a disk-conscious local devcontainer — mechanics, permission-parity gotcha, `scripts/devcontainer.sh` |
 
@@ -77,10 +77,13 @@ flowchart TD
 - [2026-07-05 — growth health check: are we at a good point, or an echo chamber?](plans/2026-07-05_GROWTH_HEALTH_CHECK.md) —
   an honest, evidence-based self-assessment that recent growth had become mostly self-referential,
   feeding the "real-dogfood cadence" guardrail in `references/self-improvement.md`.
-- [2026-07-06 — the Hive Growth Loop](plans/2026-07-06_HIVE_GROWTH_LOOP.md) — unifying swarm-node
+- [2026-07-06 — the Hive Growth Loop](plans/2026-07-06_HIVE_GROWTH_LOOP.md) — unifying swarm-stream
   memories, this project's own GitHub Issues, and cross-pollinated research into one funnel, with
   mandatory anonymization and a one-time, committed consent gate (`.github/wgm-hive.yml`) for fully
   automatic upstream reporting.
+- [2026-07-08 — SkillOpt's grading discipline: adopt the idea, not the package](plans/2026-07-08_SKILLOPT_ADOPTION.md) —
+  why wgm built a dependency-free `scripts/grade-evals.sh` gate for `evals/evals.json` instead of
+  taking a runtime dependency on `microsoft/SkillOpt`'s own package.
 
 ## Provenance
 

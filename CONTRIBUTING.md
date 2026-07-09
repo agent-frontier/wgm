@@ -43,7 +43,7 @@ bash scripts/check-evals.sh                   # evals/evals.json schema (agentsk
 bash scripts/test-install.sh                  # bash installer harness (9 cases)
 bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness (16 cases)
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness (7 cases)
-bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness (9 cases)
+bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness (11 cases)
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
 bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (7 cases)
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 cases)

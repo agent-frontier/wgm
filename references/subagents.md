@@ -150,6 +150,9 @@ dissent-preservation and Agent-vs-Operator classification is the part easy to ge
 a judgment call with a real external side effect (a public issue) if it goes subtly wrong, not
 mechanical aggregation alone.
 
+For the complementary axis — right-sizing *context*, not cost, when the host is a genuinely small-
+context local model — see `references/local-models.md`'s frugal/main flag guidance.
+
 ## Tool-restriction schema (per agent)
 Today the `.github/agents/*.agent.md` files describe tool access in prose ("Primary tools: ...").
 For clearer contracts — and future hosts that can enforce them — each agent can also declare a Roo

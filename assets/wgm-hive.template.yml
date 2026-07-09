@@ -4,11 +4,9 @@
 # which is gitignored/local-only) is the trigger: if it doesn't exist yet, wgm's Triage phase asks
 # the question below as the very first thing it does on this project, before any other Triage or
 # Grill question. Whatever the answer, wgm writes this file so it is never asked again unless you
-# delete it. See references/self-improvement.md ("Consent & continuous mode") and
-# references/issue-intake.md for the full discipline this file gates.
-#
-# Runtime prompt wgm asks: "wgm can automatically anonymize and report lessons from this build
-# upstream to agent-frontier/wgm. Enable this for this project? [y/N]"
+# delete it. See references/self-improvement.md ("Consent & continuous mode" — the canonical source
+# for the exact runtime prompt wording) and references/issue-intake.md for the full discipline this
+# file gates.
 
 # Master switch. false = wgm never files or updates an upstream issue automatically; it behaves like
 # today's ask-every-time Report step instead. true = the Report step runs on its own (see
@@ -27,7 +25,7 @@ auto_report: false
 # affect anonymization, which is always applied to every source.
 sources:
   - dogfood      # this build's own .wgm/memories.md
-  - swarm        # scripts/swarm.sh node memories, consolidated (references/self-improvement.md)
+  - swarm        # scripts/swarm.sh stream memories, consolidated (references/self-improvement.md)
   - issues       # this project's own GitHub Issues, as backlog/context (references/issue-intake.md)
   - cross-pollinate  # external research findings (references/self-improvement.md)
 

@@ -292,7 +292,7 @@ next iteration is a consolidation task (help land existing PRs), not another net
   one (see "Batching" in `references/docs-audit.md`); Quick tracks rely on `scripts/check-docs.sh`
   alone.
 - **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` — including any swarm-consolidated
-  node lessons folded into it — for a lesson that is durable, cross-project, and sanitized (about
+  stream lessons folded into it — for a lesson that is durable, cross-project, and sanitized (about
   wgm's behavior — never the host's code or secrets), then **always anonymize it** before drafting
   anything. (This project's own GitHub Issues are a separate Hive Growth Loop source: they inform
   *backlog discovery*, not this scan — `references/issue-intake.md`.) If `.github/wgm-hive.yml` says
@@ -353,7 +353,7 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/devcontainers.md` — running the loop itself sandboxed in a disk-conscious local
   devcontainer (shared base image, `scripts/devcontainer.sh`).
 - `references/self-improvement.md` — the Hive Growth Loop: harvest lessons from every source
-  (dogfood memories, swarm nodes, this project's own Issues, cross-pollinated external research),
+  (dogfood memories, swarm streams, this project's own Issues, cross-pollinated external research),
   always anonymize, and report upstream automatically once a project consents via
   `.github/wgm-hive.yml`; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`, `wgm-hive.template.yml`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
