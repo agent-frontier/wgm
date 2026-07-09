@@ -222,6 +222,9 @@ This section is the canonical source for the one-time consent-question wording; 
 (such as `SKILL.md`, `references/artifacts.md`, and `assets/wgm-hive.template.yml`) should cite this
 section rather than restating the prompt verbatim.
 
+> **Runtime prompt wgm asks:** "wgm can automatically anonymize and report lessons from this build
+> upstream to agent-frontier/wgm. Enable this for this project? [y/N]"
+
 Triage (`SKILL.md` Phase 0) checks the project root for `.github/wgm-hive.yml`
 (`assets/wgm-hive.template.yml` is the scaffold). Its presence or absence — not a per-run
 question — decides which path applies:
@@ -248,9 +251,11 @@ question — decides which path applies:
   printed for a human to read, but nothing is filed upstream; use this to review drafts before
   turning the last switch on.
 - **Present, `consent: false` (regardless of `auto_report`)** — today's ask-based path, permanently:
-  local Capture/Harvest still run (the `sources:` list can trim which channels feed even that, though
-  anonymization itself is never a listed, toggle-able field); only the upstream publish leg waits for
-  an explicit ask.
+  local Capture/Harvest still run in full. The `sources:` list in `.github/wgm-hive.yml` is accepted
+  but **not yet enforced by any shipped script**, so trimming it today has no observable effect on
+  which channels feed Capture/Harvest (`assets/wgm-hive.template.yml` carries the same disclosure);
+  anonymization itself is never a listed, toggle-able field either way. Only the upstream publish leg
+  waits for an explicit ask.
 - **Standing dispatch, consent-gated filing.** `scripts/swarm.sh` unconditionally hands its
   just-consolidated memories to `scripts/harvest-hive.sh` after every run — that *dispatch* always
   happens; whether it actually *files* anything upstream still depends entirely on the consent state

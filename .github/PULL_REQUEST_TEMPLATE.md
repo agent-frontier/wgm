@@ -21,9 +21,16 @@ These are the project's deterministic pass/fail signal — all must be green (se
 - [ ] `for s in scripts/*.sh; do bash -n "$s"; done`
 - [ ] `( cd .. && skills-ref validate wgm )`
 - [ ] `bash scripts/check-docs.sh`
+- [ ] `bash scripts/check-evals.sh`
 - [ ] Docs-audit swarm ran, or explicitly deferred/batched per `references/docs-audit.md` — see `docs/audit/README.md`
 - [ ] `bash scripts/test-install.sh`
+- [ ] `bash scripts/test-loop.sh`
+- [ ] `bash scripts/test-swarm.sh`
+- [ ] `bash scripts/test-harvest-hive.sh`
+- [ ] `bash scripts/test-devcontainer.sh`
+- [ ] `bash scripts/test-grade-evals.sh`
 - [ ] `pwsh -File scripts/test-install.ps1`
+- [ ] `actionlint`
 
 ## Notes for reviewers
 

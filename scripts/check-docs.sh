@@ -12,6 +12,10 @@
 #   6. Every operator doc (docs/operator/*) opens with an "## Executive overview" section.
 #   7. Every .github/agents/*.agent.md file has required frontmatter (name, description) and
 #      required sections (a "**Mission**:" statement and an "### Integration" section).
+#   8. Every references/*.md filename is enumerated in README.md's repository-layout tree-comment
+#      line, so a new reference doc can't silently drift out of that 1:1 index again (this defect
+#      class regressed twice before being caught by a manual audit pass each time — see
+#      docs/audit/2026-07-09T0113Z_pr62-65-post-merge-audit.md, Agent action #3).
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -127,6 +131,22 @@ for f in "${AGENT_FILES[@]}"; do
 done
 if (( ${#AGENT_FILES[@]} == 0 )); then
   note ".github/agents/*.agent.md — no custom agent files found"
+fi
+
+# 8 — every references/*.md file is named in README.md's repository-layout tree-comment line.
+if [[ -f README.md ]]; then
+  tree_line="$(grep -E '^├── references/' README.md || true)"
+  if [[ -z "$tree_line" ]]; then
+    note "README.md has no '├── references/' repository-layout tree-comment line to check"
+  else
+    for f in references/*.md; do
+      [[ -f "$f" ]] || continue
+      name="$(basename "$f" .md)"
+      if ! grep -qF "$name" <<< "$tree_line"; then
+        note "README.md's references/ tree-comment line is missing '$name' (add it to the enumeration)"
+      fi
+    done
+  fi
 fi
 
 if (( FAIL == 0 )); then

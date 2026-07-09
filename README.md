@@ -194,7 +194,7 @@ flowchart LR
   single-token keys (TOON, a compact serialization for agent-only files) to shrink what the agent
   must reread each iteration (`references/artifacts.md`).
 - **Self-improvement flywheel (the Hive Growth Loop)** — at handoff, harvest a durable, sanitized,
-  **always-anonymized** lesson from every source (this build's memories, consolidated swarm-node
+  **always-anonymized** lesson from every source (this build's memories, consolidated swarm-stream
   memories, this project's own GitHub Issues, cross-pollinated external research) and, once a
   project consents once via a committed `.github/wgm-hive.yml`, report it upstream automatically —
   no further per-run asking — so wgm grows from every codebase (`references/self-improvement.md`).
@@ -265,7 +265,7 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · PLUGIN_PROTOCOL · plugin-integration
+├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · PLUGIN_PROTOCOL · plugin-integration
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · install.sh · install.ps1
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
