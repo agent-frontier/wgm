@@ -183,8 +183,8 @@ flowchart LR
   (`references/trigger-eval.md`).
 - **Output-quality evals** — given wgm *does* trigger, is the result actually good? A structured
   `evals/evals.json` fixture (prompt + expected output + assertions), schema-checked by
-  `scripts/check-evals.sh` and graded by a maintainer or a future automated judge
-  (`references/evals.md`).
+  `scripts/check-evals.sh`, graded by a maintainer or `scripts/grade-evals.sh` (an opt-in, real
+  grader-agent + non-regression gate — see `references/evals.md`).
 - **EARS acceptance criteria** — *Easy Approach to Requirements Syntax*: phrase each criterion in a
   testable trigger/state/response shape (e.g. "When X, the system shall Y") so a check or judge can
   settle it (`references/artifacts.md`).

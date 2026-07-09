@@ -217,6 +217,15 @@ prune becomes due — `docs/audit/README.md`.)
   · `wgm-spec-reviewer` + `wgm-quality-reviewer`.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** before accepting an automated edit to a skill/protocol document, gate it on a
+  held-out or baseline comparison — never accept on the generator's own say-so.
+  **Why:** a skill document that edits itself without a comparison against a prior-known-good
+  revision can drift or regress silently; a simple non-regression check (candidate score ≥ baseline
+  score on the same held-out cases) catches that before the edit ships, without needing a full
+  training loop. **Provenance:** external research, [`microsoft/SkillOpt`](https://github.com/microsoft/SkillOpt)'s
+  validation-gate design (rollout → reflect → bounded edit → accept only if it beats a held-out
+  score). **Landed in:** `references/evals.md`, `scripts/grade-evals.sh`
+  (`docs/plans/2026-07-08_SKILLOPT_ADOPTION.md`).
 - **Heuristic:** record a threshold-clearing scenario that later drops below threshold as a named
   regression, not just a lower score.
   **Why:** overall satisfaction can stay flat or even rise while one once-working scenario breaks;

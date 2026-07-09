@@ -46,25 +46,37 @@ assertion PASS/FAIL with concrete evidence (quote the transcript, don't just ass
 Compare token/time cost against the baseline; a change that improves pass rate but triples tokens is
 a different trade-off than one that's both better and cheaper.
 
-## Automated grading protocol (when a live agent-skill host is available)
-This repo's current automation still stops at `bash scripts/check-evals.sh`: **schema only**. The
-protocol below is what to follow by hand or via future automation; it is **not** a new script
-landing in this PR.
+## Automated grading protocol
+`bash scripts/check-evals.sh` is schema-only (always-on, free, part of `make validate`/CI).
+**`scripts/grade-evals.sh`** is the real, opt-in mechanization of the protocol below — it costs real
+agent/API calls, so it is never wired into CI; run it by hand before landing a `SKILL.md`/
+`references/*` change that might affect behavior quality. Design note: it grades a candidate
+revision of `SKILL.md` by embedding its text directly into the case prompt (not by relying on
+wherever an installed skill copy happens to live), so results never depend on install-path staleness
+— see `docs/plans/2026-07-08_SKILLOPT_ADOPTION.md` for the full evaluation that led to this shape,
+including why it deliberately does **not** depend on the `microsoft/SkillOpt` package itself.
 
-- **Target output schema:** use the `grading.json` shape from
+- **Target output schema:** the `grading.json` shape from
   [`anthropics/skills`' `skill-creator`](https://github.com/anthropics/skills/tree/main/skills/skill-creator)
-  `references/schemas.md` as the canonical per-run output —
+  `references/schemas.md`, reduced to its lean core —
   `{"expectations":[{"text","passed","evidence"}],"summary":{"passed","failed","total","pass_rate"}}`.
-  wgm's own `evals/evals.json` assertions are already plain strings, so they map directly onto the
-  grader's expected inputs.
-- **Grader-agent pattern:** for each wgm run, spawn a grader subagent that follows
-  `anthropics/skills` `agents/grader.md`, hand it the run transcript plus the case's assertions, and
-  have it write `grading.json` with a cited evidence snippet for every assertion.
-- **Aggregation:** once you have multiple paired runs with and without wgm, run
-  `python -m scripts.aggregate_benchmark <workspace>` from the same `skill-creator` repo. That
-  produces a `benchmark.json` with mean/stddev/min/max for pass rate, time, and tokens, plus the
-  delta between the with-wgm and baseline configurations — the concrete schema
-  `evaluating-skills.mdx` names without pinning down for wgm.
+  The fuller upstream schema's `execution_metrics`/`timing`/`claims`/`user_notes_summary` fields are
+  intentionally left out; wgm's own `evals/evals.json` assertions are already plain strings, so they
+  map directly onto the grader's expected inputs without needing that extra machinery.
+- **Grader-agent pattern:** for each case, `scripts/grade-evals.sh` spawns a grader subagent call
+  (the same configured agent, a fresh prompt) that follows the `anthropics/skills` `agents/grader.md`
+  pattern — hand it the transcript plus the case's assertions, and it writes `grading.json` with a
+  cited evidence snippet for every assertion. `summary` is always recomputed locally from
+  `expectations[]` rather than trusted from the grader's own arithmetic.
+- **Usage:** `./scripts/grade-evals.sh` grades every case against the current `SKILL.md`, using the
+  same `$WGM_AGENT`/`--agent`/`--` convention as `scripts/loop.sh`. Add `--baseline <git-ref>` to
+  also grade against `SKILL.md` as it existed at that ref and print a gate verdict — `ACCEPT` (no
+  case regressed) or `REGRESSION` (exit 1) — the one idea borrowed from SkillOpt's validation gate,
+  expressed as a single comparison rather than a training loop.
+- **Not yet automated:** aggregating *many* paired runs into a `benchmark.json` (mean/stddev/min/max
+  across repeated trials) is `skill-creator`'s `python -m scripts.aggregate_benchmark` — still a
+  manual step if you want it; `scripts/grade-evals.sh` covers one paired run per invocation, which
+  is enough to gate a single change.
 
 ## Adding a case
 - Start small (2-3), vary phrasing and formality, include at least one edge case.
@@ -76,10 +88,14 @@ landing in this PR.
 `evals/evals.json` lives at the repo root (alongside `SKILL.md`), matching the upstream convention
 of `evals/` sitting next to the skill it tests. `assets/evals.template.json` is the reusable
 skeleton for other skills/projects wgm builds. `scripts/check-evals.sh` validates the fixture's
-schema and is part of `make validate` / CI, same as `scripts/check-docs.sh`.
+schema and is part of `make validate` / CI, same as `scripts/check-docs.sh`. `scripts/grade-evals.sh`
+is **not** part of `make validate`/CI — it costs real agent/API calls, so it stays a manual,
+opt-in step (`scripts/test-grade-evals.sh` is its own fake-agent smoke test and *is* CI-safe).
 
 ## Cross-links
 [`references/trigger-eval.md`](trigger-eval.md) (the companion trigger-classification fixture) ·
 [`references/scoring.md`](scoring.md) (the LLM-as-judge pattern grading follows) ·
 [`references/self-improvement.md`](self-improvement.md) (where this was assimilated from external
-research) · `assets/evals.template.json` · `scripts/check-evals.sh`.
+research) · [`references/heuristics.md`](heuristics.md) (Comparative & hard-to-test scoring — the
+SkillOpt-derived gate heuristic) · `assets/evals.template.json` · `scripts/check-evals.sh` ·
+`scripts/grade-evals.sh` · `docs/plans/2026-07-08_SKILLOPT_ADOPTION.md`.
