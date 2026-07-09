@@ -45,6 +45,7 @@ bash scripts/test-loop.sh                     # loop.sh limits + resilience + me
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness (7 cases)
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness (9 cases)
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
+bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (7 cases)
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 cases)
 actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```
@@ -54,6 +55,21 @@ actionlint                                    # lint .github/workflows/*.yml (CI
 
 Or run the local subset with **`make validate`** (lint + docs + the bash harnesses); `make help`
 lists every target (`make update` refreshes your installed copy, `make test`, `make lint`, …).
+
+## Optional: grading a `SKILL.md`/`references/*` change before landing it
+
+`scripts/grade-evals.sh` mechanizes `references/evals.md`'s automated grading protocol — it runs
+each `evals/evals.json` case through your configured agent (same `$WGM_AGENT`/`--agent`/`--`
+convention as `scripts/loop.sh`), grades the transcript, and (with `--baseline <git-ref>`) gates on
+non-regression against a prior revision. It is **not** part of the backpressure suite above and
+never runs in CI — it costs real agent/API calls — so run it by hand when a change might affect
+behavior quality:
+
+```bash
+./scripts/grade-evals.sh                        # grade every case against the current SKILL.md
+./scripts/grade-evals.sh --baseline main         # ...and gate on non-regression vs. main
+bash scripts/test-grade-evals.sh                 # its own fake-agent smoke test (CI-safe, free)
+```
 
 ## Making a change
 

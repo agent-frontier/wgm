@@ -71,6 +71,16 @@ implement / prototype something from rough intent.
 
 Sofaking is optional; wgm continues normally if it is unavailable or returns an error.
 
+**[SkillOpt-Sleep](https://github.com/microsoft/SkillOpt)** — an external, optional nightly
+self-evolution companion for coding-agent skill documents (harvest sessions → mine recurring tasks →
+replay → consolidate behind a held-out validation gate → stage a proposal for human adopt). It is
+not a wgm dependency and nothing in this protocol requires it; a user who wants it can register its
+Copilot MCP-server plugin independently. Its harvest step reads Claude Code/Codex session transcripts
+only (no Copilot CLI transcript source yet), so it is most directly usable against wgm's Claude Code
+install target. wgm's own take on the same discipline — a dependency-free, opt-in grading/gate
+script for its own `evals/evals.json` — is `scripts/grade-evals.sh`
+(`references/evals.md`); see `docs/plans/2026-07-08_SKILLOPT_ADOPTION.md` for the full evaluation.
+
 ## Gates (enforcement)
 The lifecycle is a state machine. At each phase end, **print a `Gate check:` block listing every gate item as PASS or FAIL.** If any item is FAIL, do **not** advance — ask one question, fix the artifact, or stop with a recorded blocker. Gates are not advisory.
 

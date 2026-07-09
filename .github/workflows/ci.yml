@@ -57,6 +57,9 @@ jobs:
       - name: Harvest-hive harness (bash)
         run: bash scripts/test-harvest-hive.sh
 
+      - name: Grade-evals harness (bash, fake agent)
+        run: bash scripts/test-grade-evals.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |
