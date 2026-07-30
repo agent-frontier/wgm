@@ -54,6 +54,7 @@ Treat the harness as the product's first feature, not an afterthought.
   (unsigned)n)` rejects both `i < 0` and `i >= n` in one compare. Guard array indexing at function
   entry; on a bad index return the function's safe "no-op / no-hit" result. Valid input is
   unaffected; a corruption-driven over-read becomes a survivable miss.
+- **Native workflow control flow.** When CI/release workflow correctness depends on a native command's nonzero exit (e.g., an expected "not found" before publishing), **require a runtime probe under the target shell version** in addition to static structure checks. Static evidence should never override observed runtime semantics — the target shell may escalate that expected exit code into a terminating error, aborting the workflow. Add this to your workflow review guidance and include it as a tier-3 holdout for native CI/release automation.
 
 ## Vendored-engine / submodule workflow
 - Commit the engine/library change **in the submodule first**, push it, **then** bump the parent's
