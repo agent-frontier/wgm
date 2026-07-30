@@ -38,6 +38,15 @@ running service is the only way to observe the behavior a scenario describes.
 - Bind to **localhost**; pick a free port (and parameterize it) to avoid collisions across iterations.
 - **Never** bake secrets into the image or mount credential files; pass throwaway test config only.
 - Always clean up (`--rm`, remove dangling images) so iterations don't leak containers.
+- **An isolated verifier must own its target directory.** A validation chain that inherits a
+  globally shared build-target override (a `*_TARGET_DIR`-style env var, a shared cache path, a
+  user-level tool config) can emit artifacts *outside* the stage-local path its verifier then
+  checks — and the resulting "missing artifact" error looks exactly like a product defect while
+  being a harness misconfiguration. Before an isolated staged build, **clear or scope ambient target
+  overrides**, or set an explicit stage-local target directory the verifier and the build agree on.
+  When a clean rerun in the gate-owned environment then passes, record that outcome **separately
+  from product failures** — folding an environment fault into the product's failure count corrupts
+  the signal the loop steers by (`[learn]` issue #83).
 
 ## Cross-links
 `references/scenarios.md` · `references/scoring.md` · `scripts/loop.sh`

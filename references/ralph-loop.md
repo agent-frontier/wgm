@@ -92,6 +92,32 @@ loop, with progress living on disk (not the model's context) between passes
   fallback (pin a known-good version) in case it misbehaves. This extends "the first task is to
   build a validation signal" to the runtime/environment axis, not just the test harness.
 - Prefer fast, deterministic signals. A 2-second deterministic check beats a 30-second flaky one.
+- **A green isolated retry does not clear a failed full-suite gate.** When a test fails in the suite
+  and passes when run alone, the isolated pass is *not* the answer — it is a second data point, and
+  the difference between the two runs is the bug. Look at lifecycle ordering first: an operating
+  system can discard buffered output that was never read when a producer tears down, so a consumer
+  that "sees nothing" under suite conditions is a real race, not flakiness. Fix it by synchronizing
+  producer teardown to consumer acknowledgement, stress the exact test repeatedly to prove the race
+  is gone, and then **rerun the complete gate** — the full suite is the gate, and only a green full
+  suite clears it (`[learn]` issue #80).
+- **Take test-filter evidence from the runner, not from source scans.** When acceptance or a holdout
+  says "the N tests matching `<filter>` pass," get N from the **runner's own reported selected/passed
+  counts** and preserve the exact command. Do not infer it by grepping source for functions whose
+  names start with the filter: runners commonly match a filter *anywhere* in a fully qualified test
+  name, so a static count and the real count legitimately differ. When they disagree, treat it as a
+  **measurement defect in your counting method** until authoritative runner output says otherwise —
+  concluding "tests are missing" from a source-prefix scan sends you chasing a phantom gap
+  (`[learn]` issue #81).
+- **Check whether CI is even defined on the branch you target.** A workflow can live only on an
+  unmerged sibling branch, so tightly-scoped local gates go green while the workspace-wide CI that
+  will eventually gate the base branch fails — on **pre-existing** debt in code your change never
+  touched. Before reporting "validated," enumerate workflow files across **all** branches, not just
+  base/HEAD (`git ls-tree <branch> .github/workflows`, or the host API's per-branch contents). Then
+  distinguish in the handoff between *"this change's own files pass the workspace gate"* (verifiable
+  now) and *"the whole workspace passes it"* (may be blocked by pre-existing debt). Record that debt
+  as a dedicated chore task — do **not** fold unrelated fmt/lint cleanup into a feature PR to chase
+  a not-yet-active CI, and do not let it silently sink the first PR that lands after the CI does
+  (`[learn]` issue #77).
 - **Known limitation: exit codes are a blunt signal.** `scripts/loop.sh` currently judges an
   iteration by process exit code only, which can miss a "succeeded but did nothing useful" response
   or treat a semantically empty exit-0 turn as progress. A future enhancement pattern is

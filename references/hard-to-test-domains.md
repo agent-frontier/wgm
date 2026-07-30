@@ -70,6 +70,29 @@ that were previously dead). Do not paper over it and do not ship a red suite —
 a branch, revert to green, and hand off with a precise repro. A separate **low-risk hardening track**
 (defensive guards), validated by the *same* acceptance soak, often de-risks or unblocks the risky fix.
 
+## Headless layout budgets (GUI frameworks)
+A DPI-aware screenshot smoke produces images a human must judge, so it can never *fail a build* on a
+clipped card. Most GUI frameworks — retained- or immediate-mode — expose a headless layout/measure
+pass plus a CPU rasterizer, and that pair turns "does it clip at the small size?" into a red/green
+gate with no window and no GPU:
+
+- **Build the widget tree with the software/CPU renderer** instead of the GPU one. Under the CPU
+  feature the renderer type the view expects is typically identical, so no production code changes.
+- **Lay out at a chosen viewport** with the framework's headless build/measure entry point.
+- **Tag the containers under test with stable ids**, then run a recording pass over the laid-out
+  tree that captures each tagged container's bounds and any scroll container's content bounds.
+- **Assert invariants at the worst case** — maximum content, minimum window size: every card has
+  positive, non-collapsed bounds; each card that should scroll actually records scrollable content;
+  a growing list's scroll content height grows with item count.
+
+Prefer an **in-crate/in-module test** (a `#[cfg(test)] mod` child of the binary, or the framework's
+equivalent) over an external integration test: it sees private items and can reuse the real app
+constructor, so you avoid widening visibility purely for tests. Put the renderer/runtime crates in
+dev-dependencies, pinned to the versions already in the lockfile.
+
+**Provenance:** `[learn]` issue #76 (an immediate-mode Rust/iced GUI whose only visual gate was a
+screenshot smoke; a windowless layout test closed the card-overflow / zero-collapse / clipping gap).
+
 ## Web SEO / ranking (and other live, CI-unobservable claims)
 Some web acceptance criteria — "ranks better on SEO," "beats the incumbent," any claim whose true
 value lives on a live third-party service — have **no CI-observable signal at all**: live Google rank

@@ -52,6 +52,16 @@ Each persona reviews the same doc set through one lens and produces a short, str
 Severity taxonomy, used by all four: **RED** (blocker — actively wrong or misleading), **AMBER**
 (major — incomplete, unclear, or drifting), **GREEN** (minor/nit, or no finding).
 
+**Execute the published examples, don't just read them.** "Do the examples still run?" is a
+*command to run*, not a question to reason about, and it must be run **against the artifacts the
+example actually names** — not a synthetic fixture that resembles them. A synthetic fixture proves
+the example's shape; only the real artifact proves the example. This matters most where one option
+or flag accepts more than one contract: if a published invocation works against one contract and
+silently misbehaves against another, the fix is not a doc tweak — **give the contracts distinct
+names and flags, document the boundary between them, and add a misuse regression test** before
+closing the finding. A doc-only fix leaves the trap armed for the next reader
+(`[learn]` issue #71).
+
 For the **PM** lens, also check whether
 [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md)'s
 "point-in-time snapshot" has fallen meaningfully behind the sources that have since been
