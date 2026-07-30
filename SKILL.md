@@ -276,6 +276,7 @@ next iteration is a consolidation task (help land existing PRs), not another net
 
 ## Phase 4 — Ship / Handoff
 - Summarize what was built, how to run/validate it, and what the demo path is.
+- **Report telemetry:** report total wall time, summed agent-hours, timed versus unmetered lane counts, peak concurrency, and critical-path duration (from `.wgm/metrics.tsv` or agent output). Keep missing telemetry explicit, not estimated.
 - For larger or multi-session builds, an optional morning-after run report may be left from `assets/morning-report.template.md` (pattern borrowed from [elves](https://github.com/aigorahub/elves)).
 - List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
 - Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.

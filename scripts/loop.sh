@@ -189,6 +189,12 @@ elif [[ -f ".wgm/IMPLEMENTATION_PLAN.md" ]]; then PLAN=".wgm/IMPLEMENTATION_PLAN
 fi
 STOP_FILE=".wgm/STOP"; [[ -d .wgm ]] || STOP_FILE="STOP"
 
+if [[ -z "$METRICS_FILE" ]]; then
+  if [[ -d .wgm ]]; then METRICS_FILE=".wgm/metrics.tsv"
+  elif [[ -n "$PLAN" ]]; then METRICS_FILE="$(dirname "$PLAN")/metrics.tsv"
+  else METRICS_FILE="metrics.tsv"; fi
+fi
+
 if [[ "$DRY_RUN" -eq 0 ]] && [[ "$MODE" == "build" || "$MODE" == "review" || "$MODE" == "preflight" ]] && [[ -z "$PLAN" ]]; then
   echo "Refusing to run '$MODE': no IMPLEMENTATION_PLAN.md found (root or .wgm/)." >&2
   echo "Run './scripts/loop.sh plan' (or '/wgm plan') first to create one." >&2
@@ -328,7 +334,7 @@ notify() {  # $1 = lifecycle event; best-effort, its failure never breaks the lo
 }
 
 record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
-  local dur changed cost ts
+  local dur changed cost ts ts_start parent
   dur=$(( $(date +%s) - ITER_START ))
   if [[ "$(plan_hash)" != "$HASH_BEFORE" ]]; then changed=1; else changed=0; fi
   cost=""
@@ -343,8 +349,10 @@ record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
   fi
   [[ -n "$METRICS_FILE" ]] || return 0
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  [[ -f "$METRICS_FILE" ]] || printf 'timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\n' > "$METRICS_FILE"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" >> "$METRICS_FILE"
+  if date --version >/dev/null 2>&1; then ts_start="$(date -u -d "@$ITER_START" +%Y-%m-%dT%H:%M:%SZ)"; else ts_start="$(date -u -r "$ITER_START" +%Y-%m-%dT%H:%M:%SZ)"; fi
+  parent="${WGM_PARENT_TASK:-none}"
+  [[ -f "$METRICS_FILE" ]] || printf 'start\tcompletion\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\tparent\n' > "$METRICS_FILE"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts_start" "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" "$parent" >> "$METRICS_FILE"
 }
 
 # Model escalation engages only when BOTH a frugal and a main agent are available.
