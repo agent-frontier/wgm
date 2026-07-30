@@ -166,23 +166,50 @@ for idx in "${!PIDS[@]}"; do
 done
 
 # ----- telemetry summary ----------------------------------------------------
-# Two explicit clocks: parent WALL time (start -> all lanes done) and summed AGENT time (the lanes'
-# own durations). Missing telemetry is reported as a lower bound, never estimated away.
+# Two explicit clocks, kept separate on purpose ([learn] issues #70/#72/#74/#84/#85):
+#   WALL   — parent elapsed, frozen at the ready-to-test gate below, before reporting overhead.
+#   LANE   — summed lane lifetimes. This is CAPACITY ALLOCATED, an upper bound: a lane parked
+#            between turns still burns lifetime. It is NOT agent-hours and must never be labelled so.
+#   ACTIVE — summed per-turn durations from the lanes' own ledgers. This is the measured lower
+#            bound on real agent work; the gap to LANE is parked time.
+# Missing telemetry is counted and reported, never estimated away, and every ratio is labelled an
+# operational heuristic rather than billing data or a causal speedup claim.
 SWARM_END=$(date +%s)
 WALL=$(( SWARM_END - SWARM_START ))
-AGENT_SECS=0
+LANE_SECS=0
 LANES_TIMED=0
 CRITICAL=0
 for idx in "${!PIDS[@]}"; do
   s="${LANE_START[$idx]:-}"; e="${LANE_END[$idx]:-}"
   if [[ -n "$s" && -n "$e" ]]; then
     d=$(( e - s ))
-    AGENT_SECS=$(( AGENT_SECS + d ))
+    LANE_SECS=$(( LANE_SECS + d ))
     LANES_TIMED=$(( LANES_TIMED + 1 ))
     [[ "$d" -gt "$CRITICAL" ]] && CRITICAL="$d"
   fi
 done
 LANES_UNMETERED=$(( ${#PIDS[@]} - LANES_TIMED ))
+
+# Active agent time comes from the per-turn duration_s column each lane's ledger recorded. Turns
+# that produced no duration are counted, not guessed at, so the total stays an honest lower bound.
+ACTIVE_SECS=0
+TURNS_TIMED=0
+TURNS_MISSING=0
+for idx in "${!PIDS[@]}"; do
+  ledger="${METRICS_DIR}/${SAFE_PREFIX}-$((idx + 1)).tsv"
+  [[ -f "$ledger" ]] || { TURNS_MISSING=$(( TURNS_MISSING + 1 )); continue; }
+  while IFS=$'\t' read -r _start _end _iter _mode _agent dur _rest; do
+    [[ "$_start" == "start_timestamp" ]] && continue
+    if [[ "$dur" =~ ^[0-9]+$ ]]; then
+      ACTIVE_SECS=$(( ACTIVE_SECS + dur )); TURNS_TIMED=$(( TURNS_TIMED + 1 ))
+    else
+      TURNS_MISSING=$(( TURNS_MISSING + 1 ))
+    fi
+  done < "$ledger"
+done
+PARKED_SECS=$(( LANE_SECS - ACTIVE_SECS ))
+(( PARKED_SECS < 0 )) && PARKED_SECS=0
+
 # Peak concurrency = the largest number of lanes alive at the same instant, computed by sweeping
 # every lane start/end boundary rather than assuming all lanes overlapped.
 PEAK=0
@@ -198,18 +225,25 @@ for idx in "${!PIDS[@]}"; do
 done
 
 hms() { printf '%dh%02dm%02ds' $(( $1 / 3600 )) $(( ($1 % 3600) / 60 )) $(( $1 % 60 )); }
+ratio() { awk -v a="$1" -v b="$2" 'BEGIN{ if (b > 0) printf "%.2fx", a/b; else printf "n/a" }'; }
 
 echo ""
-echo "== swarm telemetry =="
-printf 'wall time (parent):     %s\n' "$(hms "$WALL")"
-printf 'agent time (summed):    %s\n' "$(hms "$AGENT_SECS")"
-printf 'utilization:            %sx\n' "$(awk -v a="$AGENT_SECS" -v w="$WALL" 'BEGIN{printf (w>0 ? "%.2f" : "n/a"), (w>0 ? a/w : 0)}')"
-printf 'lanes timed/unmetered:  %s/%s\n' "$LANES_TIMED" "$LANES_UNMETERED"
-printf 'peak concurrency:       %s\n' "$PEAK"
-printf 'critical path:          %s\n' "$(hms "$CRITICAL")"
-printf 'per-iteration ledgers:  %s\n' "$METRICS_DIR"
-if [[ "$LANES_UNMETERED" -gt 0 ]]; then
-  echo "NOTE: ${LANES_UNMETERED} lane(s) have no duration telemetry — agent time above is a LOWER BOUND."
+echo "== swarm telemetry (frozen at the ready-to-test gate) =="
+printf 'wall time (parent):        %s\n' "$(hms "$WALL")"
+printf 'lane time (allocated):     %s   [capacity upper bound — includes parked time]\n' "$(hms "$LANE_SECS")"
+printf 'agent time (active):       %s   [measured LOWER BOUND — summed per-turn durations]\n' "$(hms "$ACTIVE_SECS")"
+printf 'parked time:               %s\n' "$(hms "$PARKED_SECS")"
+printf 'lanes completed/started:   %s/%s\n' "$LANES_TIMED" "${#PIDS[@]}"
+printf 'lanes unmetered:           %s\n' "$LANES_UNMETERED"
+printf 'turns timed/missing:       %s/%s\n' "$TURNS_TIMED" "$TURNS_MISSING"
+printf 'peak concurrency:          %s\n' "$PEAK"
+printf 'critical path (longest):   %s\n' "$(hms "$CRITICAL")"
+printf 'lifecycle effectiveness:   %s  [active / wall]\n' "$(ratio "$ACTIVE_SECS" "$WALL")"
+printf 'implementation parallelism:%s  [allocated / longest lane]\n' "$(ratio "$LANE_SECS" "$CRITICAL")"
+printf 'per-turn ledgers:          %s\n' "$METRICS_DIR"
+echo "Ratios are operational heuristics from one run — not billing data and not a causal speedup claim."
+if (( LANES_UNMETERED > 0 || TURNS_MISSING > 0 )); then
+  echo "NOTE: ${LANES_UNMETERED} lane(s) and ${TURNS_MISSING} turn(s) have no duration telemetry — active agent time is a LOWER BOUND."
 fi
 
 MAIN_MEMORIES=".wgm/memories.md"

@@ -284,7 +284,14 @@ next iteration is a consolidation task (help land existing PRs), not another net
 
 ## Phase 4 — Ship / Handoff
 - Summarize what was built, how to run/validate it, and what the demo path is.
-- **Report telemetry:** report total wall time, summed agent-hours, timed versus unmetered lane counts, peak concurrency, and critical-path duration (from `.wgm/metrics.tsv` or agent output). Keep missing telemetry explicit, not estimated.
+- **Report telemetry (three clocks, never conflated).** Report **wall time** (frozen at the
+  ready-to-test gate, before reporting overhead), **allocated lane time** (a capacity upper bound —
+  a parked lane still burns lifetime, so this is *never* "agent-hours"), and **active agent time**
+  (summed per-turn durations — a measured lower bound), plus parked time, timed-vs-missing turn and
+  lane counts, peak concurrency, and critical-path duration. `scripts/swarm.sh` prints this block
+  and `.wgm/metrics.tsv` records it per turn. Keep missing telemetry explicit rather than estimating
+  it, and label every ratio an operational heuristic — not billing data and not a causal speedup
+  claim (`references/telemetry.md`).
 - For larger or multi-session builds, an optional morning-after run report may be left from `assets/morning-report.template.md` (pattern borrowed from [elves](https://github.com/aigorahub/elves)).
 - List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
 - **Offer `/teach-me` when the operator is about to own code they did not write.** After a largely
@@ -359,6 +366,8 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/adr.md` — ADR discipline for hard-to-reverse, cross-cutting decisions.
 - `references/scenarios.md` — holdout acceptance scenarios (YAML schema, tiers, discipline).
 - `references/scoring.md` — preflight readiness + satisfaction scoring (LLM-as-judge, thresholds).
+- `references/telemetry.md` — the three clocks (wall · allocated lane time · active agent time), why
+  parked lane lifetime is never "agent-hours", and what Ship/Handoff must report.
 - `references/stall-recovery.md` — wonder/reflect + model escalation on a stall.
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.

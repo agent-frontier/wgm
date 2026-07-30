@@ -119,17 +119,32 @@ reset_swarm
 # 5b) the swarm reports two explicit clocks + lane telemetry, and per-lane ledgers land in the parent
 run --tasks tasks.txt --max-iterations 1 -- "${AGENT_OK[@]}"
 if [[ "$RC" -eq 0 ]] \
-   && grep -q "== swarm telemetry ==" <<<"$OUT" \
+   && grep -q "== swarm telemetry" <<<"$OUT" \
    && grep -q "wall time (parent):" <<<"$OUT" \
-   && grep -q "agent time (summed):" <<<"$OUT" \
-   && grep -q "lanes timed/unmetered:  2/0" <<<"$OUT" \
+   && grep -q "lane time (allocated):" <<<"$OUT" \
+   && grep -q "agent time (active):" <<<"$OUT" \
+   && grep -q "parked time:" <<<"$OUT" \
+   && grep -q "lanes completed/started:   2/2" <<<"$OUT" \
+   && grep -q "turns timed/missing:" <<<"$OUT" \
    && grep -q "peak concurrency:" <<<"$OUT" \
-   && grep -q "critical path:" <<<"$OUT" \
+   && grep -q "critical path" <<<"$OUT" \
+   && grep -q "not billing data" <<<"$OUT" \
    && [[ -f .wgm/metrics/wgm-swarm-1.tsv && -f .wgm/metrics/wgm-swarm-2.tsv ]] \
    && grep -q "add feature A" .wgm/metrics/wgm-swarm-1.tsv; then
-  pass "swarm reports wall/agent clocks and writes per-lane ledgers attributed to the parent task"
+  pass "swarm reports wall/lane/active clocks and writes per-lane ledgers attributed to the parent task"
 else
   fail "swarm telemetry summary or per-lane ledgers missing (rc=$RC): $OUT"
+fi
+
+# 5c) allocated lane time is never reported as "agent-hours" — the distinction the report turns on:
+#     a parked lane still burns lifetime, so lifetime is a capacity bound, not measured agent work.
+if [[ "$RC" -eq 0 ]] \
+   && grep -q "capacity upper bound" <<<"$OUT" \
+   && grep -q "measured LOWER BOUND" <<<"$OUT" \
+   && ! grep -qi "agent time (summed)" <<<"$OUT"; then
+  pass "allocated lane time and measured active agent time are labelled distinctly"
+else
+  fail "lane allocation vs active agent time were not distinguished: $OUT"
 fi
 reset_swarm
 
