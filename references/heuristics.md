@@ -301,3 +301,57 @@ prune becomes due — `docs/audit/README.md`.)
   bind-mounted file was readable in an ad hoc `/tmp` test dir but not through the harness's
   `mktemp -d` temp dir, isolating the permission mismatch). **Landed in:** `scripts/devcontainer.sh`
   (`cmd_run`'s `--user`/`--userns=keep-id`) · `references/devcontainers.md`.
+- **Heuristic:** a deterministic gate is not proven by writing it — prove it goes **RED** on the
+  class it claims to catch, or it is indistinguishable from no gate. **Why:** the mojibake sweep
+  added for `[learn]` #67 shipped matching nothing at all: PCRE reads `\xNN` as a *character* in a
+  UTF-8 locale and as a *byte* only under `LC_ALL=C`, so it reported GREEN forever over corrupt
+  input. A one-line probe caught it before merge. The same class covers allow-lists that never
+  reject and doc checks that never fire. **Provenance:** wgm dogfood — found while implementing
+  `[learn]` issues #67 and #86 in the same pass. **Landed in:** `scripts/test-check-docs.sh` ·
+  `scripts/test-check-evals.sh` · `scripts/check-docs.sh` (check 9's `LC_ALL=C` pin).
+- **Heuristic:** allow-list a JSON schema by reading its **key set structurally** (`jq keys`), never
+  by scanning for identifier-shaped names. **Why:** an identifier regex silently skips exactly the
+  keys drift produces — `expected_output2`, `x-note` — so a renamed or typo'd field passes the gate
+  it was written to stop. Required-field checks alone are also insufficient: they prove what is
+  present, never that nothing unexpected is. **Provenance:** `[learn]` issue #86.
+  **Landed in:** `scripts/check-evals.sh` · `scripts/test-check-evals.sh`.
+- **Heuristic:** the hive courier must **fail closed** — forward exactly one lesson, then re-scan
+  the scrubbed candidate and refuse publication when any host identifier or a size ceiling breach
+  survives. **Why:** consent authorizes a sanitized *report*, never the source ledger; anonymizing
+  and filing the whole memories file leaks host facts even when every individual scrub rule fires
+  correctly, and `consent: true` must not be a bypass. **Provenance:** `[learn]` issue #79.
+  **Landed in:** `scripts/harvest-hive.sh` (`select_one_lesson`, `residual_scan`, `--max-bytes`) ·
+  `scripts/test-harvest-hive.sh` · `references/self-improvement.md`.
+- **Heuristic:** keep three build clocks distinct — **wall**, **allocated lane time** (capacity
+  upper bound), and **active agent time** (measured lower bound, summed per *turn*) — and never call
+  parked-lane lifetime "agent-hours." **Why:** a lane alive between turns still burns lifetime, so
+  summing lifetimes and dividing by wall time reports a flattering number that is not work done;
+  static per-lane utilization also understates elastically-expanded swarms badly. Report missing
+  telemetry as counts and a stated lower bound rather than estimating it, and label every ratio an
+  operational heuristic — not billing data, not a causal speedup claim. **Provenance:** `[learn]`
+  issues #70, #72, #74, #84, #85. **Landed in:** `references/telemetry.md` · `scripts/swarm.sh`
+  (the `== swarm telemetry ==` block) · `scripts/loop.sh` (per-turn ledger) · `SKILL.md` Phase 4.
+- **Heuristic:** re-pin a swarm lane's absolute worktree and branch in **every** state-mutating
+  instruction, and guard before mutating. **Why:** retained context is not a guarantee — in a
+  32-lane run four lanes executed git from the parent checkout on a later turn and one advanced
+  local `main`. Recovery must preserve reachability first, never discard commits.
+  **Provenance:** `[learn]` issue #73. **Landed in:** `scripts/swarm.sh` (lane pin + guard) ·
+  `scripts/test-swarm.sh` · `references/subagents.md`.
+- **Heuristic:** treat a lane's `done` as an **unverified assertion** and check the named file,
+  symbol, and command before integrating. **Why:** in one Full-track run four of five tasks marked
+  done carried a false claim — a test file that existed nowhere, a layout claim contradicted by the
+  source it named. Every claim read plausibly; only a symbol-level grep exposed them.
+  **Provenance:** `[learn]` issue #75. **Landed in:** `SKILL.md` (Loop step 4) ·
+  `references/subagents.md` · `.github/agents/wgm-spec-reviewer.agent.md`.
+- **Heuristic:** commit-message governance needs its own gate, and **merge commits are governed
+  commits**. **Why:** product gates cannot see trailers, so a run reaches a green exact-tree gate
+  while a generated merge commit carries none of the mandated trailers every head commit has. Fix a
+  published offender with a replacement two-parent merge proving `old^{tree} == replacement^{tree}`
+  — never by rewriting shared history. **Provenance:** `[learn]` issue #82.
+  **Landed in:** `scripts/check-trailers.sh` · `scripts/test-check-trailers.sh` · `SKILL.md` Phase 4.
+- **Heuristic:** check same-iteration whether a diff's **new public surface** was documented, rather
+  than leaving it to the batched Ship/Handoff audit. **Why:** the Record step commits on a green
+  validation command, so doc drift accumulates across several merged PRs before an audit finds it,
+  and the fix cost scales with how many piled up. Keep it advisory so it does not fire on ordinary
+  diffs — a gate that fires on everything gets ignored. **Provenance:** `[learn]` issue #78.
+  **Landed in:** `scripts/check-doc-sync.sh` · `scripts/test-check-doc-sync.sh` · `SKILL.md` (Record).

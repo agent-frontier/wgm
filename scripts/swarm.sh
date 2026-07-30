@@ -32,11 +32,25 @@
 # Everything after `--` is the agent argv, forwarded verbatim to each stream's loop.sh (or set
 # $WGM_AGENT). The streams run with --commit so each branch carries its work.
 #
+# Partitioning rule (the default, and it matters):
+#   * Give every stream a DISJOINT, non-overlapping file set. Disjoint lanes make consolidation an
+#     octopus merge with zero conflicts; overlapping lanes risk something worse than a conflict —
+#     one lane silently reverting a sibling's edits in a shared tree.
+#   * Size the swarm to your host's concurrency cap and treat the remainder as BACKFILL that starts
+#     as running lanes go idle; N lanes does not mean N simultaneous agents.
+#   * Prefer a full-shell agent for lanes whose deliverables need nested directories and per-lane
+#     commits. A constrained file-writer that cannot create intermediate dirs does not fail loudly —
+#     it flattens paths, hides content in bootstrap scripts, and stops committing.
+#   * After merging the branches, run the consolidation gate (scripts/check-docs.sh): cross-link
+#     integrity and UTF-8 double-encoding are defects no single lane can see.
+#
 # Safety:
 #   * Operates on the current git repo (run it from the target project root). Requires an
 #     IMPLEMENTATION_PLAN.md (root or .wgm/) — run '/wgm plan' first.
 #   * Worktrees live under .wgm/worktrees/ (wgm gitignores .wgm/). Merge a stream with
 #     `git merge wgm/swarm/<i>`; drop one with `git worktree remove` + `git branch -D`.
+#   * Each lane's request is pinned to its absolute worktree + branch, and the lane refuses to run
+#     if the guard finds it anywhere else — a lane must never mutate the parent checkout.
 
 set -euo pipefail
 
