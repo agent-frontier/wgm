@@ -131,6 +131,12 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
    load it — its principles govern every later decision.
 7. **Optional — gene transfusion:** if a high-quality exemplar codebase exists, extract its patterns
    to seed the build in the house style (`references/gene-transfusion.md`).
+8. **Optional — orient in an unfamiliar codebase.** Analyze reads only what one task needs, so wgm
+   never forms a whole-repo model on its own. In a large brownfield repo, read
+   `.wgm/learning/MAP.md` if it is present. If it is absent and the codebase is large and unfamiliar,
+   **recommend `/teach-me` to the operator — do not dispatch it and do not survey the repo yourself.**
+   Orientation is worth one deliberate pass, never a silent tax on every iteration
+   (`companions/teach-me/SKILL.md`).
 
 ## Phase 1 — Grill (align)
 Read `references/grilling.md`. Core rules:
@@ -226,7 +232,11 @@ stop condition fires. **One task per iteration.** Each iteration:
    capability, drop the task and wire it in instead (`references/ralph-loop.md`).
    **Recall first:** if `.wgm/memories.md` exists, read it (token-budgeted) so you don't repeat a
    past gotcha, stall, or dead end. If `specs/CONTEXT.md` exists, consult it so you use each domain
-   term's canonical name — consistent naming, fewer tokens.
+   term's canonical name — consistent naming, fewer tokens. If `.wgm/learning/MAP.md` exists (written
+   by `/teach-me`), read it for entry points, structure, and invariants — the whole-repo model this
+   deliberately narrow per-task read never builds. **Never generate that map mid-loop:** surveying
+   the repo is `/teach-me`'s job, and doing it here trades the whole iteration's context budget for
+   orientation (`companions/teach-me/SKILL.md`).
 2. **Implement** — make the smallest change that completes that task. Prefer one working vertical
    slice over many half-built parts. **Holdout rule:** do not open scenario files while implementing.
    **Document why each test exists:** when you add a test, note in a comment what behavior it proves,

@@ -125,6 +125,12 @@ Both skills write only under `.wgm/learning/`:
 Because these persist, a later session resumes instead of re-surveying, and `quiz-me` can start from
 your weakest recorded area.
 
+**`MAP.md` has a second reader.** wgm's Analyze step reads it when present, for the entry points,
+structure, and invariants its deliberately narrow per-task read never builds. That makes the map
+worth keeping current — and worth deleting rather than leaving stale, since a wrong map misleads
+every later build. wgm never *generates* the map itself: surveying a repo mid-iteration would trade
+the whole context budget for orientation, so it recommends `/teach-me` instead.
+
 **Note:** Quiz results are personal to the learner. The skill never publishes them into an issue,
 commit message, or external service — quietly publishing a score is the fastest way to make an
 honest "I don't know" impossible.

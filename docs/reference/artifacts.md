@@ -44,7 +44,8 @@ be gitignored in yours.
 | `.wgm/metrics/PREFIX-N.tsv` | `swarm.sh` | Per-lane ledgers, written into the **parent** worktree so they survive `--cleanup`. |
 | `.wgm/worktrees/` | `swarm.sh` | Swarm lane worktrees. Removed by `--cleanup` or `make clean-worktrees`. |
 | `.wgm/deferred-work.md` | Review | Credible issues that pre-date the current diff, recorded rather than silently dropped. |
-| `.wgm/learning/` | `teach-me`, `quiz-me` | The repository map, tour progress, and quiz log. |
+| `.wgm/learning/MAP.md` | `teach-me` | The cited repository map: entry points, structure, conventions, invariants. **wgm's Analyze step reads it when present** — it is the whole-repo model a per-task read never builds. |
+| `.wgm/learning/` | `teach-me`, `quiz-me` | Tour progress and the quiz log. |
 | `.wgm/STOP` | You, or the agent | Stop sentinel. The loop ends after the current iteration. |
 
 **Note:** Agent-only files may compress aggressively — single-token keys serialized as TOON with an

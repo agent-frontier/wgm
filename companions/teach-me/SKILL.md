@@ -197,6 +197,10 @@ has learned today. Say so plainly and point them at `/wgm` to create one.
 - List the open questions the repo could not answer — the agenda for a human conversation.
 - Leave `.wgm/learning/MAP.md` and `.wgm/learning/progress.md` written so a fresh context — a
   different agent, or the same learner next week — can resume without re-surveying.
+- **The map has a second reader.** `wgm`'s Analyze step reads `.wgm/learning/MAP.md` when it exists,
+  for the entry points, structure, and invariants its deliberately narrow per-task read never builds.
+  So an accurate map speeds up later builds, and a stale one misleads them — keep it current, or
+  delete it rather than leave it wrong.
 - **Hand off to `/quiz-me`.** Recall beats recognition: a learner who followed a tour feels fluent
   and usually is not. Say so, and offer the quiz. Note explicitly that `quiz-me` draws its
   questions from what the tour did **not** literally show, so a good score means understanding
