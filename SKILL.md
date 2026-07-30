@@ -270,7 +270,7 @@ validation command exited 0**; otherwise set it `blocked` (with a note) or leave
 **Stop conditions:** all must-have tasks `done` (including the demo-validation task) **and overall
 satisfaction ≥ threshold (default 95)**; or a stall persists after wonder/reflect + escalation (~3
 recovery cycles — record the blocker, stop, ask or regenerate the plan); or context is too bloated
-to continue safely. **Autonomous + manual-merge:** cap concurrent open PRs (~3-5) — past the cap, the
+to continue safely. **Swarm lanes / long-lived builds:** meet the **integration-freshness barrier** before exiting: 1) check the integration SHA used by the lane's last validation; 2) refresh the lane from the current integration head if stale; 3) rerun dependency-aware cross-slice gates (not just lane-local); 4) record the refreshed SHA and results in the shared plan. **Autonomous + manual-merge:** cap concurrent open PRs (~3-5) — past the cap, the
 next iteration is a consolidation task (help land existing PRs), not another net-new one
 (`references/ralph-loop.md`).
 
