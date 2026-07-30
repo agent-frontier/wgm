@@ -20,7 +20,7 @@ from the real thing. Reading an explanation produces recognition — "yes, that 
 which is a much weaker signal than recall, and it is the one people consistently mistake for
 mastery. This skill produces recall under pressure, then reports honestly on what came back.
 
-It inherits its interview discipline directly from [`wgm`](../../SKILL.md)'s Grill phase, pointed
+It inherits its interview discipline directly from [`wgm`](https://github.com/agent-frontier/wgm/blob/main/SKILL.md)'s Grill phase, pointed
 the other way: wgm grills the human about *what they want*; `quiz-me` grills them about *what is
 actually in the repo*. And it inherits wgm's **holdout** discipline, which is what makes the score
 mean anything — see "Holdout rule" below.
@@ -63,7 +63,7 @@ quizzed, tested, or grilled on a repository.
 - You are reviewing a diff or a PR — that is code review, not assessment of a person.
 
 ## Question discipline
-Adapted from [`references/grilling.md`](../../references/grilling.md), inverted:
+Adapted from [`references/grilling.md`](https://github.com/agent-frontier/wgm/blob/main/references/grilling.md), inverted:
 
 - **One question at a time. Always.** Never bundle. Never present a numbered list of questions and
   ask them to "answer any." A bundle lets the learner answer the easy one and quietly skip the one
@@ -213,7 +213,7 @@ show the code, ask the next question.
 
 ## Cross-links
 [`teach-me`](../teach-me/SKILL.md) (the companion that teaches what this tests) ·
-[`wgm`](../../SKILL.md) (the build skill whose output most needs verifying) ·
-[`references/grilling.md`](../../references/grilling.md) (the interview discipline, inverted here) ·
-[`references/scoring.md`](../../references/scoring.md) (stratified tier convergence and thresholds) ·
-[`references/scenarios.md`](../../references/scenarios.md) (the holdout principle this borrows).
+[`wgm`](https://github.com/agent-frontier/wgm/blob/main/SKILL.md) (the build skill whose output most needs verifying) ·
+[`references/grilling.md`](https://github.com/agent-frontier/wgm/blob/main/references/grilling.md) (the interview discipline, inverted here) ·
+[`references/scoring.md`](https://github.com/agent-frontier/wgm/blob/main/references/scoring.md) (stratified tier convergence and thresholds) ·
+[`references/scenarios.md`](https://github.com/agent-frontier/wgm/blob/main/references/scenarios.md) (the holdout principle this borrows).

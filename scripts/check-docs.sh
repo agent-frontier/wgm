@@ -21,6 +21,7 @@
 #  10. Every get-started / companions / reference page ends with a "What to do next" section, so
 #      navigation never dead-ends.
 #  11. docs/README.md still links the style guide that documents all of the above.
+#  12. Companion skills avoid `../../` links, which break in the installed sibling-skill layout.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -183,6 +184,19 @@ done
 if [[ -f docs/README.md ]]; then
   grep -q 'style-guide.md' docs/README.md || note "docs/README.md no longer links the style guide"
 fi
+
+# 12 — companion skills must not use `../../` relative links.
+# Companions ship as SIBLING skill directories (SKILLS_DIR/teach-me next to SKILLS_DIR/wgm), but
+# they live at companions/NAME/ in this repo. A `../../` link therefore resolves to the repo root
+# here — where check 4 happily validates it — and to the skills-dir PARENT once installed, where it
+# is broken. Check 4 validates the source layout; users only ever see the installed one. Link to
+# wgm's own files by URL instead; sibling links (../quiz-me/...) resolve correctly in both.
+for f in companions/*/SKILL.md; do
+  [[ -f "$f" ]] || continue
+  if grep -qE '\]\(\.\./\.\./' "$f"; then
+    note "companion uses a '../../' link that breaks once installed as a sibling skill: $f"
+  fi
+done
 
 # 9 — UTF-8 double-encoding (mojibake) sweep.
 # When several independent agents each write Markdown and their output is concatenated or merged,

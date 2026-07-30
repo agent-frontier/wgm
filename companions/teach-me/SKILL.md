@@ -14,7 +14,7 @@ Make a codebase legible. `teach-me` runs a disciplined lifecycle:
 
 `Triage → Map → Tour → Deep dive → First change → Recap`
 
-It is the companion to [`wgm`](../../SKILL.md), and it exists because of a specific failure mode:
+It is the companion to [`wgm`](https://github.com/agent-frontier/wgm/blob/main/SKILL.md), and it exists because of a specific failure mode:
 **wgm can build software faster than its operator can understand it.** An autonomous loop ships a
 working repo, the human opens it, and owns code they cannot explain. `teach-me` closes that gap —
 and its sibling [`quiz-me`](../quiz-me/SKILL.md) proves the gap actually closed. Learning that is
@@ -216,7 +216,7 @@ has learned today. Say so plainly and point them at `/wgm` to create one.
 
 ## Cross-links
 [`quiz-me`](../quiz-me/SKILL.md) (the companion that tests what this taught) ·
-[`wgm`](../../SKILL.md) (the build skill this exists to keep legible) ·
-[`references/grilling.md`](../../references/grilling.md) (the one-question-at-a-time discipline
-this borrows) · [`references/artifacts.md`](../../references/artifacts.md) (why agent state lives
+[`wgm`](https://github.com/agent-frontier/wgm/blob/main/SKILL.md) (the build skill this exists to keep legible) ·
+[`references/grilling.md`](https://github.com/agent-frontier/wgm/blob/main/references/grilling.md) (the one-question-at-a-time discipline
+this borrows) · [`references/artifacts.md`](https://github.com/agent-frontier/wgm/blob/main/references/artifacts.md) (why agent state lives
 under `.wgm/`).
