@@ -24,7 +24,11 @@ steps instead of one hopeful mega-edit.
 ## Install
 
 A skill is just a folder containing `SKILL.md`. Install it **once for your user** (global — the
-default) or **per project**, on Linux, macOS, Windows, or WSL.
+default) or **per project**, on Linux, macOS, Windows, or WSL. This also installs the two companion
+skills, `teach-me` and `quiz-me` (opt out with `--no-companions`).
+
+> **New to wgm?** [Get started](docs/get-started/README.md) walks install through a first validated
+> build in eight steps.
 
 ### One-line install
 
@@ -233,7 +237,19 @@ flowchart LR
   devcontainer (one shared image across every project, never a per-project build) via
   `loop.sh --devcontainer` (`references/devcontainers.md`).
 
-Full design docs live in [`docs/`](docs/), split by **operator** and **agent** concerns.
+## Documentation
+
+| I want to… | Go to |
+|---|---|
+| Install and run my first build | **[Get started](docs/get-started/README.md)** |
+| See a complete worked example | [Your first build](docs/get-started/first-build.md) |
+| Drive the loop autonomously | [Run the loop](docs/operator/running-the-loop.md) |
+| Understand a repo wgm built me | [Companion skills](docs/companions/README.md) |
+| Look up an exact flag or path | [Reference](docs/reference/README.md) |
+| Fix something | [Troubleshooting](docs/operator/troubleshooting.md) |
+| Contribute docs | [Style guide](docs/style-guide.md) |
+
+Full index: [`docs/`](docs/README.md).
 
 ## Optional: the real Ralph loop (`scripts/loop.sh`)
 
@@ -298,7 +314,7 @@ wgm/
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · install.sh · install.ps1
 ├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
-└── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)
+└── docs/             # get-started/ · operator/ · companions/ · agent/ · reference/ · style-guide · plans/ · audit/
 ```
 
 ## Community

@@ -89,6 +89,18 @@ else
   fail "a new config file was not treated as public surface (rc=$RC): $OUT"
 fi
 
+# 6) --base HEAD inspects the UNCOMMITTED working tree, including untracked files.
+#    This is the published example, and it silently reported "no changes" before being fixed:
+#    `git diff BASE HEAD` with BASE=HEAD is always empty, so the gate passed on everything.
+printf 'setting: 2\n' > uncommitted.yml
+run --base HEAD
+if [[ "$RC" -ne 0 ]] && grep -q "new file: uncommitted.yml" <<<"$OUT"; then
+  pass "--base HEAD inspects the working tree, untracked files included"
+else
+  fail "--base HEAD did not inspect the working tree (rc=$RC): $OUT"
+fi
+rm -f uncommitted.yml
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-doc-sync harness: GREEN"
   exit 0

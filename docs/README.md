@@ -1,20 +1,37 @@
 # wgm documentation
 
-Deep docs for **wgm** — the skill that turns a rough request into working software. They are split
-by concern:
+**wgm** turns a rough request into working software: a relentless requirements interview, a
+persistent plan, and a build loop steered by deterministic pass/fail checks.
 
-- **[operator/](operator/README.md)** — for the human running wgm: start at the operator overview,
-  then install, drive the loop, validation containers, troubleshooting.
-- **[agent/](agent/)** — for the agent following the skill: the lifecycle state machine, the
-  convergence loop, scenarios & scoring, stall recovery, gene transfusion. The deeper mechanics — the
-  role swarm (twelve subagents, including the five-role **docs-audit swarm** and the hive courier
-  `wgm-hermes`) and the **Hive Growth Loop self-improvement flywheel** (run at handoff, and standing
-  after every swarm) — live in [`references/`](../references/).
+New here? Start with **[Get started](get-started/README.md)**.
 
-For the quickstart, see the top-level [README](../README.md). The authoritative protocol is
-[`SKILL.md`](../SKILL.md); these docs explain the *why* and the *how* behind it. The terse,
-load-every-iteration rules live in [`references/`](../references/) — docs here link to them rather
-than duplicating.
+## Find your path
+
+| I want to… | Go to |
+|---|---|
+| Install wgm and run my first build | [Get started](get-started/README.md) |
+| See a complete worked example | [Your first build](get-started/first-build.md) |
+| Check what I need installed | [Requirements](get-started/requirements.md) |
+| Drive the loop myself, autonomously | [Run the loop](operator/running-the-loop.md) |
+| Understand a repository wgm built me | [Companion skills](companions/README.md) |
+| Look up an exact flag or file path | [Reference](reference/README.md) |
+| Fix something that went wrong | [Troubleshooting](operator/troubleshooting.md) |
+| Understand *why* wgm works this way | [Concepts](#concepts-how-wgm-thinks) |
+| Contribute to wgm itself | [Contributing](../CONTRIBUTING.md) · [Style guide](style-guide.md) |
+
+## Documentation sections
+
+| Section | Type | For |
+|---|---|---|
+| **[Get started](get-started/README.md)** | Journey | First-time setup, end to end |
+| **[Operator guide](operator/README.md)** | Tasks | Running, validating, and troubleshooting wgm |
+| **[Companion skills](companions/README.md)** | Tasks | `teach-me` and `quiz-me` |
+| **[Concepts](agent/lifecycle.md)** | Concepts | How the protocol thinks — written for the agent, readable by you |
+| **[Reference](reference/README.md)** | Reference | Exact flags, defaults, paths, exit codes |
+
+The authoritative protocol is [`SKILL.md`](../SKILL.md). These docs explain the *why* and the *how*
+behind it. The terse, load-every-iteration rules live in [`references/`](../references/); the pages
+here link to them rather than duplicating them.
 
 ## The lifecycle at a glance
 
@@ -38,52 +55,88 @@ flowchart TD
   Rec -->|more work| A
 ```
 
-## Map
+Every phase ends at a gate that prints PASS or FAIL per item. Gates are not advisory — a FAIL stops
+the lifecycle rather than degrading it.
 
-| Audience | Doc | What it covers |
-|---|---|---|
-| Operator | [operator/README.md](operator/README.md) | Operator overview: the journey and where to start |
-| Operator | [playbook.md](operator/playbook.md) | The operator SOP/checklist: per-build steps, per-gate PASS/FAIL cheat-sheet, how to read a docs-audit report |
-| Operator | [installation.md](operator/installation.md) | Install on Linux/macOS/Windows/WSL, user vs project |
-| Operator | [running-the-loop.md](operator/running-the-loop.md) | `loop.sh` + the **swarm** (parallel worktrees), limits, retry/circuit-breaker, the metrics ledger, thresholds, escalation |
-| Operator | [containers.md](operator/containers.md) | Podman/OCI validation environment |
-| Operator | [devcontainers.md](operator/devcontainers.md) | Disk-conscious local devcontainer sandbox for running the loop *itself* (`loop.sh --devcontainer`), distinct from `containers.md`'s app-under-test validation |
-| Operator | [troubleshooting.md](operator/troubleshooting.md) | Common failures and fixes |
-| Agent | [lifecycle.md](agent/lifecycle.md) | The phase/gate state machine |
-| Agent | [attractor-loop.md](agent/attractor-loop.md) | Convergence: generate → test → score → feedback |
-| Agent | [scenarios-and-scoring.md](agent/scenarios-and-scoring.md) | Holdout scenarios, judging, satisfaction, tiers |
-| Agent | [stall-recovery.md](agent/stall-recovery.md) | Wonder/reflect + model escalation |
-| Agent | [gene-transfusion.md](agent/gene-transfusion.md) | Seeding the build from an exemplar |
-| Agent | [references/subagents.md](../references/subagents.md) | The twelve role-specialized subagents (the swarm) + dissent-preserving review |
-| Agent | [references/docs-audit.md](../references/docs-audit.md) | The docs-audit swarm: four dev/PM personas + a technical-writer consolidator; the paper-trail artifact |
-| Agent | [references/trigger-eval.md](../references/trigger-eval.md) | Should-trigger / should-not-trigger fixture that catches drift in the mode-parsing rule and the Use/Don't-use boundary |
-| Agent | [references/evals.md](../references/evals.md) | The companion output-quality fixture (`evals/evals.json`): given wgm triggers, is the result actually good? |
-| Agent | [references/self-improvement.md](../references/self-improvement.md) | The Hive Growth Loop: harvest lessons from every source (memories, swarm streams, this project's own Issues, cross-pollinated research), always anonymize, report upstream automatically once consented |
-| Agent | [references/issue-intake.md](../references/issue-intake.md) | Backlog discovery from a project's own GitHub Issues, tracker-reference traceability, and the `Closes #N` linking convention |
-| Agent | [references/devcontainers.md](../references/devcontainers.md) | Sandboxing the loop itself in a disk-conscious local devcontainer — mechanics, permission-parity gotcha, `scripts/devcontainer.sh` |
+## Get started
 
-## Plans & roadmap
+| Page | Covers |
+|---|---|
+| [Get started](get-started/README.md) | The eight-step journey from nothing installed to a shipped build |
+| [Requirements](get-started/requirements.md) | Required, optional, and per-platform prerequisites |
+| [Your first build](get-started/first-build.md) | A complete worked example with every gate shown |
 
-- [2026-06-16 — competitive analysis & improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
-  compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me, with a
-  prioritized improvement roadmap (**all tiers shipped**).
+## Operator guide
+
+| Page | Covers |
+|---|---|
+| [Overview](operator/README.md) | The operator journey and where to start |
+| [Playbook](operator/playbook.md) | The per-build SOP, a per-gate PASS/FAIL cheat sheet, reading a docs-audit report |
+| [Installation](operator/installation.md) | Linux, macOS, Windows, WSL; user versus project scope |
+| [Run the loop](operator/running-the-loop.md) | `loop.sh` and the worktree swarm, limits, retries, thresholds, escalation |
+| [Containers](operator/containers.md) | Podman and OCI validation for scenarios needing a live service |
+| [Devcontainers](operator/devcontainers.md) | Sandboxing the loop *itself*, disk-consciously |
+| [Troubleshooting](operator/troubleshooting.md) | Symptom, cause, and resolution by stage |
+
+## Concepts: how wgm thinks
+
+| Page | Covers |
+|---|---|
+| [Lifecycle](agent/lifecycle.md) | The phase and gate state machine |
+| [Attractor loop](agent/attractor-loop.md) | Convergence: generate, test, score, feed back |
+| [Scenarios and scoring](agent/scenarios-and-scoring.md) | Holdout scenarios, judging, satisfaction, tiers |
+| [Stall recovery](agent/stall-recovery.md) | Wonder and reflect, then model escalation |
+| [Gene transfusion](agent/gene-transfusion.md) | Seeding a build from an exemplar codebase |
+
+Deeper mechanics live in `references/`, written for the agent:
+[subagents](../references/subagents.md) (the twelve role-specialized roles and dissent-preserving
+review) ·
+[telemetry](../references/telemetry.md) (three clocks, and why parked lane time is never
+"agent-hours") ·
+[docs-audit](../references/docs-audit.md) (four personas plus a consolidating writer) ·
+[self-improvement](../references/self-improvement.md) (the Hive Growth Loop and its consent gate) ·
+[issue-intake](../references/issue-intake.md) (backlog discovery and tracker traceability) ·
+[heuristics](../references/heuristics.md) (the curated ledger of landed lessons) ·
+[trigger-eval](../references/trigger-eval.md) and [evals](../references/evals.md) (wgm's own
+self-tests).
+
+## Reference
+
+| Page | Covers |
+|---|---|
+| [Reference index](reference/README.md) | Quick answers and the full lookup map |
+| [loop.sh](reference/cli-loop.md) | Modes, every flag, environment variables, exit codes |
+| [swarm.sh](reference/cli-swarm.md) | Parallel streams, partitioning rules, telemetry output |
+| [Installers](reference/cli-install.md) | `install.sh` and `install.ps1`, targets, verification |
+| [Gates](reference/gates.md) | Every check and harness, and what each proves |
+| [Artifacts](reference/artifacts.md) | Every file wgm reads and writes |
+
+## Contributing to the docs
+
+[Style guide](style-guide.md) — page types, the executive-overview block, admonitions, and the rules
+`scripts/check-docs.sh` enforces automatically.
+
+## Plans and roadmap
+
+Design records, kept for provenance rather than as current instructions:
+
+- [2026-06-16 — competitive analysis and improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
+  compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me (**all tiers
+  shipped**).
 - [2026-06-16 — wgm vs the Ralph ecosystem](plans/2026-06-16_RALPH_LANDSCAPE.md) — tracking wgm
-  against the loop runners and orchestrators catalogued in awesome-ralph ("wgm vs the world").
-- [2026-06-16 — the growth flywheel](plans/2026-06-16_GROWTH_LOOP.md) — how wgm harvests lessons
-  from every codebase, reports them upstream, and promotes the durable ones back into the skill.
-- [2026-07-05 — prefer true Ralph + a disk-conscious local devcontainer sandbox](plans/2026-07-05_TRUE_RALPH_AND_DEVCONTAINERS_PLAN.md) —
-  biasing the Triage default toward Ralph-full, plus `scripts/devcontainer.sh` for sandboxing the
-  loop itself without inflating disk usage across projects.
-- [2026-07-05 — growth health check: are we at a good point, or an echo chamber?](plans/2026-07-05_GROWTH_HEALTH_CHECK.md) —
-  an honest, evidence-based self-assessment that recent growth had become mostly self-referential,
-  feeding the "real-dogfood cadence" guardrail in `references/self-improvement.md`.
-- [2026-07-06 — the Hive Growth Loop](plans/2026-07-06_HIVE_GROWTH_LOOP.md) — unifying swarm-stream
-  memories, this project's own GitHub Issues, and cross-pollinated research into one funnel, with
-  mandatory anonymization and a one-time, committed consent gate (`.github/wgm-hive.yml`) for fully
-  automatic upstream reporting.
-- [2026-07-08 — SkillOpt's grading discipline: adopt the idea, not the package](plans/2026-07-08_SKILLOPT_ADOPTION.md) —
-  why wgm built a dependency-free `scripts/grade-evals.sh` gate for `evals/evals.json` instead of
-  taking a runtime dependency on `microsoft/SkillOpt`'s own package.
+  against the loop runners catalogued in awesome-ralph.
+- [2026-06-16 — the growth flywheel](plans/2026-06-16_GROWTH_LOOP.md) — harvesting lessons from every
+  codebase and promoting the durable ones back into the skill.
+- [2026-07-05 — prefer true Ralph, plus a disk-conscious sandbox](plans/2026-07-05_TRUE_RALPH_AND_DEVCONTAINERS_PLAN.md) —
+  biasing Triage toward Ralph-full, and `scripts/devcontainer.sh`.
+- [2026-07-05 — growth health check](plans/2026-07-05_GROWTH_HEALTH_CHECK.md) — an honest assessment
+  that recent growth had become self-referential, feeding the real-dogfood cadence guardrail.
+- [2026-07-06 — the Hive Growth Loop](plans/2026-07-06_HIVE_GROWTH_LOOP.md) — one funnel, mandatory
+  anonymization, and a one-time committed consent gate.
+- [2026-07-08 — SkillOpt's grading discipline](plans/2026-07-08_SKILLOPT_ADOPTION.md) — why wgm built
+  a dependency-free grading gate instead of taking a runtime dependency.
+
+Post-merge audit reports live in [`audit/`](audit/README.md).
 
 ## Provenance
 

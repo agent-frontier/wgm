@@ -17,7 +17,10 @@
 #      class regressed twice before being caught by a manual audit pass each time — see
 #      docs/audit/2026-07-09T0113Z_pr62-65-post-merge-audit.md, Agent action #3).
 #
-#   9. No UTF-8 double-encoding (mojibake) survives from a multi-agent merge, e.g. `Â·` for `·`.
+#   9. No UTF-8 double-encoding (mojibake) survives from a multi-agent merge.
+#  10. Every get-started / companions / reference page ends with a "What to do next" section, so
+#      navigation never dead-ends.
+#  11. docs/README.md still links the style guide that documents all of the above.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -34,6 +37,10 @@ ok()   { printf 'ok:   %s\n' "$*"; }
 
 REQUIRED=(
   "docs/README.md"
+  "docs/style-guide.md"
+  "docs/get-started/README.md"
+  "docs/get-started/requirements.md"
+  "docs/get-started/first-build.md"
   "docs/operator/README.md"
   "docs/operator/installation.md"
   "docs/operator/running-the-loop.md"
@@ -41,6 +48,13 @@ REQUIRED=(
   "docs/operator/devcontainers.md"
   "docs/operator/troubleshooting.md"
   "docs/operator/playbook.md"
+  "docs/companions/README.md"
+  "docs/reference/README.md"
+  "docs/reference/cli-loop.md"
+  "docs/reference/cli-swarm.md"
+  "docs/reference/cli-install.md"
+  "docs/reference/gates.md"
+  "docs/reference/artifacts.md"
   "docs/agent/lifecycle.md"
   "docs/agent/attractor-loop.md"
   "docs/agent/scenarios-and-scoring.md"
@@ -49,9 +63,13 @@ REQUIRED=(
 )
 
 # 1 + 2 — structure & required files
-[[ -d docs ]]          || note "docs/ directory is missing"
-[[ -d docs/operator ]] || note "docs/operator/ directory is missing"
-[[ -d docs/agent ]]    || note "docs/agent/ directory is missing"
+# Four audience-scoped sections: a get-started journey, operator tasks, agent concepts, and lookup
+# reference. Keeping them distinct is what stops a page from becoming half tutorial, half man page.
+[[ -d docs ]]              || note "docs/ directory is missing"
+[[ -d docs/get-started ]]  || note "docs/get-started/ directory is missing"
+[[ -d docs/operator ]]     || note "docs/operator/ directory is missing"
+[[ -d docs/agent ]]        || note "docs/agent/ directory is missing"
+[[ -d docs/reference ]]    || note "docs/reference/ directory is missing"
 for f in "${REQUIRED[@]}"; do
   [[ -f "$f" ]] || note "required doc is missing: $f"
 done
@@ -149,6 +167,21 @@ if [[ -f README.md ]]; then
       fi
     done
   fi
+fi
+
+# 10 — every get-started, companions, and reference page ends by telling the reader where to go next.
+# A page that dead-ends forces the reader back to guessing, which is the failure the section split
+# exists to prevent (docs/style-guide.md, "Every page ends with What to do next").
+for f in docs/get-started/*.md docs/companions/*.md docs/reference/*.md; do
+  [[ -f "$f" ]] || continue
+  grep -qE '^## (What to do next|Quick answers)' "$f" \
+    || note "missing a '## What to do next' section: $f"
+done
+
+# 11 — the docs style guide is the one page that must describe the forbidden patterns without
+# containing them; checks 5 and 9 already enforce that, so just assert it stayed present and linked.
+if [[ -f docs/README.md ]]; then
+  grep -q 'style-guide.md' docs/README.md || note "docs/README.md no longer links the style guide"
 fi
 
 # 9 — UTF-8 double-encoding (mojibake) sweep.

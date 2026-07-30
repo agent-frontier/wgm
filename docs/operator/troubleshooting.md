@@ -3,95 +3,233 @@
 ## Executive overview
 
 - **For:** anyone hitting a snag installing or running wgm.
-- **How it's organized:** by stage — Install · Running the loop · Validation · Artifacts.
-- **First move:** every wgm gate prints a `Gate check:` block naming the failed item — start there.
-- **Most common fixes:** skill not listed (wrong dir name, or restart the session); `build` refuses
-  to run (no `IMPLEMENTATION_PLAN.md` yet); the loop never stops (pass a max, or drop a `STOP` file).
-- **Next:** back to [installation.md](installation.md) or [running-the-loop.md](running-the-loop.md).
+- **First move:** every wgm gate prints a `Gate check:` block naming the failed item. Read that
+  before anything else — it usually names the fix.
+- **How this page is organized:** by stage — Install · Companions · Loop · Validation · Artifacts ·
+  Contributing. Each entry is symptom, cause, resolution.
+- **Most common three:** the skill is not listed (wrong directory name, or the session needs a
+  restart); `build` refuses to start (no `IMPLEMENTATION_PLAN.md` yet); the loop never stops (pass a
+  max, or drop a `STOP` sentinel).
+- **Next:** [Installation](installation.md) · [Run the loop](running-the-loop.md) ·
+  [Reference](../reference/README.md).
 
-Common issues when installing or running wgm, and how to fix them.
+## Before you troubleshoot
+
+Three checks resolve most reports:
+
+1. **Read the gate output.** wgm prints `Gate check:` with a PASS or FAIL per item at every phase
+   boundary. The failing item names the problem.
+2. **Restart the agent session.** Skills are scanned at session start, so a freshly installed skill
+   is invisible to an already-running session.
+3. **Confirm the directory name.** The skill folder must be named exactly `wgm`, matching the `name:`
+   field in its `SKILL.md` frontmatter. The same rule applies to `teach-me` and `quiz-me`.
 
 ## Install
 
-**The agent doesn't list wgm after install.**
-- Confirm the folder landed where your client scans: check the table in
-  [installation.md](installation.md). The directory must be named exactly `wgm` (it has to match the
-  `name:` in `SKILL.md`).
-- Restart the agent session so it re-scans skills.
-- For project scope, make sure you started the agent from that project's root.
+### The agent does not list wgm
 
-**The `curl … | bash` one-liner does nothing, or prints a 404.**
-- The repo must be **public** for the unauthenticated one-liner to fetch. Until then, install from a
-  clone instead (`git clone … && ./scripts/install.sh`).
-- `curl -f` exits silently on a 404, so a piped install can look like a no-op. Re-run the raw URL
-  without `-f` to see the HTTP status.
+| | |
+|---|---|
+| **Symptom** | The install reports success, but the client does not offer `/wgm`. |
+| **Cause** | The folder is not where the client scans, the directory name does not match the skill name, or the session has not re-scanned. |
+| **Resolution** | Confirm the path against the table in [Installation](installation.md). Ensure the directory is named exactly `wgm`. Restart the agent session. For project scope, start the agent from that project's root. |
 
-**"Failed to fetch wgm (…)" from the installer.**
-- When piped (no local checkout) the installers self-fetch the repo. This message means both the
-  tarball download and the `git clone` fallback failed — check connectivity, the `--ref` you passed,
-  and `WGM_REPO`/`WGM_REF`. Or install from a clone. See [installation.md](installation.md).
+### The curl one-liner does nothing, or prints 404
 
-**The Windows side didn't get wgm after a WSL install.**
-- The mirror runs for **user-scope** installs only (not `--project` or `--dir`) and is skipped by
-  `--no-windows`. Check the installer's note line: if it says it "could not resolve your Windows
-  home", pass `--windows-home PATH` (e.g. `--windows-home /mnt/c/Users/you`).
-- The mirror is a real copy under `/mnt/c/Users/you/.agents/skills/wgm`; confirm your Windows agent
-  scans `%USERPROFILE%\.agents\skills\wgm`.
+| | |
+|---|---|
+| **Symptom** | The piped installer exits silently or reports a 404. |
+| **Cause** | The repository must be public for the unauthenticated one-liner to fetch. `curl -f` also exits silently on a 404, so a failed install can look like a no-op. |
+| **Resolution** | Install from a clone instead: `git clone … && ./scripts/install.sh`. To see the real status, re-run the raw URL without `-f`. |
 
-**`install.ps1` unexpectedly ran inside WSL.**
-- On Windows with a WSL distro present, a user-scope `install.ps1` delegates to the bash installer in
-  WSL on purpose (so both homes are covered). Pass `-NoWsl` for a native-Windows install, or
-  `-WslDistro NAME` to pick a distro.
+### "Failed to fetch wgm (…)"
 
-**How do I update an existing install?**
-- Just re-run the installer (same one-liner). wgm refreshes a directory it recognizes as its own in
-  place — no `--force` — and adds the Windows mirror if it was missing.
+| | |
+|---|---|
+| **Symptom** | The installer reports a fetch failure. |
+| **Cause** | When piped with no local checkout, the installers self-fetch. This message means both the tarball download and the `git clone` fallback failed. |
+| **Resolution** | Check connectivity, the `--ref` you passed, and `WGM_REPO` / `WGM_REF`. Or install from a clone. See [Installers reference](../reference/cli-install.md). |
 
-**PowerShell symlink/junction fails.**
-- Creating a junction can need privileges. `install.ps1` falls back to a copy automatically and warns
-  — or pass `-Method copy` to skip the attempt.
+### The Windows side did not get wgm after a WSL install
+
+| | |
+|---|---|
+| **Symptom** | wgm works in WSL but a native-Windows agent cannot see it. |
+| **Cause** | The mirror runs for **user-scope** installs only — not `--project` or `--dir` — and is skipped by `--no-windows`. It may also have failed to resolve your Windows home. |
+| **Resolution** | Read the installer's note line. If it says it could not resolve your Windows home, pass `--windows-home /mnt/c/Users/you`. Confirm your Windows agent scans `%USERPROFILE%\.agents\skills\wgm`. |
+
+### install.ps1 unexpectedly ran inside WSL
+
+| | |
+|---|---|
+| **Symptom** | A PowerShell install produced a Linux-side install. |
+| **Cause** | On Windows with a WSL distro present, a user-scope `install.ps1` delegates to the bash installer in WSL on purpose, so both homes are covered. |
+| **Resolution** | Pass `-NoWsl` for a native-Windows install, or `-WslDistro NAME` to pick a distro. |
+
+### PowerShell symlink or junction fails
+
+| | |
+|---|---|
+| **Symptom** | A warning about junction creation during install. |
+| **Cause** | Creating a junction can require elevated privileges. |
+| **Resolution** | None needed — `install.ps1` falls back to a copy automatically and warns. Pass `-Method copy` to skip the attempt entirely. |
+
+### How do I update an existing install?
+
+Re-run the same installer. wgm refreshes a directory it recognizes as its own **in place**, with no
+`--force` needed, and adds the Windows mirror if it was missing. From a clone, `make update` pulls
+and reinstalls in one step.
+
+## Companion skills
+
+### teach-me or quiz-me is missing
+
+| | |
+|---|---|
+| **Symptom** | `/wgm` works but `/teach-me` or `/quiz-me` is not offered. |
+| **Cause** | The install used `--no-companions` or `-NoCompanions`, or it ran from a source tree predating the companions, or the client has not re-scanned. |
+| **Resolution** | Re-run the installer without the opt-out flag and restart the session. Confirm `SKILLS_DIR/teach-me/SKILL.md` and `SKILLS_DIR/quiz-me/SKILL.md` exist — they must be **siblings** of `wgm`, not nested inside it. |
+
+### The installer says "companion not in this source, skipping"
+
+| | |
+|---|---|
+| **Symptom** | That line appears during install. |
+| **Cause** | The source tree or tarball has no `companions/` directory — an older release. |
+| **Resolution** | Install from a newer ref: `--ref main`, or `--ref latest` for the newest published release. |
 
 ## Running the loop
 
-**"No agent configured."**
-- Set `WGM_AGENT`, pass `--agent "CMD"`, or append `-- copilot -p` (your agent argv). See
-  [running-the-loop.md](running-the-loop.md).
+### "No agent configured."
 
-**"Refusing to run 'build': no IMPLEMENTATION_PLAN.md found."**
-- Run a `plan` pass first (`./scripts/loop.sh plan --request "…"`), or `/wgm plan`. `build`,
-  `review`, and `preflight` need a plan on disk.
+| | |
+|---|---|
+| **Symptom** | `loop.sh` or `swarm.sh` exits `2` immediately. |
+| **Cause** | No agent command was supplied. |
+| **Resolution** | Set `WGM_AGENT`, pass `--agent "CMD"`, or append `-- copilot -p`. See [Choosing the agent](../reference/cli-loop.md#choosing-the-agent). |
 
-**The loop never stops.**
-- `build` defaults to unlimited iterations. Pass a max (`build 20`), cap it with
-  `--max-runtime-seconds` / `--idle-timeout`, create a `STOP` / `.wgm/STOP` sentinel, or `Ctrl+C`.
-  The agent should drop the sentinel itself when no must-have task remains.
+### "Refusing to run 'build': no IMPLEMENTATION_PLAN.md found."
 
-**Model escalation isn't kicking in.**
-- It only engages when **both** `--frugal-agent` and a main `--agent` are set. Check
-  `--escalate-after` (default 2). See [stall-recovery.md](../agent/stall-recovery.md).
+| | |
+|---|---|
+| **Symptom** | `build`, `review`, or `preflight` exits `1` before doing anything. |
+| **Cause** | Those modes need a plan on disk; they are not allowed to invent one. |
+| **Resolution** | Run a plan pass first: `./scripts/loop.sh plan --request "…"`, or `/wgm plan`. |
+
+### The loop never stops
+
+| | |
+|---|---|
+| **Symptom** | `build` keeps iterating indefinitely. |
+| **Cause** | `build` defaults to unlimited iterations. |
+| **Resolution** | Pass a max (`build 20`), cap it with `--max-runtime-seconds` or `--idle-timeout`, create a `.wgm/STOP` sentinel, or press Ctrl+C. In a healthy run the agent drops the sentinel itself when no must-have task remains. |
+
+### Model escalation is not kicking in
+
+| | |
+|---|---|
+| **Symptom** | A stall never escalates to the stronger model. |
+| **Cause** | Escalation engages only when **both** `--frugal-agent` and a main `--agent` are set. |
+| **Resolution** | Set both, and check `--escalate-after` (default `2`). See [Stall recovery](../agent/stall-recovery.md). |
+
+### The build loop edits the wrong files, or drifts
+
+| | |
+|---|---|
+| **Symptom** | Changes land outside the task's stated scope. |
+| **Cause** | The task's spec or plan entry is too loose to steer on. |
+| **Resolution** | Add a **sign** rather than hand-holding each step: tighten the spec, add a note to `AGENTS.md`, or split the task smaller. wgm steers on patterns plus backpressure. |
+
+### A swarm lane failed with "lane guard: expected worktree …"
+
+| | |
+|---|---|
+| **Symptom** | A lane exits immediately with a guard message. |
+| **Cause** | The lane was not in its assigned worktree and branch. The guard refuses to let it mutate the wrong tree. |
+| **Resolution** | This is working as intended. Check for a leftover worktree or branch from a prior run — `make clean-worktrees` clears both. |
 
 ## Validation
 
-**Satisfaction score never reaches the threshold.**
-- Inspect the weakest scenario recorded in `IMPLEMENTATION_PLAN.md`. Often the scenario expectation
-  is ambiguous or the demo path isn't actually wired up. See
-  [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
-- Consider lowering `--threshold` for a rough prototype, or splitting the task smaller.
+### The satisfaction score never reaches the threshold
 
-**Container scenarios fail to start.**
-- Confirm the engine is installed (`podman` or `docker`) or pass `--container` explicitly. Check the
-  readiness/healthcheck wait and that the published port is free. See [containers.md](containers.md).
+| | |
+|---|---|
+| **Symptom** | The loop keeps iterating without converging. |
+| **Cause** | Usually an ambiguous scenario expectation, or a demo path that is not actually wired up. |
+| **Resolution** | Inspect the weakest scenario recorded in `IMPLEMENTATION_PLAN.md`. Sharpen the expectation, or split the task. For a rough prototype, lower `--threshold`. See [Scenarios and scoring](../agent/scenarios-and-scoring.md). |
 
-**The build loop edits the wrong files / drifts.**
-- Add a "sign": tighten the spec, add a note to `AGENTS.md`, or split the task. wgm steers on
-  patterns + backpressure — when it drifts, add a sign rather than hand-holding each step.
+### Container scenarios fail to start
+
+| | |
+|---|---|
+| **Symptom** | Scenario validation cannot reach the service. |
+| **Cause** | No container engine, or a port or readiness problem. |
+| **Resolution** | Confirm `podman` or `docker` is installed, or pass `--container` explicitly. Check the readiness wait and that the published port is free. See [Containers](containers.md). |
+
+### A test passes alone but fails in the suite
+
+| | |
+|---|---|
+| **Symptom** | An isolated re-run is green; the full gate is red. |
+| **Cause** | The difference between the two runs *is* the bug — commonly a teardown race where buffered output is discarded before a consumer reads it. |
+| **Resolution** | **Do not treat the isolated pass as the answer.** Inspect lifecycle ordering, synchronize producer teardown to consumer acknowledgement, stress the exact test repeatedly, then rerun the complete gate. Only a green full suite clears it. |
+
+### A gate reports missing artifacts that clearly exist
+
+| | |
+|---|---|
+| **Symptom** | An isolated staged build reports a missing artifact. |
+| **Cause** | A globally shared build-target override was inherited, so the build emitted outside the stage-local path the verifier checks. This is a harness misconfiguration, not a product defect. |
+| **Resolution** | Clear or scope ambient target overrides before the build, or set an explicit stage-local target directory. Record the clean rerun **separately** from product failures. |
 
 ## Artifacts
 
-**wgm wrote files under `.wgm/` instead of the repo root.**
-- That's the safety rule: when the repo already has `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, or
-  `specs/`, wgm writes its own copies under `.wgm/` so it never clobbers yours. See
-  [`references/artifacts.md`](../../references/artifacts.md).
+### wgm wrote files under .wgm/ instead of the repository root
 
-Still stuck? Re-read the protocol in [`SKILL.md`](../../SKILL.md) — every gate prints a `Gate check:`
-block telling you exactly which item failed.
+| | |
+|---|---|
+| **Symptom** | Artifacts appear in `.wgm/` rather than where you expected. |
+| **Cause** | The safety rule: when the root already has `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, or `specs/`, wgm writes its own copies under `.wgm/` so it never clobbers yours. |
+| **Resolution** | Working as intended. See [Artifacts](../reference/artifacts.md). |
+
+### wgm asked about reporting lessons upstream
+
+| | |
+|---|---|
+| **Symptom** | A consent question appears before anything else on a new project. |
+| **Cause** | `.github/wgm-hive.yml` does not exist yet. Its absence is what defines "a new project" for consent. |
+| **Resolution** | Answer once. The file is written either way and never asked about again. `consent: false` keeps every lesson local. See [the consent file](../reference/artifacts.md). |
+
+## Contributing
+
+### make validate fails on a fresh clone
+
+| | |
+|---|---|
+| **Symptom** | `make validate` is red before you changed anything. |
+| **Cause** | Usually a missing development dependency. |
+| **Resolution** | Check the contributor prerequisites in [Requirements](../get-started/requirements.md). `shellcheck` is needed for `lint`, `jq` for `docs`. |
+
+### check-evals.sh exits 2
+
+| | |
+|---|---|
+| **Symptom** | The evals gate exits `2` rather than `0` or `1`. |
+| **Cause** | `jq` is not on `PATH`. Exit `2` means misconfigured, distinct from `1` for a real failure. |
+| **Resolution** | Install `jq`. |
+
+### The docs check reports a broken link that looks fine
+
+| | |
+|---|---|
+| **Symptom** | `check-docs.sh` flags a link you can follow in your editor. |
+| **Cause** | Links are resolved **relative to the file containing them**. A path that works from the repository root often does not work from a nested page. |
+| **Resolution** | Count the `../` hops from the linking file. From `docs/reference/`, the repository root is two levels up. |
+
+## Still stuck?
+
+- Re-read the protocol in [`SKILL.md`](../../SKILL.md). Every gate prints a `Gate check:` block
+  naming exactly which item failed.
+- Look up the exact flag in the [reference](../reference/README.md).
+- Open an issue. If wgm behaved *plausibly but wrongly*, use the heuristic report template — that
+  kind of report is how its heuristics improve.

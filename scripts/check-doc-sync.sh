@@ -19,7 +19,8 @@
 #   scripts/check-doc-sync.sh [--base REF] [--warn] [--doc-path GLOB]...
 #
 # Flags:
-#   --base REF       diff REF..HEAD (default: HEAD~1..HEAD; use --base HEAD for the working tree)
+#   --base REF       diff REF..HEAD (default: HEAD~1..HEAD). Pass --base HEAD to inspect the
+#                    uncommitted working tree instead, untracked files included.
 #   --warn           report and exit 0 (advisory) instead of failing — the Record-step default
 #   --doc-path GLOB  extra path prefix that counts as documentation; repeatable
 #   -h | --help      show this help
@@ -53,13 +54,31 @@ if [[ -z "$BASE" ]]; then
   if git rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then BASE="HEAD~1"; else BASE=""; fi
 fi
 
-if [[ -n "$BASE" ]]; then
+# `--base HEAD` (and the no-parent-commit case) means "inspect the working tree", not "diff HEAD
+# against itself" — the latter is always empty and would make the gate silently pass on every
+# uncommitted change. Untracked files count too: a brand-new script IS new public surface.
+compare_worktree=0
+if [[ -z "$BASE" ]]; then
+  compare_worktree=1
+elif [[ "$(git rev-parse --verify --quiet "$BASE" 2>/dev/null)" == "$(git rev-parse HEAD 2>/dev/null)" ]]; then
+  compare_worktree=1
+fi
+
+if [[ "$compare_worktree" -eq 0 ]]; then
   CHANGED="$(git diff --name-only "$BASE" HEAD)"
   ADDED="$(git diff --unified=0 "$BASE" HEAD | grep '^+' | grep -v '^+++' || true)"
 else
-  # No parent commit (or --base HEAD): fall back to the working tree vs HEAD.
-  CHANGED="$(git diff --name-only HEAD)"
-  ADDED="$(git diff --unified=0 HEAD | grep '^+' | grep -v '^+++' || true)"
+  BASE=""
+  CHANGED="$(
+    git diff --name-only HEAD 2>/dev/null || true
+    git ls-files --others --exclude-standard 2>/dev/null || true
+  )"
+  ADDED="$(
+    { git diff --unified=0 HEAD 2>/dev/null || true; } | grep '^+' | grep -v '^+++' || true
+    while IFS= read -r u; do
+      [[ -n "$u" && -f "$u" ]] && sed 's/^/+/' "$u"
+    done < <(git ls-files --others --exclude-standard 2>/dev/null || true)
+  )"
 fi
 
 if [[ -z "${CHANGED//[[:space:]]/}" ]]; then
@@ -99,14 +118,14 @@ while IFS= read -r fn; do
   [[ -n "$fn" ]] && SURFACE+=("new function: $fn")
 done < <(printf '%s\n' "$ADDED" | grep -oE '^\+[a-z_][a-z0-9_]*\(\)' | sed 's/^+//; s/()//' | sort -u)
 
-# New scripts / config files.
+# New scripts / config files. Existence is checked against the base ref, or against HEAD in
+# working-tree mode — otherwise an untracked new file is never recognised as new.
+EXIST_REF="${BASE:-HEAD}"
 while IFS= read -r f; do
   [[ -n "$f" ]] || continue
   case "$f" in
     scripts/*.sh|scripts/*.ps1|*.yml|*.yaml|*.toml|*.json)
-      if [[ -n "$BASE" ]]; then
-        git cat-file -e "${BASE}:${f}" 2>/dev/null || SURFACE+=("new file: $f")
-      fi
+      git cat-file -e "${EXIST_REF}:${f}" 2>/dev/null || SURFACE+=("new file: $f")
       ;;
   esac
 done <<< "$CHANGED"

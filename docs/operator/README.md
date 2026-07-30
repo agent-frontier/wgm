@@ -35,12 +35,25 @@ flowchart LR
 
 ## Where to go next
 
+**New to wgm?** Start with [Get started](../get-started/README.md) — it covers install through your
+first validated build in eight steps. Come back here for depth.
+
 | Page | What it covers | Reach for it when |
 |---|---|---|
 | [installation.md](installation.md) | Install on Linux / macOS / Windows / WSL; user vs project scope | Setting wgm up the first time |
+| [playbook.md](playbook.md) | The per-build SOP, a per-gate PASS/FAIL cheat sheet, reading a docs-audit report | You want the checklist form |
 | [running-the-loop.md](running-the-loop.md) | `loop.sh` + the **swarm** (parallel worktrees), limits, retry/circuit-breaker, the metrics ledger, thresholds, model escalation | Driving a large, parallel, or autonomous build |
 | [containers.md](containers.md) | Podman / OCI validation environment | A scenario needs the app actually running |
-| [troubleshooting.md](troubleshooting.md) | Common failures and their fixes | Something doesn't work |
+| [devcontainers.md](devcontainers.md) | Sandboxing the loop *itself*, disk-consciously | Running an autonomous loop you want isolated |
+| [troubleshooting.md](troubleshooting.md) | Symptom, cause, and resolution by stage | Something doesn't work |
+
+**Looking up an exact flag?** That lives in the [reference](../reference/README.md) —
+[loop.sh](../reference/cli-loop.md), [swarm.sh](../reference/cli-swarm.md),
+[installers](../reference/cli-install.md), [gates](../reference/gates.md), and
+[artifacts](../reference/artifacts.md).
+
+**Just took delivery of a build you didn't write?** See
+[companion skills](../companions/README.md) — `/teach-me` maps it, `/quiz-me` checks what stuck.
 
 ## See also
 
