@@ -131,7 +131,10 @@ mechanism. Design rationale:
 - **Anonymize is not negotiable.** Unlike the docs-audit personas (which only read), `wgm-hermes` can
   cause a real external side effect — filing a public issue — so its one hard constraint is that the
   scrub always runs first, on every lesson, regardless of consent state. It is a first-pass
-  deterministic scrub, not a redaction guarantee.
+  deterministic scrub, not a redaction guarantee — which is why it also **fails closed**: it
+  forwards exactly one lesson (never the source ledger), re-scans the scrubbed candidate for
+  residual host identifiers and a size ceiling, and refuses to publish when it cannot show the
+  candidate is both minimal and clean (`references/self-improvement.md`, [learn] issue #79).
 - **No merge authority.** `wgm-hermes` can file or update an issue; it never opens or merges a PR —
   that boundary belongs to the ordinary human-reviewed Implement/Review path.
 

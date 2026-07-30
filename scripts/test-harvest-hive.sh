@@ -179,6 +179,73 @@ else
   fail "--help did not print usage (rc=$RC)"
 fi
 
+# ---- fail-closed contract ([learn] issue #79) -----------------------------------
+# A consent flag authorizes ONE sanitized lesson, never the source ledger. These cases prove the
+# courier refuses rather than publishing whenever it cannot show the candidate is minimal and clean.
+
+printf 'AcmeCorp\nsecret-product\n' > denylist.txt
+export WGM_HIVE_DENYLIST="$TMP/denylist.txt"
+
+# 12) a multi-entry ledger yields ONE lesson — the source ledger can never become the issue body.
+printf -- '- lesson: first entry about parked lane accounting\n- lesson: second entry about worktree re-pinning\n' > ledger.md
+run --dry-run --memories ledger.md --consent-file c12.yml
+if [[ "$RC" -eq 0 ]] \
+   && grep -q "second entry about worktree re-pinning" <<<"$OUT" \
+   && ! grep -q "first entry about parked lane accounting" <<<"$OUT"; then
+  pass "only one lesson is forwarded; the rest of the ledger never reaches the body"
+else
+  fail "multi-entry ledger was not reduced to a single lesson (rc=$RC): $OUT"
+fi
+
+# 13) a residual host identifier refuses with a non-zero exit and no filing.
+printf -- '- lesson: the secret-product gate needs a probe per AcmeCorp runbook\n' > dirty.md
+run --dry-run --memories dirty.md --consent-file c13.yml
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "REFUSING to publish" <<<"$OUT" \
+   && grep -q "secret-product" <<<"$OUT" \
+   && ! grep -q "Would file to" <<<"$OUT"; then
+  pass "a residual host identifier refuses publication with a non-zero exit"
+else
+  fail "a dirty lesson was not refused (rc=$RC): $OUT"
+fi
+
+# 14) consent:true does NOT bypass the scrub — a failed scan still refuses, still without gh.
+printf 'consent: true\nauto_report: true\nsources:\n  - dogfood\n' > c14.yml
+run --memories dirty.md --consent-file c14.yml
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "REFUSING to publish" <<<"$OUT" \
+   && grep -q "no network call was made" <<<"$OUT"; then
+  pass "consent true plus a scrub failure still refuses"
+else
+  fail "consent:true bypassed the fail-closed scan (rc=$RC): $OUT"
+fi
+
+# 15) over the single-lesson size ceiling: refuse rather than forwarding a ledger-sized payload.
+{ printf -- '- lesson: '; for _ in $(seq 1 400); do printf 'generic loop guidance word '; done; printf '\n'; } > big.md
+run --dry-run --memories big.md --consent-file c15.yml
+if [[ "$RC" -ne 0 ]] && grep -q "single-lesson ceiling" <<<"$OUT"; then
+  pass "a candidate over the single-lesson size ceiling is refused"
+else
+  fail "the size ceiling did not refuse an oversized candidate (rc=$RC): $OUT"
+fi
+
+# 16) a minimal generic lesson passes, and dry-run and real mode render byte-identical title+body.
+printf -- '- lesson: re-pin the lane worktree path on every state-mutating turn\n' > clean.md
+printf 'consent: false\nauto_report: false\nsources:\n  - dogfood\n' > c16.yml
+run --dry-run --memories clean.md --consent-file c16.yml
+dry_draft="$(sed -n '/^Would file to/,$p' <<<"$OUT" | grep -v '^Dry run:')"
+dry_rc="$RC"
+run --memories clean.md --consent-file c16.yml
+real_draft="$(sed -n '/^Would file to/,$p' <<<"$OUT" | grep -v '^Reporting is disabled')"
+if [[ "$dry_rc" -eq 0 && "$RC" -eq 0 ]] \
+   && [[ -n "$dry_draft" ]] && [[ "$dry_draft" == "$real_draft" ]]; then
+  pass "a clean lesson passes, and dry-run and real mode render the identical payload"
+else
+  fail "dry-run and real payloads diverged (dry_rc=$dry_rc rc=$RC): [$dry_draft] vs [$real_draft]"
+fi
+
+unset WGM_HIVE_DENYLIST
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "harvest-hive harness: GREEN"
   exit 0

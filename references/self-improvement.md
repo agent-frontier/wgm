@@ -210,12 +210,17 @@ Rules:
   user asks or on a wgm dogfood run. Never auto-file from a client repo that hasn't consented.
 - **De-dup.** Search open `learning`-labelled issues first; add a comment to an existing one rather
   than opening a duplicate. This still applies on the automatic path.
-- **One report per harvest run, not per lesson.** `scripts/harvest-hive.sh` anonymizes and files the
-  *current consolidated* `.wgm/memories.md` as a single report — it does not (yet) split a
-  multi-entry file into one issue per lesson. Keep the source file itself lean and single-threaded
-  (`references/artifacts.md`'s token budget already asks for this) so a report stays a coherently
-  single thought in practice; treat true per-lesson extraction as a known follow-up, not a shipped
-  guarantee.
+- **One lesson per harvest run — and the courier fails closed.** `scripts/harvest-hive.sh` selects a
+  **single** entry from `.wgm/memories.md` (the most recent bullet, or the last paragraph in a
+  markerless ledger) and anonymizes only that. A consent flag authorizes a sanitized *report*; it
+  never authorizes publishing the source ledger. After the scrub, the rendered title+body is
+  **re-scanned** and publication is refused — non-zero exit, no network call — if any residual
+  survives: a URL, an absolute or Windows path, an email, a commit-hash-like token, the local
+  repository's owner/name/basename (read from `git remote` and the working directory), or any token
+  in an operator-supplied `$WGM_HIVE_DENYLIST`. A candidate over the single-lesson size ceiling
+  (`--max-bytes`, default 2000) is refused for the same reason. `consent: true` does **not** bypass
+  any of this. Dry-run prints the exact candidate that real mode would file
+  (`scripts/test-harvest-hive.sh` pins all of it; [learn] issue #79).
 
 ### Consent & continuous mode
 This section is the canonical source for the one-time consent-question wording; other docs/templates

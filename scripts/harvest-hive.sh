@@ -14,11 +14,18 @@
 #   --memories FILE     override the memories source (default: .wgm/memories.md)
 #   --consent-file FILE override the consent file path (default: .github/wgm-hive.yml)
 #   --repo OWNER/REPO   override the target repo (default: agent-frontier/wgm)
+#   --max-bytes N       single-lesson size ceiling (default: 2000; also $WGM_HIVE_MAX_BYTES)
 #   -h | --help         show this help
 #
 # Notes:
 #   * Consent is opt-in by default and recorded once per project in .github/wgm-hive.yml.
 #   * Anonymization is always on. It is a best-effort deterministic scrub, not a redaction guarantee.
+#   * Exactly ONE lesson is selected from the ledger; consent authorizes a sanitized report, never
+#     the source memories file.
+#   * The courier FAILS CLOSED: after scrubbing, the rendered title+body is scanned for residual
+#     host identifiers (URLs, absolute paths, emails, commit hashes, the local repo owner/name/
+#     basename, plus any $WGM_HIVE_DENYLIST tokens) and for the single-lesson size ceiling. Any hit
+#     refuses publication with a non-zero exit and no network call.
 #   * Dry run never calls `gh`; it only prints what would be written/filed.
 
 set -euo pipefail
@@ -32,6 +39,7 @@ AUTO_REPORT=""
 RAW_MEMORIES=""
 DUPLICATE_NUMBER=""
 TEMPLATE_HINT="assets/wgm-hive.template.yml"
+MAX_LESSON_BYTES="${WGM_HIVE_MAX_BYTES:-2000}"
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -42,6 +50,7 @@ while [[ $# -gt 0 ]]; do
     --memories) [[ $# -ge 2 ]] || { echo "--memories requires a file" >&2; exit 2; }; MEMORIES_FILE="$2"; shift 2 ;;
     --consent-file) [[ $# -ge 2 ]] || { echo "--consent-file requires a file" >&2; exit 2; }; CONSENT_FILE="$2"; shift 2 ;;
     --repo) [[ $# -ge 2 ]] || { echo "--repo requires OWNER/REPO" >&2; exit 2; }; REPO="$2"; shift 2 ;;
+    --max-bytes) [[ $# -ge 2 ]] || { echo "--max-bytes requires a number" >&2; exit 2; }; MAX_LESSON_BYTES="$2"; shift 2 ;;
     -*) echo "Unknown flag: $1" >&2; exit 2 ;;
     *) echo "Unexpected argument: $1" >&2; exit 2 ;;
   esac
@@ -171,6 +180,85 @@ anonymize_content() {
     -e 's#agent-frontier/wgm#<wgm-self-repo>#gI' \
     -e 's#(^|[^[:alnum:]_/-])([a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*)([^[:alnum:]_/-]|$)#\1<redacted-repo>\3#gI' \
     -e 's#<wgm-self-repo>#agent-frontier/wgm#g'
+}
+
+select_one_lesson() {
+  # A consent flag authorizes ONE sanitized lesson, never the source ledger. Forwarding the whole
+  # file is how host-specific facts reach a public issue even when every individual scrub rule
+  # works ([learn] issue #79).
+  #
+  # The canonical ledger (assets/memories.template.md) is `## section` headings over `- entry`
+  # bullets, so prefer the last bullet/heading entry. A ledger that is plain prose has no such
+  # markers, so fall back to the last blank-line-separated paragraph. Either way exactly one entry
+  # leaves this function.
+  local picked
+  picked="$(printf '%s' "$1" | awk '
+    /^[[:space:]]*<!--/ { next }
+    /^[[:space:]]*(-|\*)[[:space:]]+/ {
+      if (n > 0) entries[n] = buf
+      n++; buf = $0 "\n"; next
+    }
+    { if (n > 0) buf = buf $0 "\n" }
+    END {
+      if (n > 0) { entries[n] = buf; printf "%s", entries[n] }
+    }
+  ')"
+  if [[ -n "${picked//[[:space:]]/}" ]]; then
+    printf '%s' "$picked"
+    return 0
+  fi
+  printf '%s' "$1" | awk '
+    /^[[:space:]]*<!--/ { next }
+    /^[[:space:]]*#/    { next }
+    /^[[:space:]]*$/    { if (buf != "") { last = buf; buf = "" } ; next }
+    { buf = buf $0 "\n" }
+    END { if (buf != "") last = buf; printf "%s", last }
+  '
+}
+
+# Tokens that must never survive the scrub. Derived from the LOCAL environment so the courier can
+# prove the candidate carries no trace of the host project, not merely that its own regexes ran.
+collect_denylist() {
+  local remote owner name base
+  base="$(basename "$(pwd)")"
+  [[ ${#base} -ge 4 ]] && printf '%s\n' "$base"
+  if remote="$(git config --get remote.origin.url 2>/dev/null)" && [[ -n "$remote" ]]; then
+    remote="${remote%.git}"
+    name="${remote##*/}"
+    owner="${remote%/*}"; owner="${owner##*[:/]}"
+    [[ ${#name} -ge 4 ]] && printf '%s\n' "$name"
+    [[ ${#owner} -ge 4 ]] && printf '%s\n' "$owner"
+  fi
+  # Operator-supplied extras, one token per line.
+  if [[ -n "${WGM_HIVE_DENYLIST:-}" && -f "$WGM_HIVE_DENYLIST" ]]; then
+    grep -vE '^[[:space:]]*(#|$)' "$WGM_HIVE_DENYLIST" || true
+  fi
+}
+
+# Refuse rather than publish when the scrub cannot PROVE the candidate is anonymous. Prints the
+# reasons on stderr; returns non-zero to fail closed.
+residual_scan() {
+  local candidate="$1" tok bad=0
+  local self_owner="${REPO%%/*}" self_name="${REPO##*/}"
+
+  scan_hit() { printf 'REFUSING to publish: %s\n' "$1" >&2; bad=1; }
+
+  grep -qiE 'https?://' <<<"$candidate"                  && scan_hit "a URL survived the scrub"
+  grep -qE '(^|[[:space:]])(/home/|/Users/|/root/)'  <<<"$candidate" && scan_hit "an absolute path survived the scrub"
+  grep -qE "[A-Za-z]:[\\]"                            <<<"$candidate" && scan_hit "a Windows path survived the scrub"
+  grep -qE '[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}' <<<"$candidate" && scan_hit "an email address survived the scrub"
+  grep -qE '(^|[^[:alnum:]])[0-9a-f]{7,40}([^[:alnum:]]|$)'    <<<"$candidate" && scan_hit "a commit-hash-like token survived the scrub"
+
+  while IFS= read -r tok; do
+    [[ -z "$tok" ]] && continue
+    # The upstream repo's own owner/name are the publication target, not a host identifier.
+    [[ "$tok" == "$self_owner" || "$tok" == "$self_name" ]] && continue
+    if grep -qiF -- "$tok" <<<"$candidate"; then
+      scan_hit "host identifier '${tok}' survived the scrub"
+    fi
+  done < <(collect_denylist)
+
+  return "$bad"
 }
 
 trim_spaces() {
@@ -310,8 +398,28 @@ load_consent_state
 if ! load_memories; then
   exit 0
 fi
-ANONYMIZED_BODY="$(anonymize_content "$RAW_MEMORIES")"
+
+LESSON="$(select_one_lesson "$RAW_MEMORIES")"
+if [[ -z "${LESSON//[[:space:]]/}" ]]; then
+  printf 'Nothing to harvest: no discrete lesson entry found in %s.\n' "$MEMORIES_FILE"
+  exit 0
+fi
+ANONYMIZED_BODY="$(anonymize_content "$LESSON")"
 TITLE="$(derive_title "$ANONYMIZED_BODY")"
+
+# Fail closed BEFORE any side effect, and identically in dry-run and real mode, so the draft an
+# operator reviews is the exact payload that would be filed.
+CANDIDATE="${TITLE}"$'\n'"${ANONYMIZED_BODY}"
+if (( ${#CANDIDATE} > MAX_LESSON_BYTES )); then
+  printf 'REFUSING to publish: candidate is %s bytes, over the %s-byte single-lesson ceiling.\n' \
+    "${#CANDIDATE}" "$MAX_LESSON_BYTES" >&2
+  echo "A consent flag authorizes one sanitized lesson, never the source ledger." >&2
+  exit 1
+fi
+if ! residual_scan "$CANDIDATE"; then
+  echo "Anonymization could not be proven; no issue was filed and no network call was made." >&2
+  exit 1
+fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   print_draft "$TITLE" "$ANONYMIZED_BODY"
