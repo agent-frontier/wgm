@@ -307,6 +307,16 @@ next iteration is a consolidation task (help land existing PRs), not another net
   that gated each merge (`references/ralph-loop.md`, Backpressure in depth). A merged, CI-green PR
   can still sit behind a silently-failing post-merge deploy; don't report work "complete" on PR
   status alone when the spec's demo path implies a live deployment.
+- **Audit the history, not just the tree.** Deterministic product gates cannot see commit-message
+  governance, so a run can reach a green exact-tree gate and still ship a non-compliant history.
+  When the repository mandates commit trailers, treat **merge commits as first-class governed
+  commits**: pass `gh pr merge --merge` an explicit `--subject`/`--body` whose final block carries
+  the trailers, and audit every introduced commit (`scripts/check-trailers.sh`, or `git rev-list
+  <base>..HEAD` + `git show -s --format=%B`). A generated merge commit is the usual offender — every
+  head commit complies and the merge button's synthesised commit does not. If a non-compliant merge
+  is **already published, do not rewrite shared history**: build a replacement two-parent merge from
+  the same parents with the trailers present and prove `old^{tree} == replacement^{tree}` before
+  promoting it (`[learn]` issue #82).
 - **Audit the docs — mandatory, no need to ask (Standard/Full).** Dispatch the docs-audit swarm:
   four independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
   technical-writer role into one paper-trail report — every action item labeled strictly **Agent
@@ -383,6 +393,6 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
   always anonymize, and report upstream automatically once a project consents via
   `.github/wgm-hive.yml`; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`, `wgm-hive.template.yml`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
-- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
+- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/check-trailers.sh` — audit every introduced commit (merges included) for mandated trailers. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

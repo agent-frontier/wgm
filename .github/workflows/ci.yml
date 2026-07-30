@@ -74,6 +74,9 @@ jobs:
       - name: Check-docs harness (bash)
         run: bash scripts/test-check-docs.sh
 
+      - name: Check-trailers harness (bash)
+        run: bash scripts/test-check-trailers.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |
