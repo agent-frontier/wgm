@@ -116,10 +116,15 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 mkdir -p "$WT_DIR"
+METRICS_DIR="$(pwd)/.wgm/metrics"
+mkdir -p "$METRICS_DIR"
+SWARM_START=$(date +%s)
 
 PIDS=()
 BRANCHES=()
 DIRS=()
+LANE_START=()
+LANE_END=()
 i=0
 for task in "${TASKS[@]}"; do
   i=$((i + 1))
@@ -135,10 +140,15 @@ for task in "${TASKS[@]}"; do
   fi
   reqflag=()
   [[ -n "$task" ]] && reqflag=(--request "$task")
-  ( cd "$dir" && "$LOOP" build "$MAXIT" "${reqflag[@]}" --commit -- "${AGENT_ARGV[@]}" ) >"${dir}/.swarm.log" 2>&1 &
+  # Every lane is timed: its own metrics ledger lands in the PARENT's .wgm/metrics/ so the summary
+  # below can aggregate it even when --cleanup removes the worktree.
+  ( cd "$dir" && WGM_PARENT_TASK="${task:-stream-${i}}" \
+      "$LOOP" build "$MAXIT" "${reqflag[@]}" --commit \
+      --metrics "${METRICS_DIR}/${SAFE_PREFIX}-${i}.tsv" -- "${AGENT_ARGV[@]}" ) >"${dir}/.swarm.log" 2>&1 &
   PIDS+=("$!")
   BRANCHES+=("$br")
   DIRS+=("$dir")
+  LANE_START+=("$(date +%s)")
   echo "↗ stream $i → branch ${br}${task:+ — ${task}}"
 done
 
@@ -150,9 +160,57 @@ FAIL=0
 printf '%-7s %-24s %-6s %s\n' "stream" "branch" "status" "commits"
 for idx in "${!PIDS[@]}"; do
   if wait "${PIDS[$idx]}"; then st="ok"; else st="FAIL"; FAIL=1; fi
+  LANE_END[idx]="$(date +%s)"
   commits="$(git rev-list --count "HEAD..${BRANCHES[$idx]}" 2>/dev/null || echo '?')"
   printf '%-7s %-24s %-6s %s\n' "$((idx + 1))" "${BRANCHES[$idx]}" "$st" "$commits"
 done
+
+# ----- telemetry summary ----------------------------------------------------
+# Two explicit clocks: parent WALL time (start -> all lanes done) and summed AGENT time (the lanes'
+# own durations). Missing telemetry is reported as a lower bound, never estimated away.
+SWARM_END=$(date +%s)
+WALL=$(( SWARM_END - SWARM_START ))
+AGENT_SECS=0
+LANES_TIMED=0
+CRITICAL=0
+for idx in "${!PIDS[@]}"; do
+  s="${LANE_START[$idx]:-}"; e="${LANE_END[$idx]:-}"
+  if [[ -n "$s" && -n "$e" ]]; then
+    d=$(( e - s ))
+    AGENT_SECS=$(( AGENT_SECS + d ))
+    LANES_TIMED=$(( LANES_TIMED + 1 ))
+    [[ "$d" -gt "$CRITICAL" ]] && CRITICAL="$d"
+  fi
+done
+LANES_UNMETERED=$(( ${#PIDS[@]} - LANES_TIMED ))
+# Peak concurrency = the largest number of lanes alive at the same instant, computed by sweeping
+# every lane start/end boundary rather than assuming all lanes overlapped.
+PEAK=0
+for idx in "${!PIDS[@]}"; do
+  t="${LANE_START[$idx]:-}"; [[ -n "$t" ]] || continue
+  live=0
+  for j in "${!PIDS[@]}"; do
+    js="${LANE_START[$j]:-}"; je="${LANE_END[$j]:-}"
+    [[ -n "$js" && -n "$je" ]] || continue
+    if [[ "$js" -le "$t" && "$je" -ge "$t" ]]; then live=$(( live + 1 )); fi
+  done
+  [[ "$live" -gt "$PEAK" ]] && PEAK="$live"
+done
+
+hms() { printf '%dh%02dm%02ds' $(( $1 / 3600 )) $(( ($1 % 3600) / 60 )) $(( $1 % 60 )); }
+
+echo ""
+echo "== swarm telemetry =="
+printf 'wall time (parent):     %s\n' "$(hms "$WALL")"
+printf 'agent time (summed):    %s\n' "$(hms "$AGENT_SECS")"
+printf 'utilization:            %sx\n' "$(awk -v a="$AGENT_SECS" -v w="$WALL" 'BEGIN{printf (w>0 ? "%.2f" : "n/a"), (w>0 ? a/w : 0)}')"
+printf 'lanes timed/unmetered:  %s/%s\n' "$LANES_TIMED" "$LANES_UNMETERED"
+printf 'peak concurrency:       %s\n' "$PEAK"
+printf 'critical path:          %s\n' "$(hms "$CRITICAL")"
+printf 'per-iteration ledgers:  %s\n' "$METRICS_DIR"
+if [[ "$LANES_UNMETERED" -gt 0 ]]; then
+  echo "NOTE: ${LANES_UNMETERED} lane(s) have no duration telemetry — agent time above is a LOWER BOUND."
+fi
 
 MAIN_MEMORIES=".wgm/memories.md"
 CONSOLIDATED_ANY=0

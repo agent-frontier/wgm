@@ -49,7 +49,7 @@ reset_swarm() {  # tear down every worktree under .wgm/worktrees + every wgm/* b
   while IFS= read -r b; do
     git branch -D "$b" >/dev/null 2>&1 || true
   done < <(git for-each-ref --format='%(refname:short)' refs/heads/ | grep -E '^wgm/' || true)
-  rm -rf .wgm/worktrees
+  rm -rf .wgm/worktrees .wgm/metrics
   rm -f .wgm/memories.md
 }
 
@@ -113,6 +113,23 @@ if grep -q "no human is present to answer, so treating only this run as declined
   pass "the standing post-swarm harvest-hive dispatch ran safely with no consent file yet"
 else
   fail "swarm.sh did not dispatch harvest-hive.sh after consolidating memories: $OUT"
+fi
+reset_swarm
+
+# 5b) the swarm reports two explicit clocks + lane telemetry, and per-lane ledgers land in the parent
+run --tasks tasks.txt --max-iterations 1 -- "${AGENT_OK[@]}"
+if [[ "$RC" -eq 0 ]] \
+   && grep -q "== swarm telemetry ==" <<<"$OUT" \
+   && grep -q "wall time (parent):" <<<"$OUT" \
+   && grep -q "agent time (summed):" <<<"$OUT" \
+   && grep -q "lanes timed/unmetered:  2/0" <<<"$OUT" \
+   && grep -q "peak concurrency:" <<<"$OUT" \
+   && grep -q "critical path:" <<<"$OUT" \
+   && [[ -f .wgm/metrics/wgm-swarm-1.tsv && -f .wgm/metrics/wgm-swarm-2.tsv ]] \
+   && grep -q "add feature A" .wgm/metrics/wgm-swarm-1.tsv; then
+  pass "swarm reports wall/agent clocks and writes per-lane ledgers attributed to the parent task"
+else
+  fail "swarm telemetry summary or per-lane ledgers missing (rc=$RC): $OUT"
 fi
 reset_swarm
 

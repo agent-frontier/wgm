@@ -155,13 +155,48 @@ else
   fail "circuit breaker did not trip on persistent failure (rc=$RC)"
 fi
 
-# 14) --metrics logs a header + one row per iteration
+# 14) --metrics logs a header + one row per iteration, with start/end timestamps and a parent column
 rm -f metrics.tsv
 run build 2 --metrics metrics.tsv -- "${AGENT_PROGRESS[@]}"
-if [[ "$RC" -eq 0 && -f metrics.tsv ]] && head -1 metrics.tsv | grep -q "timestamp" && head -1 metrics.tsv | grep -q "cost" && [[ "$(($(wc -l < metrics.tsv) - 1))" -eq 2 ]] && grep -q $'\tok\t' metrics.tsv; then
+if [[ "$RC" -eq 0 && -f metrics.tsv ]] \
+  && head -1 metrics.tsv | grep -q "start_timestamp" \
+  && head -1 metrics.tsv | grep -q "end_timestamp" \
+  && head -1 metrics.tsv | grep -q "parent" \
+  && head -1 metrics.tsv | grep -q "cost" \
+  && [[ "$(($(wc -l < metrics.tsv) - 1))" -eq 2 ]] && grep -q $'\tok\t' metrics.tsv; then
   pass "metrics ledger logs a header + a row per iteration"
 else
   fail "metrics ledger did not log expected rows (rc=$RC)"
+fi
+rm -f metrics.tsv
+
+# 14b) telemetry is on by default (no --metrics flag) and lands in wgm's own scratch dir
+rm -rf .wgm/metrics.tsv
+run build 1 -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 && -f .wgm/metrics.tsv ]] && [[ "$(($(wc -l < .wgm/metrics.tsv) - 1))" -eq 1 ]]; then
+  pass "telemetry is on by default at .wgm/metrics.tsv"
+else
+  fail "default telemetry ledger was not written (rc=$RC)"
+fi
+
+# 14c) --metrics off disables the ledger entirely
+rm -rf .wgm/metrics.tsv
+run build 1 --metrics off -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 && ! -f .wgm/metrics.tsv ]]; then
+  pass "--metrics off disables telemetry"
+else
+  fail "--metrics off did not disable telemetry (rc=$RC)"
+fi
+
+# 14d) $WGM_PARENT_TASK is recorded so swarm lanes attribute iterations to their parent task
+rm -f metrics.tsv
+export WGM_PARENT_TASK="lane-7"
+run build 1 --metrics metrics.tsv -- "${AGENT_PROGRESS[@]}"
+unset WGM_PARENT_TASK
+if [[ "$RC" -eq 0 ]] && tail -1 metrics.tsv | grep -q "lane-7"; then
+  pass "WGM_PARENT_TASK populates the parent column"
+else
+  fail "WGM_PARENT_TASK did not populate the parent column (rc=$RC)"
 fi
 rm -f metrics.tsv
 

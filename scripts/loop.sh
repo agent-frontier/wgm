@@ -52,8 +52,10 @@
 #   --max-consecutive-failures N  circuit breaker: stop after N build iterations that fail every
 #                        retry in a row; 0 = never trip (default: 3). For fail-fast on the first
 #                        error, set --max-retries 0 --max-consecutive-failures 1.
-#   --metrics FILE       append a per-iteration TSV row (timestamp, iter, mode, agent, duration,
-#                        plan_changed, result, cost) to FILE — run telemetry for data-driven runs
+#   --metrics FILE       append a per-iteration TSV row (start_timestamp, end_timestamp, iter, mode,
+#                        agent, duration_s, plan_changed, result, cost, parent) to FILE. Telemetry is
+#                        ON by default at .wgm/metrics.tsv; pass `--metrics off` to disable it.
+#                        $WGM_PARENT_TASK (set by swarm.sh per lane) populates the parent column.
 #   --cost-cmd "CMD"     after each iteration run CMD (shell) to print a token/cost figure for the
 #                        `cost` column; best-effort, its failure never breaks the loop (default: none)
 #   --max-cost N         stop the build loop once cumulative cost (summed from --cost-cmd's output,
@@ -189,11 +191,10 @@ elif [[ -f ".wgm/IMPLEMENTATION_PLAN.md" ]]; then PLAN=".wgm/IMPLEMENTATION_PLAN
 fi
 STOP_FILE=".wgm/STOP"; [[ -d .wgm ]] || STOP_FILE="STOP"
 
-if [[ -z "$METRICS_FILE" ]]; then
-  if [[ -d .wgm ]]; then METRICS_FILE=".wgm/metrics.tsv"
-  elif [[ -n "$PLAN" ]]; then METRICS_FILE="$(dirname "$PLAN")/metrics.tsv"
-  else METRICS_FILE="metrics.tsv"; fi
-fi
+# Telemetry is on by default so every iteration is timed without the operator opting in; wgm's own
+# scratch dir keeps the ledger out of the project tree. `--metrics off` disables it explicitly.
+[[ -n "$METRICS_FILE" ]] || METRICS_FILE=".wgm/metrics.tsv"
+[[ "$METRICS_FILE" == "off" ]] && METRICS_FILE=""
 
 if [[ "$DRY_RUN" -eq 0 ]] && [[ "$MODE" == "build" || "$MODE" == "review" || "$MODE" == "preflight" ]] && [[ -z "$PLAN" ]]; then
   echo "Refusing to run '$MODE': no IMPLEMENTATION_PLAN.md found (root or .wgm/)." >&2
@@ -318,6 +319,13 @@ run_frugal() {
   if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | eval "$FRUGAL_AGENT"
   else eval "$FRUGAL_AGENT \"\$PROMPT\""; fi
 }
+# GNU date wants -d @EPOCH; BSD/macOS date wants -r EPOCH. Fall back to the raw epoch if neither works.
+epoch_to_utc() {
+  date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || date -u -r "$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || echo "$1"
+}
+
 plan_hash() {
   if [[ -n "$PLAN" && -f "$PLAN" ]]; then
     if command -v sha1sum >/dev/null 2>&1; then sha1sum "$PLAN" | awk '{print $1}'
@@ -349,10 +357,13 @@ record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
   fi
   [[ -n "$METRICS_FILE" ]] || return 0
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  if date --version >/dev/null 2>&1; then ts_start="$(date -u -d "@$ITER_START" +%Y-%m-%dT%H:%M:%SZ)"; else ts_start="$(date -u -r "$ITER_START" +%Y-%m-%dT%H:%M:%SZ)"; fi
-  parent="${WGM_PARENT_TASK:-none}"
-  [[ -f "$METRICS_FILE" ]] || printf 'start\tcompletion\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\tparent\n' > "$METRICS_FILE"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts_start" "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" "$parent" >> "$METRICS_FILE"
+  ts_start="$(epoch_to_utc "$ITER_START")"
+  parent="${WGM_PARENT_TASK:-}"
+  parent="${parent//$'\t'/ }"; parent="${parent//$'\n'/ }"
+  mkdir -p "$(dirname "$METRICS_FILE")" 2>/dev/null || true
+  [[ -f "$METRICS_FILE" ]] || printf 'start_timestamp\tend_timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\tparent\n' > "$METRICS_FILE"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$ts_start" "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" "${parent:-none}" >> "$METRICS_FILE"
 }
 
 # Model escalation engages only when BOTH a frugal and a main agent are available.
