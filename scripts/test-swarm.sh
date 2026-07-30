@@ -74,6 +74,26 @@ else
 fi
 reset_swarm
 
+# 2b) each lane's prompt re-pins its absolute worktree and expected branch, so a later turn cannot
+#     drift back to the parent checkout and mutate it ([learn] issue #73).
+# shellcheck disable=SC2016  # $1 is the fake agent's own positional (the prompt), not ours.
+AGENT_CAPTURE=(bash -c 'printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "%s" "$1" > "$PWD/.prompt.txt"' _)
+run --tasks tasks.txt --max-iterations 1 -- "${AGENT_CAPTURE[@]}"
+pinned=0
+for w in .wgm/worktrees/wgm-swarm-1 .wgm/worktrees/wgm-swarm-2; do
+  [[ -f "$w/.prompt.txt" ]] || continue
+  abs="$(cd "$w" && pwd)"
+  if grep -qF "$abs" "$w/.prompt.txt" && grep -qF "git -C $abs" "$w/.prompt.txt"; then
+    pinned=$((pinned + 1))
+  fi
+done
+if [[ "$RC" -eq 0 && "$pinned" -eq 2 ]]; then
+  pass "every lane prompt re-pins its absolute worktree path and git -C usage"
+else
+  fail "lane prompts did not re-pin the worktree (rc=$RC, pinned=$pinned)"
+fi
+reset_swarm
+
 # 3) -n COUNT fans out COUNT identical streams
 run -n 3 --max-iterations 1 --prefix wgm/race -- "${AGENT_OK[@]}"
 nbr="$(git for-each-ref --format='%(refname:short)' refs/heads/ | grep -c '^wgm/race/' || true)"

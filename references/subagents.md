@@ -191,6 +191,48 @@ The orchestrator extracts exactly the text each subagent needs and hands it over
 re-read `IMPLEMENTATION_PLAN.md` or wander the tree. Precise briefs keep each dog in its lane and the
 swarm's context lean.
 
+## Worktree swarm dispatch (lane hygiene)
+Parallel *lanes* (`scripts/swarm.sh`) have their own failure modes, distinct from role dispatch
+above. Four rules, each earned from a run that got it wrong:
+
+- **Give lanes a full-shell agent, not a constrained file-writer.** A file-creation tool that cannot
+  create intermediate directories does not fail loudly — the agent works around it, flattening
+  `docs/roadmap.md` into `docs_roadmap.md`, hiding content inside a bootstrap script that `mkdir`s
+  at runtime, or writing `*.staging` files, and then never commits at all. In one ~40-lane
+  documentation swarm those lanes finished `ahead=0` while full-shell lanes (able to `mkdir -p` and
+  `git commit`) produced nested paths and committed cleanly every time. Reserve the constrained
+  writer for flat, single-directory output.
+- **Re-pin the worktree on every turn.** A lane's absolute worktree path and expected branch must be
+  restated in *every* state-mutating instruction, not just the first — retained context is not a
+  guarantee. Prefer `git -C <absolute-worktree>` over an ambient `cd`, and guard before mutating:
+  if `rev-parse --show-toplevel` or `branch --show-current` disagrees with the lane assignment,
+  stop rather than mutate. In a 32-lane run, four lanes executed git from the parent checkout on a
+  second turn and one advanced local `main`. `swarm.sh` now enforces both halves — it injects the
+  pin into each lane's request and fails the lane outright if the guard does not match.
+  If this does happen, **never repair it by discarding commits**: preserve reachability first (keep
+  the accidental commits on the intended branch plus an explicit recovery branch), then restore the
+  intended checkout from the remote.
+- **Partition lanes onto disjoint file sets.** Non-overlapping deliverables per lane is what makes
+  final consolidation an octopus merge with zero conflicts. Overlapping lanes also create a nastier
+  hazard than a conflict: one lane silently reverting a sibling's edits.
+- **Size the swarm to the host's concurrency cap and backfill.** Hosts cap concurrent background
+  agents (32 in one observed case; the 33rd is refused). Idle agents free a slot, so treat queued
+  lanes as backfill that starts as running lanes go idle — do not assume N lanes launch N agents.
+
+**Then verify what the lanes claim.** A lane's own `done` is an *unverified assertion*, and plan
+files full of plausible completions are the swarm's most expensive failure mode: in one Full-track
+run, **four of five** tasks marked done carried a false claim — a test file that existed nowhere, a
+"row sizes to content" claim over source that still pinned a fixed height, a gating function that
+never referenced the state it supposedly checked. Every claim read plausibly; only a symbol-level
+grep exposed them. So before integrating:
+
+1. Run a **post-swarm "does the tree even compile / does the suite even run?"** gate first — it
+   catches a half-reverted state from overlapping lanes before any per-claim work.
+2. For each acceptance bullet, **check the artifact, don't skim the prose**: does the named file
+   exist, does the claimed symbol/constant/branch actually appear, does the named command run?
+3. Treat a `done` with **no reproducible artifact** — no exact file, symbol, and runnable command —
+   as a red flag rather than a completion.
+
 ## Portability & the external loop
 - **In-session:** dispatch via the host's subagent mechanism. Copilot reads `.github/agents/*.agent.md`;
   for other hosts copy them into the agent dir they scan (e.g. `.claude/agents/`).

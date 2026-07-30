@@ -17,6 +17,10 @@ review so spec drift and quality bugs are caught by different eyes.
 
 ### Key Capabilities
 - **Acceptance mapping**: every acceptance criterion for the task is met by the diff (or explain the gap).
+- **Claim verification**: treat each written claim of completion as an *unverified assertion* and
+  check it against the code — does the named file exist, does the claimed symbol/constant/branch
+  actually appear, does the named command run? Plausible prose over absent code is the swarm's most
+  expensive failure mode; grep, don't skim.
 - **Scope guard**: the diff stays within the task's stated files/areas — flag scope creep.
 - **Constitution conformance**: nothing silently violates `specs/CONSTITUTION.md`; deviations are recorded.
 - **Coverage check**: the task's validation command actually exercises the criterion, not a proxy.

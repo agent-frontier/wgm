@@ -139,12 +139,29 @@ for task in "${TASKS[@]}"; do
     continue
   fi
   reqflag=()
-  [[ -n "$task" ]] && reqflag=(--request "$task")
+  # Re-pin the lane's worktree on every turn. An agent that keeps working from retained context
+  # drifts back to the parent checkout and can advance the parent's own branch, so the absolute
+  # worktree path and expected branch are restated in the request itself rather than assumed to
+  # survive from the first prompt ([learn] issue #73).
+  abs_dir="$(cd "$dir" && pwd)"
+  pin="Work ONLY inside the git worktree at ${abs_dir} on branch ${br}. Run git as 'git -C ${abs_dir} ...' rather than relying on the current directory. Before ANY state-mutating command, verify 'git -C ${abs_dir} rev-parse --show-toplevel' is ${abs_dir} and 'git -C ${abs_dir} branch --show-current' is ${br}; if either differs, stop and report instead of mutating."
+  if [[ -n "$task" ]]; then reqflag=(--request "${task}"$'\n\n'"${pin}"); else reqflag=(--request "$pin"); fi
   # Every lane is timed: its own metrics ledger lands in the PARENT's .wgm/metrics/ so the summary
   # below can aggregate it even when --cleanup removes the worktree.
-  ( cd "$dir" && WGM_PARENT_TASK="${task:-stream-${i}}" \
+  # The guard below is the deterministic half of the same rule: if the subshell is not actually in
+  # this lane's worktree and branch, fail the lane rather than letting it mutate the wrong tree.
+  (
+    cd "$dir" || exit 1
+    top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    cur="$(git branch --show-current 2>/dev/null || true)"
+    if [[ "$top" != "$abs_dir" || "$cur" != "$br" ]]; then
+      echo "✗ lane guard: expected worktree ${abs_dir} on ${br}, got ${top:-<none>} on ${cur:-<none>}" >&2
+      exit 1
+    fi
+    WGM_PARENT_TASK="${task:-stream-${i}}" \
       "$LOOP" build "$MAXIT" "${reqflag[@]}" --commit \
-      --metrics "${METRICS_DIR}/${SAFE_PREFIX}-${i}.tsv" -- "${AGENT_ARGV[@]}" ) >"${dir}/.swarm.log" 2>&1 &
+      --metrics "${METRICS_DIR}/${SAFE_PREFIX}-${i}.tsv" -- "${AGENT_ARGV[@]}"
+  ) >"${dir}/.swarm.log" 2>&1 &
   PIDS+=("$!")
   BRANCHES+=("$br")
   DIRS+=("$dir")
