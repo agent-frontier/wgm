@@ -254,7 +254,13 @@ stop condition fires. **One task per iteration.** Each iteration:
    tasks. Write enough that a **fresh agent could continue** from the file alone. Once that
    validation command exits 0, commit the iteration with a Conventional Commits message (`type:
    imperative description`, ≤72 chars; one iteration, one commit); if git is unavailable, the
-   plan-file record is still required. **Remember:** append any durable lesson (a stall's cause +
+   plan-file record is still required. **Doc-sync check:** if this iteration's diff adds **new
+   public surface** — a CLI subcommand or flag, a public function, a new config file — and touches
+   no documentation path, surface that in the plan ("new public surface added, no doc file touched
+   — confirm intentional or add a follow-up task") rather than leaving it for the Ship/Handoff
+   audit. Batched audits find this class several merged PRs late, and the fix cost scales with how
+   many accumulated; `scripts/check-doc-sync.sh --warn` runs it deterministically (`[learn]` issue
+   #78). **Remember:** append any durable lesson (a stall's cause +
    fix, a recurring gotcha, a dead end) to `.wgm/memories.md`,
    kept lean within a ~2000-token budget. **Agent-only files** (`.wgm/` memories, scores, any
    agent-only state) may min-max context with **single-token keys serialized as TOON + an embedded
@@ -393,6 +399,6 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
   always anonymize, and report upstream automatically once a project consents via
   `.github/wgm-hive.yml`; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`, `wgm-hive.template.yml`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
-- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/check-trailers.sh` — audit every introduced commit (merges included) for mandated trailers. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
+- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — fan it out across parallel git-worktree streams. `scripts/check-trailers.sh` — audit every introduced commit (merges included) for mandated trailers. `scripts/check-doc-sync.sh` — flag a diff that adds public surface without touching docs. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

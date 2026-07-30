@@ -295,7 +295,7 @@ wgm/
 ├── README.md         # this file
 ├── references/       # grilling · ralph-loop · telemetry · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · PLUGIN_PROTOCOL · plugin-integration
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
-├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · install.sh · install.ps1
+├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · install.sh · install.ps1
 ├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
 └── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)
