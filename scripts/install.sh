@@ -20,6 +20,7 @@
 #   --dry-run         print what would happen; change nothing
 #   --uninstall       remove the wgm skill from the resolved targets
 #   --force           overwrite/replace an existing install
+#   --no-companions   do NOT install the teach-me / quiz-me companion skills alongside wgm
 #   --no-windows      (WSL only) do NOT mirror into your Windows home
 #   --windows-home P  (WSL only) mirror into Windows home P (default: auto-detect via /mnt)
 #   --ref REF         ref to self-fetch when piped: a branch/tag/sha, or "latest" for the newest
@@ -67,6 +68,7 @@ DRY_RUN=0
 UNINSTALL=0
 FORCE=0
 NO_WINDOWS=0
+NO_COMPANIONS=0
 WINDOWS_HOME="${WGM_WINDOWS_HOME:-}"
 WIN_UNRESOLVED=0
 WGM_REPO="${WGM_REPO:-agent-frontier/wgm}"
@@ -84,6 +86,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)   DRY_RUN=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --force)     FORCE=1; shift ;;
+    --no-companions) NO_COMPANIONS=1; shift ;;
     --no-windows)   NO_WINDOWS=1; shift ;;
     --windows-home) [[ $# -ge 2 ]] || { echo "--windows-home requires a path" >&2; exit 2; }; WINDOWS_HOME="$2"; shift 2 ;;
     --ref)       [[ $# -ge 2 ]] || { echo "--ref requires a value" >&2; exit 2; }; WGM_REF="$2"; shift 2 ;;
@@ -315,6 +318,53 @@ is_wgm_install() {
   grep -qE '^[[:space:]]*name:[[:space:]]*wgm[[:space:]]*$' "$1/SKILL.md" 2>/dev/null
 }
 
+# Companion skills ship beside wgm as their own sibling skill dirs, because a skills client
+# discovers one skill per directory: companions/teach-me -> <skills-dir>/teach-me.
+COMPANIONS=(teach-me quiz-me)
+
+is_companion_install() {  # $1 = dir, $2 = companion name
+  [[ -f "$1/SKILL.md" ]] || return 1
+  grep -qE "^[[:space:]]*name:[[:space:]]*$2[[:space:]]*$" "$1/SKILL.md" 2>/dev/null
+}
+
+# Companion targets are derived from wgm's own: <skills-dir>/wgm -> <skills-dir>/<companion>.
+companion_targets_for() {
+  local wgm_target="$1" parent name
+  parent="$(dirname "$wgm_target")"
+  for name in "${COMPANIONS[@]}"; do printf '%s/%s\n' "$parent" "$name"; done
+}
+
+install_companions() {
+  local wgm_target="$1" method="${2:-$METHOD}" name src target
+  [[ "$NO_COMPANIONS" -eq 1 ]] && return 0
+  for name in "${COMPANIONS[@]}"; do
+    src="$SRC_DIR/companions/$name"
+    target="$(dirname "$wgm_target")/$name"
+    # An older wgm tarball has no companions/ dir; that is a skip, never an install failure.
+    [[ -d "$src" ]] || { say "  companion not in this source, skipping: $name"; continue; }
+    if [[ -e "$target" || -L "$target" ]]; then
+      if [[ "$FORCE" -eq 1 ]]; then
+        say "  replacing existing: $target"
+        [[ "$DRY_RUN" -eq 1 ]] || rm -rf "$target"
+      elif is_companion_install "$target" "$name"; then
+        say "  updating existing $name install: $target"
+        [[ "$DRY_RUN" -eq 1 ]] || rm -rf "$target"
+      else
+        say "  exists — skipping (use --force to replace): $target"
+        continue
+      fi
+    fi
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      if [[ "$method" == "symlink" ]]; then say "  would symlink: $target -> $src"
+      else say "  would copy:    $src -> $target"; fi
+      continue
+    fi
+    mkdir -p "$(dirname "$target")"
+    if [[ "$method" == "symlink" ]]; then ln -sfn "$src" "$target"; else copy_tree "$src" "$target"; fi
+    say "  installed: $target"
+  done
+}
+
 install_one() {
   local target="$1"
   local method="${2:-$METHOD}"
@@ -349,7 +399,7 @@ install_one() {
 uninstall_one() {
   local target="$1"
   case "$target" in
-    */skills/wgm) ;;
+    */skills/wgm|*/skills/teach-me|*/skills/quiz-me) ;;
     *) echo "  refusing to remove unexpected path: $target" >&2; return 0 ;;
   esac
   if [[ -e "$target" || -L "$target" ]]; then
@@ -381,23 +431,37 @@ say ""
 
 if [[ "$UNINSTALL" -eq 1 ]]; then
   say "Uninstalling wgm from:"
-  for t in "${TARGETS[@]}"; do uninstall_one "$t"; done
+  for t in "${TARGETS[@]}"; do
+    uninstall_one "$t"
+    while IFS= read -r ct; do uninstall_one "$ct"; done < <(companion_targets_for "$t")
+  done
   if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
-    for t in "${WIN_TARGETS[@]}"; do uninstall_one "$t"; done
+    for t in "${WIN_TARGETS[@]}"; do
+      uninstall_one "$t"
+      while IFS= read -r ct; do uninstall_one "$ct"; done < <(companion_targets_for "$t")
+    done
   fi
 else
   say "Installing wgm to:"
-  for t in "${TARGETS[@]}"; do install_one "$t" "$METHOD"; done
+  for t in "${TARGETS[@]}"; do install_one "$t" "$METHOD"; install_companions "$t" "$METHOD"; done
   if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
-    for t in "${WIN_TARGETS[@]}"; do install_one "$t" copy; done
+    for t in "${WIN_TARGETS[@]}"; do install_one "$t" copy; install_companions "$t" copy; done
   fi
 fi
 
 say ""
 say "Done. Targets:"
-for t in "${TARGETS[@]}"; do say "  - $t"; done
+for t in "${TARGETS[@]}"; do
+  say "  - $t"
+  if [[ "$NO_COMPANIONS" -eq 0 ]]; then
+    while IFS= read -r ct; do say "  - $ct  (companion)"; done < <(companion_targets_for "$t")
+  fi
+done
 if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
   for t in "${WIN_TARGETS[@]}"; do say "  - $t  (windows mirror)"; done
 fi
 say ""
 say "Verify your agent can see it (e.g. /skills in VS Code or Copilot CLI), then invoke /wgm."
+if [[ "$NO_COMPANIONS" -eq 0 ]]; then
+  say "Companions: /teach-me to learn a repo, /quiz-me to be tested on it."
+fi

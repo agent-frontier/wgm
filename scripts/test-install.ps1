@@ -9,6 +9,7 @@
 #   C  when WSL is "available" (fake wsl.exe), a user-scope install delegates to bash inside WSL.
 #   D  -NoWsl forces a native install even when WSL is available.
 #   E  bootstrap source-URL resolver: latest/tag -> release asset, a branch -> codeload (dry-run).
+#   F  companion skills (teach-me / quiz-me) install as siblings; -NoCompanions opts out.
 #
 # Exit 0 = green, 1 = red.
 
@@ -118,6 +119,24 @@ esac
     Ok 'E source-URL resolver: release asset for latest/tag, codeload source for a branch'
   }
   else { Bad "E resolver picked the wrong URL (latest=$eLatest tag=$eTag main=$eMain)" }
+  # ---- F: companion skills install as siblings, and -NoCompanions opts out ----
+  $dirF = Join-Path $work 'f'
+  New-Item -ItemType Directory -Force -Path $dirF | Out-Null
+  & pwsh -NoProfile -File $installPs -NoWsl -Dir $dirF -Client agents -Force *> $null
+  if ((Test-Path (Join-Path $dirF 'teach-me/SKILL.md')) -and (Test-Path (Join-Path $dirF 'quiz-me/SKILL.md'))) {
+    Ok 'F1 companions install as sibling skill dirs next to wgm'
+  }
+  else { Bad 'F1 expected teach-me/ and quiz-me/ beside wgm under the -Dir target' }
+
+  $dirG = Join-Path $work 'g'
+  New-Item -ItemType Directory -Force -Path $dirG | Out-Null
+  & pwsh -NoProfile -File $installPs -NoWsl -Dir $dirG -Client agents -Force -NoCompanions *> $null
+  if ((Test-Path (Join-Path $dirG 'wgm/SKILL.md')) -and
+      -not (Test-Path (Join-Path $dirG 'teach-me')) -and
+      -not (Test-Path (Join-Path $dirG 'quiz-me'))) {
+    Ok 'F2 -NoCompanions installs wgm without the companion skills'
+  }
+  else { Bad 'F2 -NoCompanions still installed companion skills' }
 }
 finally {
   $env:WSL_FAKE_LOG = $null

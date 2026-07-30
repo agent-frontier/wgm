@@ -65,6 +65,14 @@ implement / prototype something from rough intent.
 
 ## Related Skills & Plugins
 
+**[teach-me](companions/teach-me/SKILL.md) / [quiz-me](companions/quiz-me/SKILL.md)** — the two
+companion skills that ship with wgm and install beside it. wgm can build software faster than its
+operator can understand it, which leaves a human owning code they cannot explain. `teach-me` makes
+a repo legible (a cited map, a tour in execution order, one validated first change); `quiz-me`
+proves the learning landed (one question at a time, graded against the code, scored by tier). At
+**Ship/Handoff**, when a build was largely autonomous or the operator is new to the codebase, offer
+`/teach-me` — a handoff summary the operator cannot act on is not a handoff.
+
 **sofaking** — Stack Overflow for Agents knowledge integration. When installed, wgm can invoke sofaking at:
 - **Plan phase** — search prior art and validate architecture choices before implementing.
 - **Validate phase** — verify outcomes and contribute durable learnings back to SOFA.
@@ -279,6 +287,10 @@ next iteration is a consolidation task (help land existing PRs), not another net
 - **Report telemetry:** report total wall time, summed agent-hours, timed versus unmetered lane counts, peak concurrency, and critical-path duration (from `.wgm/metrics.tsv` or agent output). Keep missing telemetry explicit, not estimated.
 - For larger or multi-session builds, an optional morning-after run report may be left from `assets/morning-report.template.md` (pattern borrowed from [elves](https://github.com/aigorahub/elves)).
 - List remaining/follow-up tasks (already in `IMPLEMENTATION_PLAN.md`).
+- **Offer `/teach-me` when the operator is about to own code they did not write.** After a largely
+  autonomous run — or for an operator new to this codebase — a summary is not comprehension. Point
+  them at `/teach-me` (cited map, tour, one validated change) and `/quiz-me` to confirm it landed
+  (`companions/teach-me/SKILL.md`).
 - Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
 - **If a separate deploy pipeline exists, confirm it's actually green** — not just the PR-level CI
   that gated each merge (`references/ralph-loop.md`, Backpressure in depth). A merged, CI-green PR

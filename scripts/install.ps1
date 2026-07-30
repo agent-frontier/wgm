@@ -34,6 +34,9 @@
 .PARAMETER Force
   Overwrite/replace an existing install.
 
+.PARAMETER NoCompanions
+  Do NOT install the teach-me / quiz-me companion skills alongside wgm.
+
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
   published release (default: main). A tag (vX.Y[.Z]) or "latest" installs the matching GitHub
@@ -78,6 +81,7 @@ param(
   [switch]$Force,
   [string]$Ref,
   [switch]$NoWsl,
+  [switch]$NoCompanions,
   [string]$WslDistro
 )
 
@@ -121,6 +125,7 @@ function Invoke-WslDelegation {
   if ($DryRun) { $bashArgs += '--dry-run' }
   if ($Uninstall) { $bashArgs += '--uninstall' }
   if ($Force) { $bashArgs += '--force' }
+  if ($NoCompanions) { $bashArgs += '--no-companions' }
 
   $distroArgs = @()
   if ($WslDistro) { $distroArgs = @('-d', $WslDistro) }
@@ -338,7 +343,7 @@ function Install-One {
 
 function Uninstall-One {
   param([string]$Target)
-  if ($Target -notmatch '[\\/]skills[\\/]wgm$') {
+  if ($Target -notmatch '[\\/]skills[\\/](wgm|teach-me|quiz-me)$') {
     Write-Warning "  refusing to remove unexpected path: $Target"
     return
   }
@@ -348,6 +353,53 @@ function Uninstall-One {
   }
   else {
     Write-Host "  not present: $Target"
+  }
+}
+
+# Companion skills ship beside wgm as their own sibling skill dirs, because a skills client
+# discovers one skill per directory: companions\teach-me -> <skills-dir>\teach-me.
+$companions = @('teach-me', 'quiz-me')
+
+function Get-CompanionTargets {
+  param([string]$WgmTarget)
+  $parent = Split-Path -Parent $WgmTarget
+  return $companions | ForEach-Object { Join-Path $parent $_ }
+}
+
+function Test-CompanionInstall {
+  param([string]$Path, [string]$Name)
+  $skill = Join-Path $Path 'SKILL.md'
+  if (-not (Test-Path $skill)) { return $false }
+  return ((Get-Content -Raw $skill) -match "(?m)^\s*name:\s*$Name\s*$")
+}
+
+function Install-Companions {
+  param([string]$WgmTarget)
+  if ($NoCompanions) { return }
+  $parent = Split-Path -Parent $WgmTarget
+  foreach ($name in $companions) {
+    $src = Join-Path (Join-Path $srcDir 'companions') $name
+    $target = Join-Path $parent $name
+    # An older wgm tarball has no companions dir; that is a skip, never an install failure.
+    if (-not (Test-Path $src)) { Write-Host "  companion not in this source, skipping: $name"; continue }
+    if (Test-Path $target) {
+      if ($Force) {
+        Write-Host "  replacing existing: $target"
+        if (-not $DryRun) { Remove-Item -Recurse -Force $target }
+      }
+      elseif (Test-CompanionInstall -Path $target -Name $name) {
+        Write-Host "  updating existing $name install: $target"
+        if (-not $DryRun) { Remove-Item -Recurse -Force $target }
+      }
+      else {
+        Write-Host "  exists - skipping (use -Force to replace): $target"
+        continue
+      }
+    }
+    if ($DryRun) { Write-Host "  would copy: $src -> $target"; continue }
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    Copy-Tree -Src $src -Dst $target
+    Write-Host "  installed: $target"
   }
 }
 
@@ -364,18 +416,29 @@ Write-Host ""
 
 if ($Uninstall) {
   Write-Host "Uninstalling wgm from:"
-  foreach ($t in $targets) { Uninstall-One -Target $t }
+  foreach ($t in $targets) {
+    Uninstall-One -Target $t
+    foreach ($ct in (Get-CompanionTargets -WgmTarget $t)) { Uninstall-One -Target $ct }
+  }
 }
 else {
   Write-Host "Installing wgm to:"
-  foreach ($t in $targets) { Install-One -Target $t }
+  foreach ($t in $targets) { Install-One -Target $t; Install-Companions -WgmTarget $t }
 }
 
 Write-Host ""
 Write-Host "Done. Targets:"
-foreach ($t in $targets) { Write-Host "  - $t" }
+foreach ($t in $targets) {
+  Write-Host "  - $t"
+  if (-not $NoCompanions) {
+    foreach ($ct in (Get-CompanionTargets -WgmTarget $t)) { Write-Host "  - $ct  (companion)" }
+  }
+}
 Write-Host ""
 Write-Host "Verify your agent can see it (e.g. /skills), then invoke /wgm."
+if (-not $NoCompanions) {
+  Write-Host "Companions: /teach-me to learn a repo, /quiz-me to be tested on it."
+}
 }
 finally {
   if ($tmpFetch -and (Test-Path $tmpFetch)) { Remove-Item -Recurse -Force $tmpFetch -ErrorAction SilentlyContinue }

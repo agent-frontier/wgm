@@ -56,7 +56,7 @@ done
 
 # Gather the Markdown files to lint (docs/ + README.md).
 mapfile -t MD < <(
-  find docs references -name '*.md' 2>/dev/null | sort
+  find docs references companions -name '*.md' 2>/dev/null | sort
   for f in README.md SKILL.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/*.yml; do
     [[ -f "$f" ]] && echo "$f"
   done

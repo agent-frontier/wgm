@@ -109,6 +109,34 @@ continues forward. A leading word counts as a mode only if it's a known keyword 
 3. **Build** — it advances **one task per iteration**, running your checks after each, until the plan
    is done *and* an LLM judge is satisfied — then hands back a clean, buildable repo.
 
+## Companion skills: `/teach-me` and `/quiz-me`
+
+wgm can build software faster than its operator can understand it. You take delivery of a working
+repo and own code you cannot explain. Two companion skills close that gap — they install alongside
+wgm automatically (opt out with `--no-companions` / `-NoCompanions`) and work on **any** repo, not
+just one wgm built.
+
+| Invocation | What happens |
+|---|---|
+| `/teach-me` | Surveys the repo into a **cited** map, tours it in execution order, ends with a real change you validate with the project's own test command |
+| `/teach-me deep: <area>` | One area down to its invariants, failure modes, and the tests that pin it |
+| `/quiz-me` | Grills you one question at a time, grades each answer **against the code**, scores by tier, and drills what you got wrong |
+| `/quiz-me drill: <area>` | Repeated questions on one weak area until it converges |
+
+They are deliberately a pair. `teach-me` produces the *feeling* of understanding; only `quiz-me`
+tells you whether it was real. Two rules make the score mean something:
+
+- **Cite or don't claim** — every statement `teach-me` makes about your repo carries a `path:line`
+  citation, and it *runs* the build rather than repeating what the README claims. No citation, no claim.
+- **Holdout questions** — `quiz-me` draws from what the tour did *not* literally show you, the same
+  anti-gaming discipline as wgm's holdout scenarios. It also reports anything you were
+  **confidently wrong** about separately from "I don't know" — the first is a future incident, the
+  second is just a gap.
+
+Artifacts land in `.wgm/learning/` (map, progress, quiz log), so a later session resumes instead of
+re-surveying. Neither skill modifies your code — except `teach-me`'s one first-change exercise,
+which is reverted by default.
+
 ## What it writes (and how it stays safe)
 
 `wgm` keeps durable state on disk so any fresh agent can resume:
@@ -268,6 +296,7 @@ wgm/
 ├── references/       # grilling · ralph-loop · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · PLUGIN_PROTOCOL · plugin-integration
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · install.sh · install.ps1
+├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
 └── docs/             # operator/ · agent/ · plans/ · audit/ guides (Mermaid diagrams)
 ```

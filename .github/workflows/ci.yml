@@ -39,6 +39,14 @@ jobs:
           cd ..
           skills-ref validate wgm
 
+      - name: Validate companion skills
+        # Same basename rule: companions/teach-me holds the "teach-me" skill, so validate from
+        # inside companions/. These install as sibling skills, so they get the same gate as wgm.
+        run: |
+          cd companions
+          skills-ref validate teach-me
+          skills-ref validate quiz-me
+
       - name: Docs backpressure check
         run: bash scripts/check-docs.sh
 
