@@ -38,13 +38,15 @@ docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixtu
 	bash scripts/check-docs.sh
 	bash scripts/check-evals.sh
 
-test: ## Run the bash harnesses (install, loop, swarm, devcontainer, harvest-hive, grade-evals)
+test: ## Run the bash harnesses (install, loop, swarm, devcontainer, harvest-hive, grade-evals, check-evals, check-docs)
 	bash scripts/test-install.sh
 	bash scripts/test-loop.sh
 	bash scripts/test-swarm.sh
 	bash scripts/test-devcontainer.sh
 	bash scripts/test-harvest-hive.sh
 	bash scripts/test-grade-evals.sh
+	bash scripts/test-check-evals.sh
+	bash scripts/test-check-docs.sh
 
 validate: lint docs test ## The local backpressure suite (CI also runs skills-ref, actionlint, pwsh)
 	@echo "validate: GREEN"

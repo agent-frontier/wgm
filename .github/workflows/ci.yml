@@ -68,6 +68,12 @@ jobs:
       - name: Grade-evals harness (bash, fake agent)
         run: bash scripts/test-grade-evals.sh
 
+      - name: Check-evals harness (bash)
+        run: bash scripts/test-check-evals.sh
+
+      - name: Check-docs harness (bash)
+        run: bash scripts/test-check-docs.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |

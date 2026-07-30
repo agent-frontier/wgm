@@ -17,6 +17,8 @@
 #      class regressed twice before being caught by a manual audit pass each time — see
 #      docs/audit/2026-07-09T0113Z_pr62-65-post-merge-audit.md, Agent action #3).
 #
+#   9. No UTF-8 double-encoding (mojibake) survives from a multi-agent merge, e.g. `Â·` for `·`.
+#
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
 # SECURITY.md, CODE_OF_CONDUCT.md, .github/agents/*.agent.md, and launch-facing GitHub templates.
@@ -148,6 +150,22 @@ if [[ -f README.md ]]; then
     done
   fi
 fi
+
+# 9 — UTF-8 double-encoding (mojibake) sweep.
+# When several independent agents each write Markdown and their output is concatenated or merged,
+# a UTF-8 string re-decoded as CP1252 and re-encoded produces `Â·` for `·`, `Ã—` for `×`, and so on.
+# No single lane can see it — it only shows up after consolidation — so it belongs in a standing
+# gate rather than a manual post-merge cleanup ([learn] issue #67).
+# Detection: a `Â` (C3 82) or `Ã` (C3 83) immediately followed by another non-ASCII sequence — the
+# signature of the doubled encoding. A lone Â/Ã in prose is left alone, so ordinary accented text
+# and legitimate Latin-1 characters do not trip the gate.
+for f in "${MD[@]}"; do
+  # LC_ALL=C keeps \xNN a BYTE match; in a UTF-8 locale PCRE reads it as a character and the
+  # doubled-encoding signature never matches — a silently-passing gate.
+  if hits=$(LC_ALL=C grep -cP '\xc3[\x82\x83][\xc2\xc3\xe2]' "$f" 2>/dev/null) && (( hits > 0 )); then
+    note "UTF-8 double-encoding (mojibake) in $f — ${hits} line(s); re-encode as UTF-8"
+  fi
+done
 
 if (( FAIL == 0 )); then
   ok "docs check passed (${#MD[@]} files, ${MERMAID_TOTAL} mermaid diagram(s), ${#AGENT_FILES[@]} agent file(s))"
