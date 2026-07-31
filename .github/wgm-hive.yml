@@ -1,8 +1,0 @@
-# Privacy-preserving default selected because this run is non-interactive.
-consent: false
-auto_report: false
-sources:
-  - dogfood
-  - swarm
-  - issues
-  - cross-pollinate

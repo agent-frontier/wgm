@@ -13,6 +13,10 @@
 # https://github.com/microsoft/SkillOpt's validation gate (accept a candidate only if it doesn't
 # regress a held-out/baseline score) — see docs/plans/2026-07-08_SKILLOPT_ADOPTION.md.
 #
+# SAFETY: every agent call runs in a throwaway sandbox directory outside this repo. Grading prompts
+# describe BUILD tasks, and a tool-enabled agent will carry them out for real — one run created a
+# whole project and committed it into the repo under test. Capturing stdout does not prevent that.
+#
 # Scope, honestly: this grades SKILL.md's own text only, single-shot — not the references/*.md files
 # it points to (a real agent would read those itself via tools; this harness doesn't simulate that),
 # and it does not retry a failed agent call the way scripts/loop.sh does. Re-run the script if an
@@ -87,14 +91,26 @@ else
 fi
 
 # Same invocation convention as scripts/loop.sh: eval'd $AGENT with $PROMPT appended, a `--` argv
-# passthrough (no eval), or stdin — but here we CAPTURE the response instead of letting it run for
-# effect. Deliberately no retry/backoff (unlike loop.sh) — see the header's Scope note.
+# passthrough (no eval), or stdin. We capture the response, but capturing stdout does NOT make the
+# call side-effect-free: a tool-enabled agent still writes files and runs git in its working
+# directory. This script cd's to the repo root, so an eval task phrased as a build ("create a
+# greenfield CLI") was taken literally and committed into the repo under test. So every agent call
+# runs in a throwaway sandbox OUTSIDE the repo — the prompt already embeds the SKILL.md text being
+# graded, and the agent needs nothing else from disk.
+# Deliberately no retry/backoff (unlike loop.sh) — see the header's Scope note.
 run_agent() {  # expects global $PROMPT set; prints the agent's response on stdout
-  if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
-    if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | "${AGENT_ARGV[@]}"
-    else "${AGENT_ARGV[@]}" "$PROMPT"; fi
-  elif [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | eval "$AGENT"
-  else eval "$AGENT \"\$PROMPT\""; fi
+  local sandbox rc=0
+  sandbox="$(mktemp -d -t wgm-grade-sandbox.XXXXXX)"
+  (
+    cd "$sandbox" || exit 1
+    if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
+      if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | "${AGENT_ARGV[@]}"
+      else "${AGENT_ARGV[@]}" "$PROMPT"; fi
+    elif [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | eval "$AGENT"
+    else eval "$AGENT \"\$PROMPT\""; fi
+  ) || rc=$?
+  rm -rf "$sandbox"
+  return "$rc"
 }
 
 skill_at_ref() {  # $1 = git ref; prints SKILL.md content as it existed at that ref

@@ -168,6 +168,20 @@ else
   fail "expected GATE: REGRESSION for a worse candidate (rc=$RC)"
 fi
 
+# The agent runs in a throwaway sandbox OUTSIDE the repo. Grading prompts describe BUILD tasks, and
+# a tool-enabled agent carries them out for real: one run created a whole project and committed it
+# into the repo under test. Capturing stdout does not make the call side-effect-free, so the agent's
+# working directory is the actual control. This fake agent writes a marker into its CWD; the marker
+# must never land in the repo grade-evals.sh cd'd to ($TMP here).
+rm -f "$TMP/sandbox-canary.txt"
+run case-1 --agent "printf 'probe' > sandbox-canary.txt; printf '%s' 'noop'"
+if [[ ! -e "$TMP/sandbox-canary.txt" ]]; then
+  pass "agent calls run in a sandbox; a file the agent writes never lands in the repo"
+else
+  fail "the agent wrote sandbox-canary.txt into the repo working directory — sandboxing regressed"
+  rm -f "$TMP/sandbox-canary.txt"
+fi
+
 if (( FAILED == 0 )); then
   echo "grade-evals: GREEN"
   exit 0
