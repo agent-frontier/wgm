@@ -176,14 +176,23 @@ because neither leaves the repo to go find out. Nothing else in this file police
 make it explicit and checkable rather than something a maintainer has to reconstruct by hand:
 
 - **Real-dogfood cadence — update this line whenever a new one lands:** last real, cross-project
-  `[learn]` issue — issue **#60** (2026-07-06), a sanitized report from a real backend+frontend
-  session (project unnamed per its own sanitization checklist) where PR-level CI green masked 7
-  consecutive silently-failing post-merge deploys. Previously: issues **#56-#57, #59** (2026-07-05),
-  sourced from two genuinely different real projects (`SchwartzKamel/floci-az`, Java/Quarkus, and
-  `SchwartzKamel/blogster`, .NET); issue #59 is the stale-clone / retired-target lesson harvested
-  from the `blogster` run. Before that: issues #29-#37 (2026-06-28/29), sourced from a Rust FFI
-  crate's swarm file-ownership, an `elm-pages`/`lamdera` build on a newer-than-LTS Node, a web-SEO/CWV
-  comparative-scoring project, and a feasibility-spike case.
+  `[learn]` issues — the **#67–#86 wave (2026-07-11 → 2026-07-28)**, harvested from genuinely
+  different real projects and all resolved on 2026-07-30/31. Representative: **#76** (an
+  immediate-mode Rust/`iced` GUI whose only visual gate was a screenshot smoke a human had to
+  judge), **#77** (a Rust workspace whose CI lived only on an unmerged sibling branch, so scoped
+  local gates passed while the workspace gate would fail on pre-existing debt), **#75** (a multi-lane
+  UX swarm where four of five tasks marked done carried a false claim), **#73** (a 32-lane run where
+  lanes drifted back to the parent checkout on a later turn), and **#82** (a convergence run whose
+  generated merge commit dropped the repository's mandated trailers). Previously: issue **#60**
+  (2026-07-06), where PR-level CI green masked 7 consecutive silently-failing post-merge deploys;
+  issues **#56-#57, #59** (2026-07-05) from a Java/Quarkus and a .NET project; issues **#29-#37**
+  (2026-06-28/29) from a Rust FFI crate, an `elm-pages`/`lamdera` build on a newer-than-LTS Node, a
+  web-SEO/CWV comparative-scoring project, and a feasibility-spike case.
+- **Draining the backlog is not the same as refilling it.** The rule below polices a *dry* harvest
+  channel. Resolving a wave of real field reports is the pipeline working — but it leaves the
+  backlog empty, which is exactly when this line stops being updated and silently goes stale. After
+  a drain, the next self-improvement action is a **real dogfood run**, not another pass over this
+  repo: there is now nothing queued to promote.
 - **The rule:** a run of docs-audit passes and/or Cross-pollinate (external-research) PRs with *no*
   real dogfood issue landing in between is not evidence that "no more growth is needed" — it is a
   signal to go dogfood a real, different project before adding another audit round or another
