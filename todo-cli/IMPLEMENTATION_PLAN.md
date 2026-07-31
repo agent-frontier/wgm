@@ -7,6 +7,15 @@
 
 ## Now (next up)
 
+### T4 — Resolve release-blocking documentation audit findings
+- **objective:** Enforce unambiguous text, strengthen error/performance coverage, and make usage, platform, and single-writer boundaries accurate.
+- **files/areas:** `todo/store.py`, `tests/test_cli.py`, `README.md`, `AGENTS.md`, `specs/CONSTITUTION.md`, `specs/todo-cli.md`
+- **validation:** `cd todo-cli && python3 -m unittest discover -s tests -v`
+- **acceptance:** Control text and malformed persisted text fail safely; parser/data-safety/performance boundaries are tested; demos are isolated; POSIX/Windows and single-writer limitations are documented.
+- **scenarios/tier:** `core-workflow` / tier 1
+- **status:** done
+- **notes:** Resolved audit blockers with safe text validation, explicit single-writer/platform boundaries, isolated demos, and 15 passing tests. Spec and quality reviews passed after narrowing Unicode rejection to Cc/Cf/Cs/Zl/Zp.
+
 ### T1 — Build durable add workflow and its validation signal
 - **objective:** Create the package, atomic JSON storage, `add` command, and focused tests.
 - **files/areas:** `todo/__init__.py`, `todo/__main__.py`, `todo/store.py`, `tests/test_cli.py`
@@ -41,3 +50,4 @@
 - T1 — `python3 -m unittest tests.test_cli.AddCommandTests -v` passed 3 tests.
 - T2 — `python3 -m unittest discover -s tests -v` passed 9 tests; spec and quality reviews passed.
 - T3 — Exact add/list/complete demo passed; tier-1 holdout scored 100/100 and final spec review passed.
+- T4 — `python3 -m unittest discover -s tests -v` passed 15 tests; all Agent-action audit findings were resolved.

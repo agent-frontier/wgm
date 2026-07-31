@@ -6,9 +6,9 @@
 A terminal user needs to quickly capture, inspect, and finish personal tasks without opening another app.
 
 ## User-visible success criteria
-- `todo add <text>` creates a durable todo and prints its numeric ID.
-- `todo list` shows pending todos in ID order; `todo list --all` also shows completed todos.
-- `todo complete <id>` marks an existing pending todo complete and confirms it.
+- `<python> -m todo add <text>` creates a durable todo and prints its numeric ID.
+- `<python> -m todo list` shows pending todos in ID order; `list --all` also shows completed todos.
+- `<python> -m todo complete <id>` marks an existing pending todo complete and confirms it.
 - Invalid input, unknown IDs, and corrupt storage produce useful errors and non-zero exits.
 
 ## Magic moment
@@ -21,11 +21,11 @@ A terminal user needs to quickly capture, inspect, and finish personal tasks wit
 
 | Criterion (EARS) | How it's verified (command/check) |
 |---|---|
-| When a user adds non-blank text, the CLI shall persist it with the next positive integer ID and print confirmation. | `cd todo-cli && python3 -m unittest discover -s tests -v` |
-| When a user lists todos, the CLI shall display pending todos in ascending ID order. | `cd todo-cli && python3 -m unittest discover -s tests -v` |
-| Where `--all` is supplied, the CLI shall include completed todos and visually distinguish their state. | `cd todo-cli && python3 -m unittest discover -s tests -v` |
-| When a user completes a pending ID, the CLI shall persist the completed state and print confirmation. | `cd todo-cli && python3 -m unittest discover -s tests -v` |
-| If input, an ID, or persisted data is invalid, then the CLI shall explain the error on stderr and exit non-zero without overwriting data. | `cd todo-cli && python3 -m unittest discover -s tests -v` |
+| When a user adds valid single-line text, the CLI shall persist it with the next positive integer ID and print confirmation. | `AddCommandTests.test_add_persists_trimmed_text_with_monotonic_ids` |
+| When a user lists todos, the CLI shall display pending todos in ascending ID order. | `WorkflowCommandTests.test_list_sorts_persisted_todos_by_id` |
+| Where `--all` is supplied, the CLI shall include completed todos and visually distinguish their state. | `WorkflowCommandTests.test_list_shows_pending_in_id_order_and_all_shows_state` |
+| When a user completes a pending ID, the CLI shall persist the completed state and print confirmation. | `WorkflowCommandTests.test_complete_persists_across_invocations` |
+| If input, an ID, or persisted data is invalid, then the CLI shall explain the error on stderr and exit non-zero without overwriting data. | `AddCommandTests.test_add_rejects_*`, `WorkflowCommandTests.test_commands_report_parser_errors`, `test_list_rejects_malformed_persisted_text`, and `test_add_reports_write_failure_without_leaving_temp_data` |
 
 ## Holdout scenarios
 - **Files:** `scenarios/core-workflow.yaml`
@@ -35,7 +35,9 @@ A terminal user needs to quickly capture, inspect, and finish personal tasks wit
 - Python 3.10+ is available.
 - Data defaults to the platform user data directory and can be overridden by `TODO_FILE` for automation.
 - Todo text is trimmed, must be non-empty, and has no arbitrary length limit.
+- Todo text cannot contain Unicode control, format, surrogate, line-separator, or paragraph-separator characters.
 - IDs are never reused after completion.
+- The local JSON file supports one writer at a time; concurrent writes are out of scope.
 
 ## Out of scope (this pass)
 - Editing, deleting, priorities, due dates, synchronization, and multi-user support.

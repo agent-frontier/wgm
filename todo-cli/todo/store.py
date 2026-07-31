@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import unicodedata
 from pathlib import Path
 from typing import TypedDict
 
@@ -22,12 +23,12 @@ class StoreError(Exception):
     """Raised when persisted todo data cannot be safely used."""
 
 
-def data_path() -> Path:
+def data_path(platform: str | None = None) -> Path:
     override = os.environ.get("TODO_FILE")
     if override:
         return Path(override).expanduser()
 
-    if os.name == "nt":
+    if (platform or os.name) == "nt":
         base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
     else:
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
@@ -36,6 +37,13 @@ def data_path() -> Path:
 
 def _empty_data() -> TodoData:
     return {"next_id": 1, "todos": []}
+
+
+def _contains_unsafe_characters(text: str) -> bool:
+    return any(
+        unicodedata.category(character) in {"Cc", "Cf", "Cs", "Zl", "Zp"}
+        for character in text
+    )
 
 
 def load(path: Path | None = None) -> TodoData:
@@ -72,6 +80,8 @@ def load(path: Path | None = None) -> TodoData:
             or todo_id in seen_ids
             or not isinstance(text, str)
             or not text
+            or text != text.strip()
+            or _contains_unsafe_characters(text)
             or not isinstance(completed, bool)
         ):
             raise StoreError(f"invalid todo data in {target}: malformed or duplicate todo")
@@ -104,6 +114,8 @@ def save(data: TodoData, path: Path | None = None) -> None:
 
 
 def add(text: str, path: Path | None = None) -> Todo:
+    if _contains_unsafe_characters(text):
+        raise ValueError("todo text must not contain control or line-separator characters")
     normalized = text.strip()
     if not normalized:
         raise ValueError("todo text must not be blank")
