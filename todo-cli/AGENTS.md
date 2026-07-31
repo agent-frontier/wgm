@@ -4,7 +4,8 @@
 - Python 3.10+; standard library only.
 - From the repository root, run `cd todo-cli` before app or test commands.
 - Run with `python3 -m todo` (POSIX) or `py -m todo` (Windows).
-- Override persistence with `TODO_FILE=/path/to/todos.json`.
+- Override persistence with `TODO_FILE=/path/to/todos.json` (POSIX) or
+  `$env:TODO_FILE = "$env:TEMP\todos.json"` (PowerShell).
 
 ## Code map
 - `todo/__main__.py` owns argument parsing, output, and exit codes.
@@ -15,7 +16,7 @@
 ## Invariants
 - IDs are positive, monotonic, and never reused.
 - Text is trimmed, non-empty, single-line, and free of Unicode control, format, surrogate,
-  and line-separator characters.
+  line-separator, and paragraph-separator characters.
 - Persisted data is validated before mutation.
 - The store supports one writer at a time; do not imply concurrent-write safety.
 

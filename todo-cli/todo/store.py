@@ -23,6 +23,10 @@ class StoreError(Exception):
     """Raised when persisted todo data cannot be safely used."""
 
 
+class _DuplicateKeyError(ValueError):
+    pass
+
+
 def data_path(platform: str | None = None) -> Path:
     override = os.environ.get("TODO_FILE")
     if override:
@@ -46,17 +50,37 @@ def _contains_unsafe_characters(text: str) -> bool:
     )
 
 
+def _has_exact_keys(value: dict[object, object], keys: set[str]) -> bool:
+    return set(value) == keys
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateKeyError(key)
+        result[key] = value
+    return result
+
+
 def load(path: Path | None = None) -> TodoData:
     target = path or data_path()
     if not target.exists():
         return _empty_data()
 
     try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
+        raw = json.loads(
+            target.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_keys,
+        )
+    except _DuplicateKeyError as error:
+        raise StoreError(
+            f"invalid todo data in {target}: duplicate key {error.args[0]!r}"
+        ) from error
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise StoreError(f"cannot read todo data from {target}: {error}") from error
 
-    if not isinstance(raw, dict):
+    if not isinstance(raw, dict) or not _has_exact_keys(raw, {"next_id", "todos"}):
         raise StoreError(f"invalid todo data in {target}: expected an object")
     next_id = raw.get("next_id")
     todos = raw.get("todos")
@@ -68,7 +92,9 @@ def load(path: Path | None = None) -> TodoData:
     validated: list[Todo] = []
     seen_ids: set[int] = set()
     for item in todos:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or not _has_exact_keys(
+            item, {"id", "text", "completed"}
+        ):
             raise StoreError(f"invalid todo data in {target}: each todo must be an object")
         todo_id = item.get("id")
         text = item.get("text")
@@ -115,7 +141,10 @@ def save(data: TodoData, path: Path | None = None) -> None:
 
 def add(text: str, path: Path | None = None) -> Todo:
     if _contains_unsafe_characters(text):
-        raise ValueError("todo text must not contain control or line-separator characters")
+        raise ValueError(
+            "todo text must not contain Unicode control, format, surrogate, "
+            "line-separator, or paragraph-separator characters"
+        )
     normalized = text.strip()
     if not normalized:
         raise ValueError("todo text must not be blank")

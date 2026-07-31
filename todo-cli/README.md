@@ -2,6 +2,8 @@
 
 A dependency-free command-line app for capturing, listing, and completing local todos.
 
+**Status:** Complete for local use. Linux, macOS, and Windows behavior is exercised in CI.
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -22,26 +24,36 @@ For a safe, repeatable demo, isolate the data instead of using your real todo fi
 
 ```sh
 # Linux/macOS
-tmp=$(mktemp -d)
-export TODO_FILE="$tmp/todos.json"
-python3 -m todo add "buy milk"
-python3 -m todo list
-python3 -m todo complete 1
-python3 -m todo list --all
-rm "$TODO_FILE"
-unset TODO_FILE
-rmdir "$tmp"
+(
+  set -e
+  tmp=$(mktemp -d)
+  export TODO_FILE="$tmp/todos.json"
+  python3 -m todo add "buy milk"
+  python3 -m todo list
+  python3 -m todo complete 1
+  python3 -m todo list --all
+  rm "$TODO_FILE"
+  rmdir "$tmp"
+)
 ```
 
 ```powershell
 # Windows PowerShell
-$env:TODO_FILE = Join-Path ([System.IO.Path]::GetTempPath()) "todo-demo-$PID.json"
-py -m todo add "buy milk"
-py -m todo list
-py -m todo complete 1
-py -m todo list --all
-Remove-Item $env:TODO_FILE
-Remove-Item Env:TODO_FILE
+$previousTodoFile = $env:TODO_FILE
+try {
+    $env:TODO_FILE = Join-Path ([System.IO.Path]::GetTempPath()) "todo-demo-$PID.json"
+    py -m todo add "buy milk"
+    py -m todo list
+    py -m todo complete 1
+    py -m todo list --all
+} finally {
+    Remove-Item $env:TODO_FILE -ErrorAction SilentlyContinue
+    if ($null -eq $previousTodoFile) {
+        Remove-Item Env:TODO_FILE -ErrorAction SilentlyContinue
+    } else {
+        $env:TODO_FILE = $previousTodoFile
+    }
+}
 ```
 
 Example output:
@@ -63,7 +75,8 @@ Todos are stored as JSON in:
 
 - Linux and macOS: `$XDG_DATA_HOME/todo-cli/todos.json`, or
   `~/.local/share/todo-cli/todos.json` when `XDG_DATA_HOME` is unset
-- Windows: `%LOCALAPPDATA%\todo-cli\todos.json`
+- Windows: `%LOCALAPPDATA%\todo-cli\todos.json`, or
+  `%USERPROFILE%\todo-cli\todos.json` when `LOCALAPPDATA` is unset
 
 Set `TODO_FILE` to use a specific file:
 
@@ -78,16 +91,30 @@ $env:TODO_FILE = "$env:TEMP\my-todos.json"
 py -m todo list
 ```
 
-Writes replace the data file atomically. If stored data is malformed, the command reports an
-error without overwriting it.
+Writes replace the data file atomically. The closed JSON schema contains only `next_id` and
+`todos`; each todo contains only `id`, `text`, and `completed`:
+
+```json
+{
+  "next_id": 2,
+  "todos": [
+    {"id": 1, "text": "buy milk", "completed": false}
+  ]
+}
+```
+
+`next_id` and each `id` are positive integers, `next_id` exceeds every existing ID, IDs are unique,
+`text` follows the rules above, and `completed` is Boolean. Unknown or duplicate fields are rejected
+to prevent silent data loss. If the file is malformed, the command reports an error without
+overwriting it. Back it up, correct it to this schema, or move it aside to let the CLI start a new
+store.
 
 ## Limitations
 
 - Use one writer at a time. Atomic file replacement prevents partial files, but simultaneous
   commands can overwrite each other's changes.
 - Editing, deleting, priorities, due dates, synchronization, and multi-user use are not supported.
-- Back up a malformed data file before repairing it manually; the CLI intentionally leaves it
-  untouched.
+- There is no automatic migration for malformed or foreign JSON; the CLI leaves it untouched.
 
 ## Project documentation
 

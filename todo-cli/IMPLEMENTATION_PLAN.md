@@ -1,11 +1,20 @@
 # Implementation plan
 
 ## Convergence
-- **Satisfaction threshold:** 95
-- **Stratified order:** tier 1
-- **Scenarios:** `scenarios/`
+- **Satisfaction threshold:** 95/100 required for release.
+- **Stratified order:** Validate the essential tier-1 user journey first.
+- **Scenario evidence:** `scenarios/` contains holdout journeys used only during validation.
 
-## Now (next up)
+## Completed tasks
+
+### T5 — Resolve final documentation audit
+- **objective:** Resolve all Standard-track documentation findings and preserve the audit evidence.
+- **files/areas:** `todo/store.py`, `tests/test_cli.py`, `README.md`, `AGENTS.md`, `specs/todo-cli.md`, `.github/workflows/ci.yml`, `.wgm/docs/audit/`
+- **validation:** `cd todo-cli && python3 -m unittest discover -s tests -v` and `bash scripts/check-docs.sh` from the repository root
+- **acceptance:** Documentation is accurate and traceable; foreign JSON cannot be silently discarded; supported runtimes have CI coverage; the consolidated audit records all findings, dissent, and actions.
+- **scenarios/tier:** `core-workflow` / tier 1
+- **status:** done
+- **notes:** Full suite passed 17 tests, the isolated demo and docs check passed, and the consolidated audit verdict is PASS with no remaining actions. Final quality review also required and verified duplicate-key rejection. See `.wgm/docs/audit/2026-07-31T0208Z_todo-cli.md`.
 
 ### T4 — Resolve release-blocking documentation audit findings
 - **objective:** Enforce unambiguous text, strengthen error/performance coverage, and make usage, platform, and single-writer boundaries accurate.
@@ -43,12 +52,6 @@
 - **status:** done
 - **notes:** Documented commands and storage, added generated-file exclusions, and ran the exact isolated demo successfully. Holdout satisfaction: 100/100.
 
-## Later (backlog)
+## Remaining work
 - None.
-
-## Done
-- T1 — `python3 -m unittest tests.test_cli.AddCommandTests -v` passed 3 tests.
-- T2 — `python3 -m unittest discover -s tests -v` passed 9 tests; spec and quality reviews passed.
-- T3 — Exact add/list/complete demo passed; tier-1 holdout scored 100/100 and final spec review passed.
-- T4 — `python3 -m unittest discover -s tests -v` passed 15 tests; all Agent-action audit findings were resolved.
 - Ship gate — Tier-1 holdout revalidated at 100/100 after T4; docs audit GREEN and deterministic release checks passed.

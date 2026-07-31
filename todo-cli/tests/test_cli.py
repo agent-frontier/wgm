@@ -78,7 +78,8 @@ class AddCommandTests(CliTestCase):
 
                 self.assertEqual(result.returncode, 1)
                 self.assertIn(
-                    "must not contain control or line-separator characters",
+                    "must not contain Unicode control, format, surrogate, "
+                    "line-separator, or paragraph-separator characters",
                     result.stderr,
                 )
                 self.assertFalse(self.todo_file.exists())
@@ -218,6 +219,45 @@ class WorkflowCommandTests(CliTestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertIn("malformed or duplicate todo", result.stderr)
 
+    def test_mutations_reject_unknown_persisted_fields_without_data_loss(self) -> None:
+        # Proves the closed JSON schema cannot silently discard newer or foreign data.
+        original = json.dumps(
+            {
+                "next_id": 2,
+                "todos": [
+                    {
+                        "id": 1,
+                        "text": "buy milk",
+                        "completed": False,
+                        "priority": "high",
+                    }
+                ],
+            }
+        )
+        self.todo_file.write_text(original, encoding="utf-8")
+
+        result = self.run_todo("complete", "1")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("each todo must be an object", result.stderr)
+        self.assertEqual(self.todo_file.read_text(encoding="utf-8"), original)
+
+    def test_mutations_reject_duplicate_json_keys_without_data_loss(self) -> None:
+        # Proves duplicate JSON fields cannot be collapsed during a later mutation.
+        for original in (
+            '{"next_id": 2, "todos": [], "todos": []}',
+            '{"next_id": 2, "todos": [{"id": 1, "text": "first", '
+            '"text": "second", "completed": false}]}',
+        ):
+            with self.subTest(original=original):
+                self.todo_file.write_text(original, encoding="utf-8")
+
+                result = self.run_todo("add", "buy milk")
+
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("duplicate key", result.stderr)
+                self.assertEqual(self.todo_file.read_text(encoding="utf-8"), original)
+
     def test_add_reports_write_failure_without_leaving_temp_data(self) -> None:
         # Proves storage failures reach users and incomplete files are cleaned up.
         error_output = StringIO()
@@ -250,6 +290,14 @@ class StorageBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 store.data_path(platform="nt").as_posix(),
                 "C:/Users/example/AppData/Local/todo-cli/todos.json",
+            )
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("todo.store.Path.home", return_value=Path("C:/Users/example")),
+        ):
+            self.assertEqual(
+                store.data_path(platform="nt").as_posix(),
+                "C:/Users/example/todo-cli/todos.json",
             )
         with patch.dict(os.environ, {"TODO_FILE": "/tmp/custom.json"}, clear=True):
             self.assertEqual(store.data_path(), Path("/tmp/custom.json"))
