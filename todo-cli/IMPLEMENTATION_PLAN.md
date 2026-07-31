@@ -13,8 +13,8 @@
 - **validation:** `cd todo-cli && python3 -m unittest tests.test_cli.AddCommandTests -v`
 - **acceptance:** Adding trimmed non-empty text persists a todo with a monotonic positive ID; blank input and corrupt storage fail safely.
 - **scenarios/tier:** `core-workflow` / tier 1
-- **status:** pending
-- **notes:**
+- **status:** done
+- **notes:** Added atomic JSON persistence and the `add` command. Exact validation passed 3 tests on 2026-07-31.
 
 ### T2 — Add list and complete workflows
 - **objective:** Implement pending/all listing and durable completion with useful errors.
@@ -38,4 +38,4 @@
 - None.
 
 ## Done
-- None.
+- T1 — `python3 -m unittest tests.test_cli.AddCommandTests -v` passed 3 tests.
