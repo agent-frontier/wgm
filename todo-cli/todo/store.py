@@ -114,3 +114,27 @@ def add(text: str, path: Path | None = None) -> Todo:
     data["next_id"] += 1
     save(data, path)
     return todo
+
+
+def list_todos(include_completed: bool = False, path: Path | None = None) -> list[Todo]:
+    todos = load(path)["todos"]
+    return sorted(
+        (todo for todo in todos if include_completed or not todo["completed"]),
+        key=lambda todo: todo["id"],
+    )
+
+
+def complete(todo_id: int, path: Path | None = None) -> Todo:
+    if todo_id < 1:
+        raise ValueError("todo ID must be a positive integer")
+
+    data = load(path)
+    for todo in data["todos"]:
+        if todo["id"] != todo_id:
+            continue
+        if todo["completed"]:
+            raise ValueError(f"todo #{todo_id} is already completed")
+        todo["completed"] = True
+        save(data, path)
+        return todo
+    raise ValueError(f"todo #{todo_id} does not exist")

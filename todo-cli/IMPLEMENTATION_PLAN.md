@@ -22,8 +22,8 @@
 - **validation:** `cd todo-cli && python3 -m unittest discover -s tests -v`
 - **acceptance:** Pending items list in ID order, `--all` distinguishes completed items, completion persists, and unknown IDs fail.
 - **scenarios/tier:** `core-workflow` / tier 1
-- **status:** pending
-- **notes:**
+- **status:** done
+- **notes:** Implemented sorted pending/all views and durable completion. Exact validation passed 9 tests; quality review requested and received explicit out-of-order coverage before passing.
 
 ### T3 — Document and run the end-to-end demo
 - **objective:** Add usage documentation and execute the exact isolated add/list/complete demo path.
@@ -39,3 +39,4 @@
 
 ## Done
 - T1 — `python3 -m unittest tests.test_cli.AddCommandTests -v` passed 3 tests.
+- T2 — `python3 -m unittest discover -s tests -v` passed 9 tests; spec and quality reviews passed.

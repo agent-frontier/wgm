@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 
-class AddCommandTests(unittest.TestCase):
+class CliTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
@@ -26,6 +26,8 @@ class AddCommandTests(unittest.TestCase):
             check=False,
         )
 
+
+class AddCommandTests(CliTestCase):
     def test_add_persists_trimmed_text_with_monotonic_ids(self) -> None:
         # Proves separate invocations share durable state without reusing IDs.
         first = self.run_todo("add", "  buy milk  ")
@@ -64,6 +66,93 @@ class AddCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("cannot read todo data", result.stderr)
         self.assertEqual(self.todo_file.read_text(encoding="utf-8"), original)
+
+
+class WorkflowCommandTests(CliTestCase):
+    def test_list_shows_pending_in_id_order_and_all_shows_state(self) -> None:
+        # Proves default filtering and completed-state presentation remain unambiguous.
+        self.run_todo("add", "first")
+        self.run_todo("add", "second")
+        completed = self.run_todo("complete", "1")
+
+        pending = self.run_todo("list")
+        all_todos = self.run_todo("list", "--all")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout, "Completed #1: first\n")
+        self.assertEqual(pending.returncode, 0, pending.stderr)
+        self.assertEqual(pending.stdout, "[ ] 2  second\n")
+        self.assertEqual(all_todos.returncode, 0, all_todos.stderr)
+        self.assertEqual(all_todos.stdout, "[x] 1  first\n[ ] 2  second\n")
+
+    def test_list_sorts_persisted_todos_by_id(self) -> None:
+        # Proves display order is deterministic even when valid storage is reordered.
+        self.todo_file.write_text(
+            json.dumps(
+                {
+                    "next_id": 4,
+                    "todos": [
+                        {"id": 3, "text": "third", "completed": False},
+                        {"id": 1, "text": "first", "completed": False},
+                        {"id": 2, "text": "second", "completed": False},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = self.run_todo("list")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout, "[ ] 1  first\n[ ] 2  second\n[ ] 3  third\n"
+        )
+
+    def test_complete_persists_across_invocations(self) -> None:
+        # Proves completion mutates durable state rather than only current output.
+        self.run_todo("add", "buy milk")
+
+        result = self.run_todo("complete", "1")
+        pending = self.run_todo("list")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(pending.returncode, 0, pending.stderr)
+        self.assertEqual(pending.stdout, "No pending todos.\n")
+        stored = json.loads(self.todo_file.read_text(encoding="utf-8"))
+        self.assertTrue(stored["todos"][0]["completed"])
+
+    def test_complete_rejects_unknown_and_already_completed_ids(self) -> None:
+        # Proves bad lifecycle transitions fail clearly without changing persisted data.
+        self.run_todo("add", "buy milk")
+        unknown = self.run_todo("complete", "2")
+        first_completion = self.run_todo("complete", "1")
+        snapshot = self.todo_file.read_text(encoding="utf-8")
+        repeated = self.run_todo("complete", "1")
+
+        self.assertEqual(unknown.returncode, 1)
+        self.assertIn("todo #2 does not exist", unknown.stderr)
+        self.assertEqual(first_completion.returncode, 0, first_completion.stderr)
+        self.assertEqual(repeated.returncode, 1)
+        self.assertIn("todo #1 is already completed", repeated.stderr)
+        self.assertEqual(self.todo_file.read_text(encoding="utf-8"), snapshot)
+
+    def test_complete_rejects_non_positive_id(self) -> None:
+        # Proves the documented positive-ID boundary is enforced.
+        result = self.run_todo("complete", "0")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("todo ID must be a positive integer", result.stderr)
+        self.assertFalse(self.todo_file.exists())
+
+    def test_empty_lists_have_explicit_messages(self) -> None:
+        # Proves an empty result is distinguishable from missing output or a crash.
+        pending = self.run_todo("list")
+        all_todos = self.run_todo("list", "--all")
+
+        self.assertEqual(pending.returncode, 0, pending.stderr)
+        self.assertEqual(pending.stdout, "No pending todos.\n")
+        self.assertEqual(all_todos.returncode, 0, all_todos.stderr)
+        self.assertEqual(all_todos.stdout, "No todos.\n")
 
 
 if __name__ == "__main__":
