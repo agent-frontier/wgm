@@ -2,7 +2,7 @@
 
 A dependency-free command-line app for capturing, listing, and completing local todos.
 
-**Status:** Complete for local use. Linux, macOS, and Windows behavior is exercised in CI.
+**Status:** Complete for local use. CI is configured to exercise Linux, macOS, and Windows behavior.
 
 ## Requirements
 
