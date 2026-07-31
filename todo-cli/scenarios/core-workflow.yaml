@@ -1,0 +1,17 @@
+name: core-workflow
+description: A user captures, views, and completes a durable todo.
+tier: 1
+target:
+  kind: cli
+  start: python3 -m todo
+setup:
+  - Set TODO_FILE to a new temporary path.
+steps:
+  - action: Run `python3 -m todo add "buy milk"`.
+    expect: Exit 0 and confirmation containing ID 1 and "buy milk".
+  - action: Run `python3 -m todo list`.
+    expect: Exit 0 and a pending row containing ID 1 and "buy milk".
+  - action: Run `python3 -m todo complete 1`, then `python3 -m todo list`.
+    expect: Completion succeeds and the pending list reports no todos.
+  - action: Run `python3 -m todo list --all`.
+    expect: The completed row contains ID 1, "buy milk", and a completed marker.
