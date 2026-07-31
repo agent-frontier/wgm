@@ -51,3 +51,4 @@
 - T2 — `python3 -m unittest discover -s tests -v` passed 9 tests; spec and quality reviews passed.
 - T3 — Exact add/list/complete demo passed; tier-1 holdout scored 100/100 and final spec review passed.
 - T4 — `python3 -m unittest discover -s tests -v` passed 15 tests; all Agent-action audit findings were resolved.
+- Ship gate — Tier-1 holdout revalidated at 100/100 after T4; docs audit GREEN and deterministic release checks passed.
