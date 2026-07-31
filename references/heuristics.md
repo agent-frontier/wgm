@@ -355,3 +355,19 @@ prune becomes due — `docs/audit/README.md`.)
   and the fix cost scales with how many piled up. Keep it advisory so it does not fire on ordinary
   diffs — a gate that fires on everything gets ignored. **Provenance:** `[learn]` issue #78.
   **Landed in:** `scripts/check-doc-sync.sh` · `scripts/test-check-doc-sync.sh` · `SKILL.md` (Record).
+- **Heuristic:** an eval/grading harness that invokes a **tool-enabled** agent must run it in a
+  sandbox directory outside the repo under test — capturing stdout is not isolation. **Why:** the
+  working directory, not the output stream, decides what an agent can touch. `grade-evals.sh`
+  carried a comment claiming it "CAPTURES the response instead of letting it run for effect" while
+  `cd`-ing to the repo root, so a greenfield-build grading prompt was carried out for real: a whole
+  project created, a CI job matrix added, a consent file written, and nine commits landed on `main`.
+  Grading prompts describe builds, and a capable agent will build them. **Provenance:** wgm dogfood
+  — hit live while measuring whether a session had improved `SKILL.md`. **Landed in:**
+  `scripts/grade-evals.sh` (`run_agent`'s sandbox) · `scripts/test-grade-evals.sh` (canary probe).
+- **Heuristic:** a probe that is supposed to make a gate fail must be **verified to have applied**
+  before its result is believed. **Why:** three probes in one session were silently inert — a `sed`
+  whose `||` broke the `s|…|…|` delimiter and edited nothing, and a canary test naming an eval id
+  absent from the harness fixture, so the run aborted on "unknown eval id" and the assertion passed
+  without ever exercising the code. Each looked like proof the gate worked. Assert the edit changed
+  the file, or the probe tests nothing but your own optimism. **Provenance:** wgm dogfood.
+  **Landed in:** `scripts/test-grade-evals.sh` · this ledger.
