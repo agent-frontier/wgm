@@ -106,7 +106,7 @@ and reinstalls in one step.
 |---|---|
 | **Symptom** | `loop.sh` or `swarm.sh` exits `2` immediately. |
 | **Cause** | No agent command was supplied. |
-| **Resolution** | Set `WGM_AGENT`, pass `--agent "CMD"`, or append `-- copilot -p`. See [Choosing the agent](../reference/cli-loop.md#choosing-the-agent). |
+| **Resolution** | Set `WGM_AGENT`, pass `--agent "CMD"`, or append `-- copilot -p --allow-all-tools`. See [Choosing the agent](../reference/cli-loop.md#choosing-the-agent). |
 
 ### "Refusing to run 'build': no IMPLEMENTATION_PLAN.md found."
 
@@ -147,6 +147,14 @@ and reinstalls in one step.
 | **Symptom** | A build exits non-zero after successful agent invocations that leave `IMPLEMENTATION_PLAN.md` unchanged. |
 | **Cause** | Exit status alone is not evidence of useful work; the agent may have produced prose without an artifact or stopped without recording progress. |
 | **Resolution** | Inspect the agent log and plan, fix the task or permission problem, then rerun. Increase `--max-no-progress-iterations` only when a plan-preserving iteration is intentional and documented. |
+
+### "Agent timed out"
+
+| | |
+|---|---|
+| **Symptom** | The loop reports `Agent timed out after Ns` and records a failed iteration. |
+| **Cause** | `--agent-timeout-seconds N` reached its limit. On hosts without GNU `timeout` or `gtimeout`, the loop states that it is using the cooperative fallback instead of pretending to terminate the process. |
+| **Resolution** | Inspect the agent output, lower the task scope, or increase the explicit timeout. Use a host with GNU `timeout`/`gtimeout` when hard process-group termination is required. |
 
 ### A `plan` or `extract` phase exits without its artifact
 

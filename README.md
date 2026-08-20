@@ -101,9 +101,11 @@ Invoke as a slash command with an optional **mode** and a request:
 | `/wgm review` | Review the current diff against acceptance criteria |
 
 **Modes:** `grill`, `analyze`, `plan`, `build` (alias `loop`), `review`.
-A trailing `only` runs that single phase and stops; without `only`, a mode starts at that phase and
-continues forward. A leading word counts as a mode only if it's a known keyword followed by `only`,
-`:`, or end of input — so `/wgm build the auth module` is treated as a request, not `build` mode.
+`grill`, `analyze`, `plan`, and `review` are single-phase entry points and always stop at their
+phase gate; a trailing `only` is accepted for emphasis and is redundant for them. `build` resumes
+the loop and may continue across iterations unless capped. A leading word counts as a mode only if
+it's a known keyword followed by `only`, `:`, or end of input — so `/wgm build the auth module` is
+treated as a request, not `build` mode.
 
 **Your first run, end to end** — `/wgm add a dark-mode toggle`:
 1. **Grill** — wgm asks one focused question at a time (e.g. *"persist the choice in `localStorage` —

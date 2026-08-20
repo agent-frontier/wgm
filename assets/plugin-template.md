@@ -205,11 +205,11 @@ if __name__ == "__main__":
 - [ ] Plugin returns dict (never raises exceptions)
 - [ ] Test with: `python3 -c "from my_plugin import invoke; invoke('plan', {...})"`
 - [ ] Plugin can be discovered: `ls ~/.copilot/skills/my-plugin/plugin.toml`
-- [ ] wgm can load it: `/wgm grill` → check logs for plugin discovery
+- [ ] A compatible host adapter can load it: `/wgm grill` → check that adapter logs for metadata discovery
 
-## Example Invocation (from wgm)
+## Example Invocation (from a compatible host adapter)
 
-When wgm loads your plugin during Triage, it will:
+When a host adapter loads your plugin during Triage, it may:
 
 ```python
 import importlib.util
@@ -230,10 +230,10 @@ print(result)
 mkdir ~/test-my-plugin && cd ~/test-my-plugin
 git init
 
-# 2. Run wgm with your plugin
+# 2. Run the host adapter configured to use wgm with your plugin
 /wgm plan: test feature
 
-# 3. Check logs for plugin invocation
+# 3. Check the host adapter logs for plugin invocation
 grep "my-plugin" ~/.copilot/skills/wgm/session.log
 
 # 4. Verify your hook was called

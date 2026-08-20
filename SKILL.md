@@ -73,11 +73,14 @@ proves the learning landed (one question at a time, graded against the code, sco
 **Ship/Handoff**, when a build was largely autonomous or the operator is new to the codebase, offer
 `/teach-me` — a handoff summary the operator cannot act on is not a handoff.
 
-**sofaking** — Stack Overflow for Agents knowledge integration. When installed, wgm can invoke sofaking at:
+**sofaking** — Stack Overflow for Agents knowledge integration. When installed, a compatible host
+adapter may invoke sofaking at:
 - **Plan phase** — search prior art and validate architecture choices before implementing.
 - **Validate phase** — verify outcomes and contribute durable learnings back to SOFA.
 
-Sofaking is optional; wgm continues normally if it is unavailable or returns an error.
+Sofaking is optional; the portable `loop.sh` runner does not dispatch plugin hooks directly. A host
+adapter must own invocation, timeout, enablement, and failure reporting; wgm continues normally if
+the adapter or plugin is unavailable.
 
 **[SkillOpt-Sleep](https://github.com/microsoft/SkillOpt)** — an external, optional nightly
 self-evolution companion for coding-agent skill documents (harvest sessions → mine recurring tasks →
@@ -103,7 +106,10 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
    `agent-frontier/wgm`). Write the file with the answer either way, so it is never asked again unless a
    human deletes it. If the file already exists, skip this step entirely; its content governs the
    run, not a fresh question (`references/self-improvement.md`).
-3. **Discover plugins.** If `~/.copilot/skills/*/plugin.toml` exists, load plugin metadata (name, hooks, dependencies) before planning. Missing plugins or dependencies are warnings, not blockers.
+3. **Discover plugins.** If `~/.copilot/skills/*/plugin.toml` exists, a host adapter may load plugin
+   metadata (name, hooks, dependencies) before planning. The portable runner treats this metadata as
+   informational and does not invoke plugin hooks itself; missing plugins or dependencies are
+   warnings, not blockers.
 4. **Track (scale-adaptive).** Size the ceremony to the work's scale and risk, **state the chosen track** ("Track: Quick/Standard/Full — …"), and **default to Standard when unsure**. The deterministic backpressure gate is never skipped — only the surrounding ceremony flexes.
 
    | Track | When | Ceremony |

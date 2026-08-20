@@ -2,7 +2,8 @@
 """
 WGM Plugin Registry
 
-Discovers and manages wgm plugins. Used by wgm at Triage to load available plugins.
+Discovers and manages wgm plugin metadata for a compatible host adapter. The portable `loop.sh`
+runner does not call this registry or invoke plugin hooks.
 
 Usage:
     from wgm_plugin_registry import discover_plugins, load_plugin

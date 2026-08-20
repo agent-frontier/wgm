@@ -11,7 +11,7 @@
 #   * $WGM_AGENT (or --agent "CMD") — a command line evaluated by the shell. Set this only to a
 #     command you trust; the prompt is appended as the final argument.
 #       export WGM_AGENT='claude --dangerously-skip-permissions -p'
-#       export WGM_AGENT='copilot -p'
+#       export WGM_AGENT='copilot -p --allow-all-tools'
 #       export WGM_AGENT='codex exec'
 #   * a `--` passthrough — everything after `--` is the agent argv, invoked WITHOUT eval (safest):
 #       ./scripts/loop.sh build -- claude -p
@@ -30,10 +30,16 @@
 #   --frugal-agent "CMD" cheaper agent for routine iterations; escalates to --agent on a stall
 #                        (overrides $WGM_FRUGAL_AGENT). Needs --agent set to enable escalation.
 #   --request "TXT"      user request/scope to inject into the prompt (useful for plan/build)
+#   --plan FILE          explicit implementation plan path; otherwise prefer `.wgm/` when both
+#                        root and `.wgm/` plans exist
 #   --threshold N        satisfaction target 0-100 to converge to in build (default: 95)
 #   --scenarios DIR      where the holdout scenarios live (default: scenarios/ or .wgm/scenarios/)
 #   --stratified         validate scenarios by ascending tier (1->2->3)
-#   --container ENGINE   podman | docker for containerized scenario validation (default: podman)
+#   --container ENGINE   auto | podman | docker for scenario validation (default: auto; auto selects
+#                        available Podman, then Docker)
+#   --agent-timeout-seconds N
+#                        terminate an active agent process group after N seconds when GNU
+#                        timeout/gtimeout is available; 0 = disabled (default: 0)
 #   --source DIR         exemplar dir for `extract` (gene transfusion)
 #   --escalate-after N   consecutive no-progress iterations before escalating (default: 2)
 #   --downgrade-after N  consecutive progressing iterations before downgrading to frugal (default: 5)
@@ -96,12 +102,14 @@ DO_COMMIT=0
 AGENT="${WGM_AGENT:-}"
 FRUGAL_AGENT="${WGM_FRUGAL_AGENT:-}"
 REQUEST=""
+PLAN_FILE="${WGM_PLAN:-}"
 AGENT_ARGV=()
 PROMPT_STDIN="${WGM_PROMPT_STDIN:-0}"
 THRESHOLD=95
 SCENARIOS_DIR=""
 STRATIFIED=0
 CONTAINER="podman"
+CONTAINER_EXPLICIT=0
 SOURCE_DIR=""
 ESCALATE_AFTER=2
 DOWNGRADE_AFTER=5
@@ -120,6 +128,8 @@ COST_CMD=""
 MAX_COST=0
 CUM_COST=0
 USE_DEVCONTAINER=0
+AGENT_TIMEOUT=0
+TIMEOUT_BIN=""
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -134,10 +144,12 @@ while [[ $# -gt 0 ]]; do
     --agent)   [[ $# -ge 2 ]] || { echo "--agent requires a command" >&2; exit 2; }; AGENT="$2"; shift 2 ;;
     --frugal-agent) [[ $# -ge 2 ]] || { echo "--frugal-agent requires a command" >&2; exit 2; }; FRUGAL_AGENT="$2"; shift 2 ;;
     --request) [[ $# -ge 2 ]] || { echo "--request requires text" >&2; exit 2; }; REQUEST="$2"; shift 2 ;;
+    --plan) [[ $# -ge 2 ]] || { echo "--plan requires a file" >&2; exit 2; }; PLAN_FILE="$2"; shift 2 ;;
     --threshold) [[ $# -ge 2 ]] || { echo "--threshold requires a number" >&2; exit 2; }; THRESHOLD="$2"; shift 2 ;;
     --scenarios) [[ $# -ge 2 ]] || { echo "--scenarios requires a dir" >&2; exit 2; }; SCENARIOS_DIR="$2"; shift 2 ;;
     --stratified) STRATIFIED=1; shift ;;
-    --container) [[ $# -ge 2 ]] || { echo "--container requires podman|docker" >&2; exit 2; }; CONTAINER="$2"; shift 2 ;;
+    --container) [[ $# -ge 2 ]] || { echo "--container requires auto|podman|docker" >&2; exit 2; }; CONTAINER="$2"; CONTAINER_EXPLICIT=1; shift 2 ;;
+    --agent-timeout-seconds) [[ $# -ge 2 ]] || { echo "--agent-timeout-seconds requires a number" >&2; exit 2; }; AGENT_TIMEOUT="$2"; shift 2 ;;
     --source) [[ $# -ge 2 ]] || { echo "--source requires a dir" >&2; exit 2; }; SOURCE_DIR="$2"; shift 2 ;;
     --escalate-after) [[ $# -ge 2 ]] || { echo "--escalate-after requires a number" >&2; exit 2; }; ESCALATE_AFTER="$2"; shift 2 ;;
     --downgrade-after) [[ $# -ge 2 ]] || { echo "--downgrade-after requires a number" >&2; exit 2; }; DOWNGRADE_AFTER="$2"; shift 2 ;;
@@ -171,8 +183,8 @@ case "$MODE" in
   *) echo "Invalid mode: $MODE (expected grill|analyze|plan|preflight|build|loop|review|extract)" >&2; exit 2 ;;
 esac
 
-case "$CONTAINER" in podman|docker) ;; *) echo "Invalid --container: $CONTAINER (podman|docker)" >&2; exit 2 ;; esac
-for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$MAX_NO_PROGRESS" "$CHECKPOINT_INTERVAL" "$MAX_RETRIES" "$RETRY_BASE_DELAY" "$RETRY_MAX_DELAY" "$MAX_CONSEC_FAIL"; do
+case "$CONTAINER" in auto|podman|docker) ;; *) echo "Invalid --container: $CONTAINER (auto|podman|docker)" >&2; exit 2 ;; esac
+for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$MAX_NO_PROGRESS" "$CHECKPOINT_INTERVAL" "$AGENT_TIMEOUT" "$MAX_RETRIES" "$RETRY_BASE_DELAY" "$RETRY_MAX_DELAY" "$MAX_CONSEC_FAIL"; do
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "expected a non-negative integer, got: $n" >&2; exit 2; }
 done
 # --max-cost is a plain number, not necessarily an integer (a cost figure may be fractional).
@@ -180,6 +192,35 @@ done
 if [[ -z "$COST_CMD" ]] && awk -v m="$MAX_COST" 'BEGIN{exit !(m>0)}'; then
   echo "⚠ --max-cost is set but --cost-cmd is not; the cost ceiling will never trigger." >&2
 fi
+
+resolve_runtime_primitives() {
+  if [[ "$CONTAINER" == "auto" ]]; then
+    CONTAINER_EXPLICIT=0
+  fi
+  if [[ "$CONTAINER_EXPLICIT" -eq 0 ]]; then
+    if command -v podman >/dev/null 2>&1; then
+      CONTAINER="podman"
+    elif command -v docker >/dev/null 2>&1; then
+      CONTAINER="docker"
+    else
+      CONTAINER="unavailable"
+    fi
+  elif ! command -v "$CONTAINER" >/dev/null 2>&1; then
+    echo "Requested container engine '$CONTAINER' is unavailable on PATH." >&2
+    exit 2
+  fi
+
+  if [[ "$AGENT_TIMEOUT" -ne 0 ]]; then
+    if command -v timeout >/dev/null 2>&1 && timeout --help 2>&1 | grep -q -- '--kill-after'; then
+      TIMEOUT_BIN="$(command -v timeout)"
+    elif command -v gtimeout >/dev/null 2>&1 && gtimeout --help 2>&1 | grep -q -- '--kill-after'; then
+      TIMEOUT_BIN="$(command -v gtimeout)"
+    else
+      echo "⚠ --agent-timeout-seconds is requested, but GNU timeout/gtimeout is unavailable; using cooperative fallback." >&2
+    fi
+  fi
+}
+resolve_runtime_primitives
 
 # Single-phase modes run once by default; build runs unlimited by default; `only` forces one pass.
 if [[ -z "$MAX_ITERS" ]]; then
@@ -192,8 +233,16 @@ fi
 
 # ----- locate the plan / working dir ---------------------------------------
 PLAN=""
-if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then PLAN="IMPLEMENTATION_PLAN.md"
-elif [[ -f ".wgm/IMPLEMENTATION_PLAN.md" ]]; then PLAN=".wgm/IMPLEMENTATION_PLAN.md"
+if [[ -n "$PLAN_FILE" ]]; then
+  if [[ ! -f "$PLAN_FILE" && "$MODE" != "plan" ]]; then
+    echo "plan file not found: $PLAN_FILE" >&2
+    exit 2
+  fi
+  PLAN="$PLAN_FILE"
+elif [[ -f ".wgm/IMPLEMENTATION_PLAN.md" ]]; then
+  PLAN=".wgm/IMPLEMENTATION_PLAN.md"
+elif [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+  PLAN="IMPLEMENTATION_PLAN.md"
 fi
 STOP_FILE=".wgm/STOP"; [[ -d .wgm ]] || STOP_FILE="STOP"
 
@@ -210,7 +259,7 @@ fi
 PLAN_REF="${PLAN:-IMPLEMENTATION_PLAN.md (none yet)}"
 
 # ----- project gates (wgm.yml) ---------------------------------------------
-# Optional named backpressure: commands injected as mandatory checks into every build iteration.
+# Optional named backpressure: commands executed by the host after every build iteration.
 GATES=()
 if [[ -z "$GATES_FILE" ]]; then
   if [[ -f "wgm.yml" ]]; then GATES_FILE="wgm.yml"
@@ -218,16 +267,30 @@ if [[ -z "$GATES_FILE" ]]; then
 fi
 if [[ -n "$GATES_FILE" ]]; then
   [[ -f "$GATES_FILE" ]] || { echo "gates file not found: $GATES_FILE" >&2; exit 2; }
-  while IFS= read -r _g; do
-    if [[ -n "$_g" ]]; then GATES+=("$_g"); fi
-  done < <(
-    awk '
-      /^[[:space:]]*#/ { next }
-      /^gates:[[:space:]]*$/ { g=1; next }
-      g && /^[[:space:]]*-[[:space:]]+/ { sub(/^[[:space:]]*-[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; next }
-      g && /^[^[:space:]#]/ { g=0 }
-    ' "$GATES_FILE"
-  )
+  [[ -r "$GATES_FILE" ]] || { echo "gates file is unreadable: $GATES_FILE" >&2; exit 2; }
+  _gates_header="$(awk '/^[[:space:]]*gates[[:space:]]*:/ { print; exit }' "$GATES_FILE")"
+  [[ -n "$_gates_header" ]] || { echo "gates file must declare a gates: list: $GATES_FILE" >&2; exit 2; }
+  if [[ "$_gates_header" =~ gates[[:space:]]*:[[:space:]]*\[(.*)\] ]]; then
+    _inline="${BASH_REMATCH[1]}"
+    IFS=',' read -r -a _inline_gates <<< "$_inline"
+    for _g in "${_inline_gates[@]}"; do
+      _g="${_g#"${_g%%[![:space:]]*}"}"; _g="${_g%"${_g##*[![:space:]]}"}"
+      _g="${_g#\"}"; _g="${_g%\"}"; _g="${_g#\'}"; _g="${_g%\'}"
+      [[ -n "$_g" ]] && GATES+=("$_g")
+    done
+  else
+    while IFS= read -r _g; do
+      [[ -n "$_g" ]] && GATES+=("$_g")
+    done < <(
+      awk '
+        /^[[:space:]]*#/ { next }
+        /^[[:space:]]*gates[[:space:]]*:[[:space:]]*$/ { g=1; next }
+        g && /^[[:space:]]*-[[:space:]]+/ { sub(/^[[:space:]]*-[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; next }
+        g && /^[^[:space:]#]/ { g=0 }
+      ' "$GATES_FILE"
+    )
+  fi
+  [[ "${#GATES[@]}" -gt 0 ]] || { echo "gates file contains no executable gate commands: $GATES_FILE" >&2; exit 2; }
 fi
 
 # ----- build the per-iteration prompt --------------------------------------
@@ -248,7 +311,7 @@ Holdout judging: do NOT read scenario files while implementing. In Validate, jud
   [[ "$STRATIFIED" -eq 1 ]] && TASK="${TASK}
 Stratified: validate scenarios by ascending tier (1->2->3); converge a tier before advancing."
   TASK="${TASK}
-If a scenario needs a running service, build and run it with ${CONTAINER} (OCI) per references/validation-env.md.
+If a scenario needs a running service, build and run it with ${CONTAINER} (OCI) per references/validation-env.md. If the selected engine is unavailable, report that limitation instead of claiming container validation ran.
 On a stall (satisfaction flat ~2 iterations, or a task failing repeatedly), run wonder/reflect and consider model escalation per references/stall-recovery.md."
   if [[ ${#GATES[@]} -gt 0 ]]; then
     _gatelist="$(printf '%s; ' "${GATES[@]}")"
@@ -274,6 +337,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "mode=${MODE} max_iterations=${MAX_ITERS} plan=${PLAN_REF} commit=${DO_COMMIT}"
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
   echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s no_progress_limit=${MAX_NO_PROGRESS} checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
+  echo "agent_timeout=${AGENT_TIMEOUT}s timeout_bin=${TIMEOUT_BIN:-cooperative}"
   echo "retries=${MAX_RETRIES} retry_base=${RETRY_BASE_DELAY}s retry_max=${RETRY_MAX_DELAY}s circuit_breaker=${MAX_CONSEC_FAIL}"
   echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set} max_cost=${MAX_COST}"
   echo "capability_probe=on (dry-run never executes the probe)"
@@ -321,19 +385,53 @@ run_main() {
 run_frugal() {
   run_with_prompt "$ITER_PROMPT" frugal
 }
-run_with_prompt() {
-  local prompt="$1" role="$2"
-  if [[ "$role" == "frugal" ]]; then
-    if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$prompt" | eval "$FRUGAL_AGENT"
-    else eval "$FRUGAL_AGENT \"\$prompt\""; fi
-  elif [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
-    if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$prompt" | "${AGENT_ARGV[@]}"
-    else "${AGENT_ARGV[@]}" "$prompt"; fi
-  elif [[ "$PROMPT_STDIN" == "1" ]]; then
-    printf '%s' "$prompt" | eval "$AGENT"
-  else
-    eval "$AGENT \"\$prompt\""
+report_agent_status() {
+  local rc="$1"
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
+    echo "Agent timed out after ${AGENT_TIMEOUT}s." >&2
   fi
+  return "$rc"
+}
+run_with_prompt() {
+  local prompt="$1" role="$2" rc
+  local timeout_args=()
+  if [[ -n "$TIMEOUT_BIN" && "$AGENT_TIMEOUT" -ne 0 ]]; then
+    timeout_args=("$TIMEOUT_BIN" --signal=TERM --kill-after=5s "$AGENT_TIMEOUT")
+  fi
+
+  if [[ "$role" == "frugal" ]]; then
+    if [[ ${#timeout_args[@]} -gt 0 ]]; then
+      if [[ "$PROMPT_STDIN" == "1" ]]; then
+        printf '%s' "$prompt" | "${timeout_args[@]}" bash -c "$FRUGAL_AGENT"
+      else
+        "${timeout_args[@]}" bash -c "$FRUGAL_AGENT \"\$1\"" _ "$prompt"
+      fi
+    elif [[ "$PROMPT_STDIN" == "1" ]]; then
+      printf '%s' "$prompt" | eval "$FRUGAL_AGENT"
+    else
+      eval "$FRUGAL_AGENT \"\$prompt\""
+    fi
+  elif [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
+    if [[ "$PROMPT_STDIN" == "1" ]]; then
+      printf '%s' "$prompt" | "${timeout_args[@]}" "${AGENT_ARGV[@]}"
+    else
+      "${timeout_args[@]}" "${AGENT_ARGV[@]}" "$prompt"
+    fi
+  elif [[ "$PROMPT_STDIN" == "1" ]]; then
+    if [[ ${#timeout_args[@]} -gt 0 ]]; then
+      printf '%s' "$prompt" | "${timeout_args[@]}" bash -c "$AGENT"
+    else
+      printf '%s' "$prompt" | eval "$AGENT"
+    fi
+  else
+    if [[ ${#timeout_args[@]} -gt 0 ]]; then
+      "${timeout_args[@]}" bash -c "$AGENT \"\$1\"" _ "$prompt"
+    else
+      eval "$AGENT \"\$prompt\""
+    fi
+  fi
+  rc=$?
+  report_agent_status "$rc"
 }
 # GNU date wants -d @EPOCH; BSD/macOS date wants -r EPOCH. Fall back to the raw epoch if neither works.
 epoch_to_utc() {
@@ -546,9 +644,22 @@ stop_requested() {
 }
 
 verify_phase_artifact() {
-  local root_after wgm_after genes_after patterns_after
+  local root_after wgm_after custom_after genes_after patterns_after
   case "$MODE" in
     plan)
+      if [[ -n "$PLAN_FILE" ]]; then
+        custom_after="$(file_hash_or_none "$PLAN_FILE")"
+        if [[ ! -f "$PLAN_FILE" ]]; then
+          echo "Phase artifact missing: plan did not create ${PLAN_FILE}." >&2
+        elif [[ "$custom_after" == "$PHASE_PLAN_CUSTOM_BEFORE" ]]; then
+          echo "Phase artifact unchanged: plan did not update ${PLAN_FILE}." >&2
+        elif ! meaningful_file "$PLAN_FILE" || ! grep -q '^#' "$PLAN_FILE"; then
+          echo "Phase artifact invalid: plan did not produce a structured ${PLAN_FILE}." >&2
+        else
+          return 0
+        fi
+        return 1
+      fi
       root_after="$(file_hash_or_none IMPLEMENTATION_PLAN.md)"
       wgm_after="$(file_hash_or_none .wgm/IMPLEMENTATION_PLAN.md)"
       if [[ ! -f IMPLEMENTATION_PLAN.md && ! -f .wgm/IMPLEMENTATION_PLAN.md ]]; then
@@ -608,9 +719,81 @@ run_iteration() {
   done
 }
 
+run_project_gates() {
+  local gate_index=0 gate
+  [[ "${#GATES[@]}" -gt 0 ]] || return 0
+  for gate in "${GATES[@]}"; do
+    gate_index=$((gate_index + 1))
+    echo "Project gate ${gate_index}/${#GATES[@]}: ${gate}"
+    if ! bash -c "$gate"; then
+      echo "Project gate failed (${gate_index}/${#GATES[@]}): ${gate}" >&2
+      return 1
+    fi
+  done
+  return 0
+}
+
+iteration_failure() {
+  local reason="$1"
+  LOOP_FAILED=1
+  CONSEC_FAIL=$((CONSEC_FAIL + 1))
+  record_metrics fail
+  echo "$reason" >&2
+  if [[ "$MODE" != "build" ]]; then
+    notify error
+    exit 1
+  fi
+  if [[ "$MAX_CONSEC_FAIL" -ne 0 && "$CONSEC_FAIL" -ge "$MAX_CONSEC_FAIL" ]]; then
+    echo "Circuit breaker: ${CONSEC_FAIL} consecutive failed iteration(s); stopping." >&2
+    notify error
+    exit 1
+  fi
+}
+
+discard_iteration_ownership() {
+  local last
+  [[ "$COMMIT_MODE" -eq 1 ]] || return 0
+  [[ -n "${OWNERSHIP_MANIFEST:-}" ]] && rm -f "$OWNERSHIP_MANIFEST"
+  if [[ "${#OWNERSHIP_MANIFESTS[@]}" -gt 0 ]]; then
+    last=$(( ${#OWNERSHIP_MANIFESTS[@]} - 1 ))
+    unset "OWNERSHIP_MANIFESTS[$last]"
+  fi
+}
+
+run_harvest_hook() {
+  local memories=".wgm/memories.md" hash marker=".wgm/.last-harvest-hash" rc
+  [[ "$MODE" == "build" && "$LOOP_FAILED" -eq 0 && -x "$HERE/harvest-hive.sh" ]] || return 0
+  [[ -s "$memories" ]] || return 0
+  hash="$(file_hash "$memories")"
+  if [[ -f "$marker" ]] && [[ "$(cat "$marker" 2>/dev/null || true)" == "$hash" ]]; then
+    echo "Ship/Handoff harvest: memories unchanged; skipping duplicate harvest."
+    return 0
+  fi
+  echo "Ship/Handoff harvest: invoking consent-gated harvest-hive hook."
+  if [[ -n "$TIMEOUT_BIN" ]]; then
+    set +e
+    "$TIMEOUT_BIN" --signal=TERM --kill-after=5s 60 "$HERE/harvest-hive.sh" </dev/null
+    rc=$?
+    set -e
+  else
+    set +e
+    "$HERE/harvest-hive.sh" </dev/null
+    rc=$?
+    set -e
+  fi
+  if [[ "$rc" -eq 0 ]]; then
+    printf '%s\n' "$hash" > "$marker"
+  elif [[ -n "$TIMEOUT_BIN" ]]; then
+    echo "Ship/Handoff harvest hook failed or timed out; build result is unchanged." >&2
+  else
+    echo "Ship/Handoff harvest hook failed; build result is unchanged." >&2
+  fi
+}
+
 ITER=0
 COMPLETED=0
 CONSEC_FAIL=0
+LOOP_FAILED=0
 NOPROG=0
 PROG=0
 START_TS=$(date +%s)
@@ -637,8 +820,10 @@ while :; do
   ITER_PROMPT="$PROMPT"
   PHASE_PLAN_ROOT_BEFORE="$(file_hash_or_none IMPLEMENTATION_PLAN.md)"
   PHASE_PLAN_WGM_BEFORE="$(file_hash_or_none .wgm/IMPLEMENTATION_PLAN.md)"
+  PHASE_PLAN_CUSTOM_BEFORE="$(file_hash_or_none "$PLAN_FILE")"
   PHASE_GENES_BEFORE="$(file_hash_or_none .wgm/genes.md)"
   PHASE_AGENT_PATTERNS_BEFORE="$(codebase_patterns_content)"
+  export WGM_PLAN_FILE="$PLAN_REF"
   if [[ "$COMMIT_MODE" -eq 1 ]]; then
     OWNERSHIP_MANIFEST="$(pwd)/.wgm/.loop-touched-${ITER}-$$"
     rm -f "$OWNERSHIP_MANIFEST"
@@ -650,17 +835,17 @@ Commit ownership: before you finish, write every repository-relative file path y
     unset WGM_OWNERSHIP_MANIFEST
   fi
   if run_iteration; then
+    if [[ "$MODE" == "build" ]] && ! run_project_gates; then
+      discard_iteration_ownership
+      iteration_failure "Project-wide gate failure after iteration ${ITER}."
+      continue
+    fi
+    LOOP_FAILED=0
     CONSEC_FAIL=0
     COMPLETED=$((COMPLETED + 1))
   else
-    CONSEC_FAIL=$((CONSEC_FAIL + 1))
-    record_metrics fail
-    echo "Agent failed iteration ${ITER} after exhausting retries (consecutive: ${CONSEC_FAIL})." >&2
-    if [[ "$MODE" != "build" ]]; then notify error; exit 1; fi
-    if [[ "$MAX_CONSEC_FAIL" -ne 0 && "$CONSEC_FAIL" -ge "$MAX_CONSEC_FAIL" ]]; then
-      echo "Circuit breaker: ${CONSEC_FAIL} consecutive failed iteration(s); stopping." >&2
-      notify error; exit 1
-    fi
+    discard_iteration_ownership
+    iteration_failure "Agent failed iteration ${ITER} after exhausting retries (consecutive: $((CONSEC_FAIL + 1)))."
     continue
   fi
 
@@ -736,5 +921,11 @@ Commit ownership: before you finish, write every repository-relative file path y
   [[ "$MODE" != "build" ]] && break
 done
 
+if [[ "$LOOP_FAILED" -ne 0 ]]; then
+  notify error
+  echo "wgm loop finished with failed iteration(s)." >&2
+  exit 1
+fi
+run_harvest_hook
 notify complete
 echo "wgm loop finished (${COMPLETED} iteration(s))."

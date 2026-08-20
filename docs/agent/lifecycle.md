@@ -35,7 +35,7 @@ stateDiagram-v2
 
 | Phase | Goal | Exit gate (abridged) |
 |---|---|---|
-| **Triage** | Parse mode; **check `.github/wgm-hive.yml` consent — if absent, ask that one-time question before anything else**; classify the work into a Quick/Standard/Full track (default Standard; detail in [`SKILL.md`](../../SKILL.md)); choose Ralph-lite (same session) or Ralph-full (fresh context per iteration via `loop.sh`); set root vs `.wgm/` | Working dir decided; track chosen |
+| **Triage** | Parse mode; **check `.github/wgm-hive.yml` consent — if absent, ask that one-time question before anything else**; classify the work into a Quick/Standard/Full track (default Standard; detail in [`SKILL.md`](../../SKILL.md)); choose Ralph-lite (same session) or Ralph-full (fresh context per iteration via `loop.sh`); set root vs `.wgm/`; discover optional host plugins as metadata only | Working dir decided; track chosen |
 | **Grill** | Interview to alignment, one question at a time; seed the `CONTEXT.md` glossary | Goal, success criteria, constraints known or assumed |
 | **Plan** | Write the constitution, optional `CONTEXT.md` glossary, specs (EARS-phrased acceptance), scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
 | **Preflight** | Score readiness 0–100 | Readiness ≥ 80 |

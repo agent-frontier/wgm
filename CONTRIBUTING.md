@@ -32,7 +32,9 @@ pip install "git+https://github.com/agentskills/agentskills.git#subdirectory=ski
 
 ## The backpressure suite (run before every PR)
 
-These are exactly what CI runs. All must be green:
+These are the local checks that make the repository's deterministic backpressure suite green. CI also
+runs the `skills-ref`, `actionlint`, and PowerShell checks listed below; local `make validate` is the
+portable subset.
 
 ```bash
 shellcheck scripts/*.sh                      # lint
@@ -40,13 +42,13 @@ for s in scripts/*.sh; do bash -n "$s"; done  # shell syntax
 ( cd .. && skills-ref validate wgm )          # skill is valid (run from the parent dir)
 bash scripts/check-docs.sh                    # docs structure, links, mermaid, placeholders
 bash scripts/check-evals.sh                   # evals/evals.json schema (agentskills.io convention)
-bash scripts/test-install.sh                  # bash installer harness (9 cases)
-bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness (16 cases)
-bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness (7 cases)
-bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness (11 cases)
+bash scripts/test-install.sh                  # bash installer harness
+bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness
+bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness
+bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
 bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (7 cases)
-pwsh -File scripts/test-install.ps1           # PowerShell installer harness (5 cases)
+pwsh -File scripts/test-install.ps1           # PowerShell installer harness
 actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```
 

@@ -147,8 +147,9 @@ loop, with progress living on disk (not the model's context) between passes
   still gate "done." See `scoring.md` and `scenarios.md`.
 - "Important: when authoring code and docs, capture the *why* — and the test that proves it."
 - **Project-wide gates (a floor):** an optional `wgm.yml` (or `.wgm/gates.yml`) lists commands every
-  iteration must keep green — a backpressure floor independent of each task's own check. `loop.sh`
-  injects them into every build prompt (`--gates FILE` to override).
+  build iteration must keep green — a backpressure floor independent of each task's own check.
+  `loop.sh` executes them after the agent returns and also injects the list into the prompt
+  (`--gates FILE` to override).
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent recurring loop failures:

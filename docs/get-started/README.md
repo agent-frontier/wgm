@@ -131,15 +131,18 @@ writes under `.wgm/` instead so it never clobbers your files. See
 wgm advances **one task per iteration**, running your project's own checks after each, until the
 plan is done and the holdout scenarios score above threshold.
 
-For a long or ambiguous build, drive it with the external loop so each iteration gets genuinely
-fresh context:
+When a non-interactive agent invocation is available, drive the build with the external loop so each
+iteration gets genuinely fresh context. Ralph-lite remains the fallback for interactive-only hosts
+and Quick-track work:
 
 ```bash
-export WGM_AGENT='copilot -p'
-~/.agents/skills/wgm/scripts/loop.sh build --commit
+export WGM_AGENT='copilot -p --allow-all-tools'
+~/.agents/skills/wgm/scripts/loop.sh build 1 --agent-timeout-seconds 900
 ```
 
-To stop it at any point, press Ctrl+C or run `touch .wgm/STOP`.
+The first run is intentionally bounded and non-committing. Add `--commit` only after reviewing the
+clean-baseline and ownership rules in [Run the loop](../operator/running-the-loop.md). To stop it at
+any point, press Ctrl+C or run `touch .wgm/STOP`.
 
 See [Run the loop](../operator/running-the-loop.md) and the
 [loop.sh reference](../reference/cli-loop.md).

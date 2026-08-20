@@ -69,6 +69,16 @@ most direct evidence that the system is operating as an orchestrator rather than
 one: the orchestrator now verifies its own agent artifacts, lane artifacts, review evidence, and
 commit boundaries.
 
+## Current growth-pass status
+
+| Slice | Status | Evidence |
+|---|---|---|
+| Public semantics, first-build paths, installed-skill commands, plan indexes | Implemented | `bash scripts/check-docs.sh`, `bash scripts/test-check-docs.sh` |
+| Host-enforced project gates and container selection | Implemented | `bash scripts/test-loop.sh`; `auto -> podman -> docker -> unavailable` resolution |
+| Honest plugin boundary and normal-loop Hive harvest hook | Implemented | `references/plugin-integration.md` proposed/unwired status; loop and swarm harnesses |
+| Interruptible agent execution | Implemented on supported hosts | `--agent-timeout-seconds` with GNU `timeout`/`gtimeout`; cooperative fallback otherwise |
+| Final growth audit and remote delivery | Pending in this worktree | Full `make validate`, final docs audit, and reviewed merge remain the gate |
+
 ## WGM evidence at the emerging Stage 9 boundary
 
 ### 1. The system learns from more than one run

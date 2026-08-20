@@ -42,6 +42,7 @@ REQUIRED=(
   "docs/README.md"
   "docs/style-guide.md"
   "docs/get-started/README.md"
+  "references/plugin-integration.md"
   "docs/get-started/requirements.md"
   "docs/get-started/first-build.md"
   "docs/operator/README.md"
@@ -266,6 +267,7 @@ PROTOCOL_PHRASES=(
   "target band with both a ceiling and a floor"
   "wgm: complete-table"
   "Execute the journey once"
+  "Status: proposed/unwired host integration"
 )
 for i in "${!PROTOCOL_FILES[@]}"; do
   file="${ROOT}/${PROTOCOL_FILES[$i]}"

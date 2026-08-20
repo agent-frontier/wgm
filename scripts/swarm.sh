@@ -136,11 +136,27 @@ LOG_DIR="$(pwd)/.wgm/swarm-logs"
 mkdir -p "$LOG_DIR"
 SWARM_START=$(date +%s)
 
+copy_lane_artifacts() {
+  local rel parent
+  # Plan/spec/scenario artifacts may be intentionally ignored and therefore absent from a worktree
+  # created from HEAD. Copy the selected parent state into each lane without copying runtime scratch.
+  for rel in IMPLEMENTATION_PLAN.md AGENTS.md .wgm/IMPLEMENTATION_PLAN.md .wgm/AGENTS.md \
+    specs scenarios .wgm/specs .wgm/scenarios; do
+    [[ -e "$rel" ]] || continue
+    [[ -e "$dir/$rel" ]] && continue
+    parent="$(dirname "$rel")"
+    mkdir -p "$dir/$parent"
+    cp -a "$rel" "$dir/$rel"
+  done
+}
+
 PIDS=()
 BRANCHES=()
 DIRS=()
 LANE_START=()
 LANE_END=()
+LANE_NUMS=()
+FAIL=0
 i=0
 for task in "${TASKS[@]}"; do
   i=$((i + 1))
@@ -148,12 +164,15 @@ for task in "${TASKS[@]}"; do
   dir="${WT_DIR}/${SAFE_PREFIX}-${i}"
   if [[ -e "$dir" ]] || git show-ref --verify --quiet "refs/heads/${br}"; then
     echo "✗ stream $i: branch '${br}' or dir '${dir}' already exists — skipping (clean up a prior run)." >&2
+    FAIL=1
     continue
   fi
   if ! git worktree add -q -b "$br" "$dir" HEAD; then
     echo "✗ stream $i: 'git worktree add' failed for ${br}." >&2
+    FAIL=1
     continue
   fi
+  copy_lane_artifacts
   reqflag=()
   # Re-pin the lane's worktree on every turn. An agent that keeps working from retained context
   # drifts back to the parent checkout and can advance the parent's own branch, so the absolute
@@ -182,6 +201,7 @@ for task in "${TASKS[@]}"; do
   BRANCHES+=("$br")
   DIRS+=("$dir")
   LANE_START+=("$(date +%s)")
+  LANE_NUMS+=("$i")
   echo "↗ stream $i → branch ${br}${task:+ — ${task}}"
 done
 
@@ -189,7 +209,6 @@ done
 
 echo ""
 echo "Waiting for ${#PIDS[@]} stream(s)…"
-FAIL=0
 printf '%-7s %-24s %-6s %s\n' "stream" "branch" "status" "commits"
 for idx in "${!PIDS[@]}"; do
   if wait "${PIDS[$idx]}"; then st="ok"; else st="FAIL"; FAIL=1; fi
@@ -200,7 +219,7 @@ for idx in "${!PIDS[@]}"; do
     FAIL=1
     echo "✗ stream $((idx + 1)): agent exited successfully but produced no verifiable commit artifact." >&2
   fi
-  printf '%-7s %-24s %-6s %s\n' "$((idx + 1))" "${BRANCHES[$idx]}" "$st" "$commits"
+  printf '%-7s %-24s %-6s %s\n' "${LANE_NUMS[$idx]}" "${BRANCHES[$idx]}" "$st" "$commits"
 done
 
 # ----- telemetry summary ----------------------------------------------------
@@ -234,7 +253,7 @@ ACTIVE_SECS=0
 TURNS_TIMED=0
 TURNS_MISSING=0
 for idx in "${!PIDS[@]}"; do
-  ledger="${METRICS_DIR}/${SAFE_PREFIX}-$((idx + 1)).tsv"
+  ledger="${METRICS_DIR}/${SAFE_PREFIX}-${LANE_NUMS[$idx]}.tsv"
   [[ -f "$ledger" ]] || { TURNS_MISSING=$(( TURNS_MISSING + 1 )); continue; }
   while IFS=$'\t' read -r _start _end _iter _mode _agent dur _rest; do
     [[ "$_start" == "start_timestamp" ]] && continue
@@ -296,7 +315,7 @@ for idx in "${!DIRS[@]}"; do
     cat "$memories"
     printf '\n'
   } >> "$MAIN_MEMORIES"
-  echo "✓ stream $((idx + 1)): consolidated .wgm/memories.md (${lines} lines) from ${BRANCHES[$idx]}"
+  echo "✓ stream ${LANE_NUMS[$idx]}: consolidated .wgm/memories.md (${lines} lines) from ${BRANCHES[$idx]}"
   CONSOLIDATED_ANY=1
 done
 
@@ -310,7 +329,12 @@ if [[ "$CONSOLIDATED_ANY" -eq 1 && -x "$HERE/harvest-hive.sh" ]]; then
 fi
 
 if [[ "$CLEANUP" -eq 1 ]]; then
-  for d in "${DIRS[@]}"; do git worktree remove --force "$d" 2>/dev/null || true; done
+  for d in "${DIRS[@]}"; do
+    if ! git worktree remove --force "$d" 2>/dev/null; then
+      echo "✗ cleanup failed: could not remove worktree $d" >&2
+      FAIL=1
+    fi
+  done
   echo "(worktree dirs removed; branches kept — merge with: git merge ${PREFIX}/<i>)"
 else
   echo "Worktrees kept under ${WT_DIR}/. Merge a stream with: git merge ${PREFIX}/<i>"

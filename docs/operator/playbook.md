@@ -25,9 +25,9 @@ This is the minimum an operator needs to memorize to run wgm correctly, without 
       `IMPLEMENTATION_PLAN.md` / `specs/` / `scenarios/` / `docs/audit/` at the root; an existing
       project gets them under `.wgm/` instead, so wgm never clobbers your files
       ([`references/artifacts.md`](../../references/artifacts.md)).
-- [ ] Decide up front whether this build needs **Ralph-lite** (in-session, default) or **Ralph-full**
-      (`scripts/loop.sh`, fresh context per iteration — for large/ambiguous builds). See
-      [running-the-loop.md](running-the-loop.md).
+- [ ] Choose **Ralph-full** (`scripts/loop.sh`, fresh context per iteration) whenever a
+      non-interactive agent is available. Use **Ralph-lite** in-session only for interactive-only
+      hosts or Quick-track work. See [running-the-loop.md](running-the-loop.md).
 - [ ] If you'll validate against a live service, confirm Podman or Docker is available
       ([containers.md](containers.md)).
 

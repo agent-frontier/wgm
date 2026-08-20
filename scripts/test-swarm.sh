@@ -193,7 +193,17 @@ else
 fi
 reset_swarm
 
-# 7) a missing --tasks file is rejected before anything runs
+# 7) a partially unavailable swarm is not reported green when a later lane succeeds
+git branch wgm/mixed/1
+run -n 2 --max-iterations 1 --prefix wgm/mixed -- "${AGENT_OK[@]}"
+if [[ "$RC" -ne 0 ]] && grep -q "already exists" <<<"$OUT" && grep -q "one or more streams failed" <<<"$OUT"; then
+  pass "a mixed setup failure remains a swarm failure"
+else
+  fail "a mixed setup failure was reported green (rc=$RC): $OUT"
+fi
+reset_swarm
+
+# 8) a missing --tasks file is rejected before anything runs
 run --tasks does-not-exist.txt -- "${AGENT_OK[@]}"
 if [[ "$RC" -eq 2 ]] && grep -q "tasks file not found" <<<"$OUT"; then
   pass "missing --tasks file is rejected"

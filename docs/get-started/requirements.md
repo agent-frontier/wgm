@@ -41,7 +41,7 @@ The Ralph loop, the swarm, and the local gates are shell scripts. If you want th
 Agents known to work non-interactively:
 
 ```bash
-export WGM_AGENT='copilot -p'
+export WGM_AGENT='copilot -p --allow-all-tools'
 export WGM_AGENT='claude --dangerously-skip-permissions -p'
 export WGM_AGENT='codex exec'
 ```

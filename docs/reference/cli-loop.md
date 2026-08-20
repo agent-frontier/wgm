@@ -18,7 +18,7 @@ scripts/loop.sh [MODE] [MAX_ITERATIONS|only] [FLAGS] [-- AGENT_ARGV...]
 Run it **from your project's root**, using the path to your installed copy:
 
 ```bash
-~/.agents/skills/wgm/scripts/loop.sh build --agent 'copilot -p'
+~/.agents/skills/wgm/scripts/loop.sh build --agent 'copilot -p --allow-all-tools'
 ```
 
 ## Positional arguments
@@ -36,7 +36,7 @@ increasing safety:
 
 | Method | Example | Notes |
 |---|---|---|
-| `$WGM_AGENT` | `export WGM_AGENT='copilot -p'` | Shell-evaluated. Set only to a command you trust. |
+| `$WGM_AGENT` | `export WGM_AGENT='copilot -p --allow-all-tools'` | Shell-evaluated. Set only to a command you trust; the permission flag is required for unattended tool use. |
 | `--agent "CMD"` | `--agent 'claude --dangerously-skip-permissions -p'` | Shell-evaluated. Overrides `$WGM_AGENT`. |
 | `--` passthrough | `-- claude -p` | **Safest.** Everything after `--` is argv, invoked without `eval`. |
 
@@ -55,6 +55,7 @@ command string assembled from untrusted input.
 | `--agent "CMD"` | `$WGM_AGENT` | Agent command, shell-evaluated. |
 | `--frugal-agent "CMD"` | `$WGM_FRUGAL_AGENT` | Cheaper agent for routine iterations; escalates to `--agent` on a stall. Requires `--agent` for escalation to engage. |
 | `--request "TXT"` | none | Request or scope injected into the prompt. Most useful with `plan` and `build`. |
+| `--plan FILE` | auto | Explicit plan path. Without it, `.wgm/IMPLEMENTATION_PLAN.md` wins when both root and `.wgm/` plans exist. |
 | `--source DIR` | none | Exemplar codebase for `extract` (gene transfusion). |
 
 ### Scenario validation
@@ -64,7 +65,7 @@ command string assembled from untrusted input.
 | `--threshold N` | `95` | Satisfaction target (0–100) the build converges to. |
 | `--scenarios DIR` | `scenarios/` or `.wgm/scenarios/` | Where holdout scenarios live. |
 | `--stratified` | off | Validate scenarios by ascending tier (1 → 2 → 3), so easy passes cannot mask a broken tier 3. |
-| `--container ENGINE` | `podman` | `podman` or `docker`, for scenarios needing a live service. |
+| `--container ENGINE` | `auto` | Selects available `podman`, then `docker`; explicit unavailable engines fail clearly. |
 
 ### Stopping the loop
 
@@ -72,6 +73,7 @@ command string assembled from untrusted input.
 |---|---|---|
 | `--max-runtime-seconds N` | `0` (unlimited) | Hard wall-clock cap for the whole loop. |
 | `--idle-timeout N` | `0` (disabled) | Stop if the plan makes no progress for N seconds. |
+| `--agent-timeout-seconds N` | `0` (disabled) | Terminate the active agent process group after N seconds with GNU `timeout`/`gtimeout`; otherwise report the cooperative fallback. |
 | `--max-no-progress-iterations N` | `3` | Fail after N successful build iterations leave the plan unchanged; `0` disables this guard. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |
 | `--max-consecutive-failures N` | `3` | Circuit breaker: stop after N iterations that fail every retry. `0` never trips. |
 | `--max-cost N` | `0` (unlimited) | Stop once cumulative cost from `--cost-cmd` reaches N. Requires `--cost-cmd`. |
@@ -104,7 +106,7 @@ and, importantly, what they do not.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--gates FILE` | auto-detect `wgm.yml` or `.wgm/gates.yml` | A YAML file with a `gates:` list of commands, injected as mandatory checks into every build iteration. |
+| `--gates FILE` | auto-detect `wgm.yml` or `.wgm/gates.yml` | A YAML file with a `gates:` list of commands executed by the host after each build iteration. |
 
 ### Execution
 
