@@ -57,6 +57,14 @@
 |---|---|---|---|---|
 | 1 | <finding> | <persona(s)> | <path(s)> | <why> |
 
+### Rejected findings (verified false or already mitigated)
+> Persona observations and severity are hypotheses. Record high-severity findings that were checked
+> against the real artifact and rejected, with the evidence that disproved or already mitigated them.
+
+| Finding | Raised by | Verification performed | Evidence / disposition |
+|---|---|---|---|
+| <finding> | <persona(s)> | <exact command or source check> | <why it was rejected or already covered> |
+
 ### Dissent
 > Disagreements between personas, preserved rather than averaged away. Leave empty (with "none this
 > run") if the four personas agreed on every finding.

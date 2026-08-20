@@ -114,12 +114,16 @@ then hands the result to `scripts/harvest-hive.sh`. That dispatch is uncondition
 ignore: the courier owns every consent and anonymization decision itself, and a harvest hiccup never
 fails the swarm. See [Self-improvement](../../references/self-improvement.md).
 
+After each lane exits, `swarm.sh` verifies the artifact rather than trusting the process status:
+`status=ok, commits=0` is converted to a hard failure. Read the corresponding `.wgm/swarm-logs/`
+entry, fix the agent's write/tool permission or task scope, and rerun before merging any branch.
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | Every stream finished successfully. |
-| `1` | One or more streams failed (see `WORKTREE_DIR/*/.swarm.log`), or no streams started. |
+| `1` | One or more streams failed (see `.wgm/swarm-logs/*.log`), a lane produced zero commits, or no streams started. |
 | `2` | Misconfiguration: not a git repository, bad flag, missing `--tasks` file, or no agent configured. |
 
 ## What to do next

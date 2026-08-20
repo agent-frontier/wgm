@@ -64,6 +64,10 @@ A binary verdict can hide a real signal: a reviewer that PASSes may still hold a
 reservation**, and the two reviewers may **disagree**. Collapsing that into a single PASS is *false
 consensus* — the minority concern is rationalized away and never revisited. So:
 - Each reviewer emits its verdict **plus any reservations** — concerns that don't block this task.
+- The two reviewers must be independent of the artifact author. A self-review may honestly cover
+  process, cost, scope, and missing measurements, but must not be labeled or counted as an
+  adversarial correctness review. The independent reviewer should test named, load-bearing claims
+  against source rather than re-running the author's confidence.
 - A PASS with zero findings is a **claim, not a default** — before either reviewer emits a clean
   PASS with no reservations, it states in one sentence what it examined and why it found nothing; an
   unexplained zero-findings PASS is treated as an incomplete review and returned. Adapted from
@@ -107,6 +111,11 @@ flowchart LR
   action** by the *kind of action*, never by which persona raised it — a mechanical fix stays an
   Agent action even if a PM raised it; a policy question stays an Operator action even if a junior
   dev raised it.
+- **Verification is mandatory before promotion:** persona severity and observations are hypotheses.
+  The writer verifies each finding against the real artifact and its source of truth before putting it
+  in an Agent-action table. Weight verification toward RED/AMBER findings because a false high-severity
+  action is more damaging than a missed nit, and record rejected findings with the evidence that
+  disproved them.
 - **Trigger points** (not every iteration): Ship/Handoff (mandatory, Standard/Full) and, on the Full
   track, a Plan-exit baseline pass plus opportunistic passes on doc-touching diffs. Quick skips the
   swarm entirely and relies on `scripts/check-docs.sh`.
@@ -232,6 +241,8 @@ grep exposed them. So before integrating:
    exist, does the claimed symbol/constant/branch actually appear, does the named command run?
 3. Treat a `done` with **no reproducible artifact** — no exact file, symbol, and runnable command —
    as a red flag rather than a completion.
+4. Treat `status=ok, commits=0` as a hard lane failure. A successful process with no reachable
+   commit, diff, or explicitly documented spike artifact did not complete its assigned work.
 
 ## Portability & the external loop
 - **In-session:** dispatch via the host's subagent mechanism. Copilot reads `.github/agents/*.agent.md`;

@@ -34,6 +34,12 @@ You need a skills-compatible agent client. Everything else is optional.
 
 See [Requirements](requirements.md) for the full matrix, including what the optional scripts need.
 
+**Executable prerequisite rule:** if a page says to "provide", "ensure", or "have" a capability,
+follow its command or exact linked page before continuing. A capability name alone is not a setup
+step. For this repository, contributors can prove the documented path with `make validate`; a target
+project should use its own test/build/probe command rather than treating a prose prerequisite as
+evidence.
+
 ## Step 2: Install wgm
 
 **Before you begin:** decide whether you want wgm available in every project (user scope, the
@@ -145,6 +151,14 @@ remains. The repository is left clean and buildable so a later `/wgm build` can 
 
 **Tip:** If wgm built more than you can comfortably explain, run `/teach-me` and then `/quiz-me`.
 That is precisely what the companions are for — see [Companion skills](../companions/README.md).
+
+## Execute the journey once
+
+Do not validate this page by reading it only. In a clean checkout, run the commands exactly as
+written, restart the client where the journey says to, and follow the links through to the first
+validated build. If a command needs a project-specific service or credential, the owning page must
+provide the setup command or a link that does; "make PostgreSQL available" or "provide an ID" is not
+an executable prerequisite.
 
 ## What to do next
 

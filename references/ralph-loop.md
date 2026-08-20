@@ -50,6 +50,12 @@ loop, with progress living on disk (not the model's context) between passes
    [`oraios/serena`](https://github.com/oraios/serena)), use it to narrow symbol / call-graph /
    cross-reference lookup before falling back to grep; wgm itself does not bundle or require that
    retrieval layer.
+   If the requested outcome crosses an intermediary owned by neither the caller nor the target
+   (CDN, managed proxy, gateway, mesh, ingress, or platform service), read that component's
+   documented eligibility and transformation rules before proposing a config change. Check
+   request-side ineligibility, existing response transformations, and whether the named artifacts
+   are actually active in production; a correct origin policy can be inert or a second compression
+   tier can regress output.
 2. **Implement** — smallest change that completes one task; prefer a working vertical slice.
 3. **Validate** — run the task's backpressure command. Green or it isn't done.
 4. **Review** — diff check: scope creep, acceptance met, signal actually proves the task.
@@ -118,12 +124,11 @@ loop, with progress living on disk (not the model's context) between passes
   as a dedicated chore task — do **not** fold unrelated fmt/lint cleanup into a feature PR to chase
   a not-yet-active CI, and do not let it silently sink the first PR that lands after the CI does
   (`[learn]` issue #77).
-- **Known limitation: exit codes are a blunt signal.** `scripts/loop.sh` currently judges an
-  iteration by process exit code only, which can miss a "succeeded but did nothing useful" response
-  or treat a semantically empty exit-0 turn as progress. A future enhancement pattern is
-  **semantic exit / response analysis** — inspect the response content as well as the exit code, as
-  [`ralph-claude-code`](https://github.com/frankbria/ralph-claude-code) does — but that is a
-  candidate upgrade, not a current `loop.sh` capability.
+- **Exit codes are still only one signal.** `scripts/loop.sh` now probes write capability before a
+  build and treats repeated `plan_changed=0` build iterations as a first-class stall, but it does
+  not semantically judge an agent's prose response. A future enhancement pattern is **semantic exit /
+  response analysis** — inspect response content as well as exit code, as
+  [`ralph-claude-code`](https://github.com/frankbria/ralph-claude-code) does.
 - **Spec-drift pre-check (optional, cheap).** Before running the task's full validation command,
   diff the files actually touched against the task's declared files/areas in
   `IMPLEMENTATION_PLAN.md`. A mismatch (e.g. a task scoped to `schema/` touching UI files) is a
@@ -168,6 +173,13 @@ Inject these into **every** iteration — they prevent recurring loop failures:
   buries the one-task diff in reformatting noise. Hand-format to the house style, or format only the
   exact files this task changed; run a full reformat (if ever needed) as its own separate, reviewed
   change.
+- **Corrected facts require a corpus sweep.** When a path, prefix, default, version, permission, or
+  other fact changes, search both the old and new values across the full documentation corpus,
+  including historical/runbook copies and copy-paste commands. If the claim depends on a measurement,
+  record the tool, input, date, and regeneration command so a reviewer can reproduce it.
+- **Commit ownership is explicit.** `loop.sh --commit` takes exclusive ownership of the worktree.
+  Start clean, declare the files intentionally changed in the iteration manifest, and refuse to stage
+  undeclared paths. A concurrent human edit belongs in another worktree or after the loop stops.
 
 ## Memory (cross-iteration learning)
 Fresh context per iteration is Ralph's strength, but it also forgets. A small, token-budgeted

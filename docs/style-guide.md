@@ -9,7 +9,8 @@ enforced by `scripts/check-docs.sh`; the rest is convention.
 - **The model:** every page is exactly one of four types — journey, task, concept, or reference.
   Mixing types in one page is the most common defect here.
 - **Enforced automatically:** required pages exist, operator pages open with an executive overview,
-  links resolve, fences balance, no placeholders, no mojibake.
+  links resolve, fences balance, no placeholders, no mojibake, and explicitly marked complete tables
+  have no blank cells.
 - **Next:** [Contributing](../CONTRIBUTING.md) for the wider contribution flow.
 
 ## Page types
@@ -92,7 +93,22 @@ that mattered gets skimmed.
 
 **Claims need evidence.** Do not write that something is fast, simple, or reliable. Write what it
 does and let the reader judge. If a page states a behavior, that behavior must be checkable in the
-code or by running a command.
+code or by running a command. If a fact changes, sweep the old and new values across the full corpus,
+including copy-paste commands and historical pages.
+
+### Complete reference tables
+
+When every cell in a reference table is required, put this marker immediately before the table:
+
+```markdown
+<!-- wgm: complete-table -->
+| Option | Required | Default | Constraint |
+|---|---|---|---|
+| `--threshold` | no | `95` | `0-100` |
+```
+
+The docs gate rejects blank cells and placeholder dashes in the marked table. Derive constraints from
+the parser or validator, not only from a nearby constant or description string.
 
 ## Formatting rules
 
@@ -157,6 +173,13 @@ To add a documentation page:
    ```bash
    bash scripts/test-check-docs.sh
    ```
+
+8. If this is a rewrite fleet, measure line counts before and after and give each lane a floor and
+   ceiling. Keep verification points, warnings, security statements, and runnable commands even when
+   trimming repeated structure.
+
+9. Execute the primary getting-started path in a clean environment. A prerequisite written as
+   "provide" or "ensure" is incomplete until a command or exact link satisfies it.
 
 ## What to do next
 
