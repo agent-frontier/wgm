@@ -72,6 +72,7 @@ command string assembled from untrusted input.
 |---|---|---|
 | `--max-runtime-seconds N` | `0` (unlimited) | Hard wall-clock cap for the whole loop. |
 | `--idle-timeout N` | `0` (disabled) | Stop if the plan makes no progress for N seconds. |
+| `--max-no-progress-iterations N` | `3` | Fail after N successful build iterations leave the plan unchanged; `0` disables this guard. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |
 | `--max-consecutive-failures N` | `3` | Circuit breaker: stop after N iterations that fail every retry. `0` never trips. |
 | `--max-cost N` | `0` (unlimited) | Stop once cumulative cost from `--cost-cmd` reaches N. Requires `--cost-cmd`. |
 
@@ -95,7 +96,7 @@ command string assembled from untrusted input.
 | `--cost-cmd "CMD"` | none | Run after each iteration to print a token or cost figure for the `cost` column. Best-effort; its failure never breaks the loop. |
 
 The ledger's columns are `start_timestamp`, `end_timestamp`, `iter`, `mode`, `agent`, `duration_s`,
-`plan_changed`, `result`, `cost`, `parent`. `$WGM_PARENT_TASK` populates `parent`, which
+`plan_changed`, `result` (`ok`, `fail`, or `stall`), `cost`, `parent`. `$WGM_PARENT_TASK` populates `parent`, which
 `swarm.sh` sets per lane. See [Telemetry](../../references/telemetry.md) for what the numbers mean
 and, importantly, what they do not.
 
@@ -109,12 +110,15 @@ and, importantly, what they do not.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--commit` | off | `git add -A && git commit` after each build iteration. |
+| `--commit` | off | Commit after each build iteration. Requires a clean baseline, exclusive worktree ownership, and an iteration path manifest. |
 | `--checkpoint-interval N` | `0` (off) | Commit every N build iterations, independent of `--commit`. |
 | `--devcontainer` | off | Run the entire invocation inside wgm's shared local sandbox. A no-op with `--dry-run`. |
 | `--notify "CMD"` | none | Run CMD on lifecycle events with `$WGM_EVENT` (`start`, `complete`, `error`, `retry`) and `$WGM_ITER` set. Best-effort. |
-| `--dry-run` | off | Print the prompt and the command that would run; invoke nothing. |
+| `--dry-run` | off | Print the prompt and the command that would run; invoke nothing, including the capability probe. |
 | `-h`, `--help` | — | Show usage. |
+
+Commit checkpoints use the same clean-baseline and ownership-manifest rules as `--commit`; a
+missing manifest or undeclared path fails closed instead of being swept into the checkpoint.
 
 ## Environment variables
 
@@ -124,6 +128,9 @@ and, importantly, what they do not.
 | `WGM_FRUGAL_AGENT` | `loop.sh` | Default frugal agent command. |
 | `WGM_PROMPT_STDIN` | `loop.sh` | Set to `1` if the agent reads its prompt from stdin. |
 | `WGM_PARENT_TASK` | `loop.sh` | Populates the ledger's `parent` column. Set per lane by `swarm.sh`. |
+| `WGM_CAPABILITY_PROBE_FILE` | agent during probe | Unique disposable path the agent must create; unset outside the probe. The probe is mandatory for non-dry-run `build` and `plan`. |
+| `WGM_CAPABILITY_PROBE_CONTENT` | agent during probe | Exact marker content expected in the probe file. |
+| `WGM_OWNERSHIP_MANIFEST` | agent in commit mode | Path where the agent declares intentionally changed repository-relative files, one per line. |
 | `WGM_EVENT`, `WGM_ITER` | `--notify` CMD | Lifecycle event name and current iteration number. |
 | `WGM_IN_DEVCONTAINER` | `devcontainer.sh` | Set inside the sandbox; prevents recursive re-exec. |
 
@@ -132,7 +139,7 @@ and, importantly, what they do not.
 | Code | Meaning |
 |---|---|
 | `0` | The loop finished: iterations exhausted, a stop condition fired, or the stop sentinel appeared. |
-| `1` | A single-phase mode failed, the circuit breaker tripped, or `build`/`review`/`preflight` ran with no `IMPLEMENTATION_PLAN.md`. |
+| `1` | A capability probe, phase-artifact, no-progress, ownership, single-phase, or circuit-breaker check failed; or `build`/`review`/`preflight` ran with no `IMPLEMENTATION_PLAN.md`. |
 | `2` | Misconfiguration: unknown flag, non-numeric knob value, missing `--gates` file, or no agent configured. |
 
 ## Stopping a run
@@ -151,6 +158,8 @@ task remains, so a healthy loop self-terminates without your intervention.
 - Non-destructive by default: no commits and no pushes unless you pass `--commit`.
 - The agent still edits files during a non-dry run. Run this only in a workspace you are willing to
   let an agent operate in autonomously.
+- With `--commit`, do not edit the worktree while the loop runs. Use another worktree for concurrent
+  human edits; undeclared paths make the commit fail closed.
 - `build`, `review`, and `preflight` refuse to start without an `IMPLEMENTATION_PLAN.md` in the
   project root or `.wgm/`.
 

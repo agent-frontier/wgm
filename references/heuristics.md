@@ -12,9 +12,9 @@ changed how wgm behaves *everywhere*, not just in one build. See
 - **Landed in** — the skill artifact that now enforces it.
 
 Prune or merge entries that a protocol change has made redundant — the ledger stays lean, like the
-memory it graduates from. (Status: zero entries pruned across 4 consolidation rounds so far — 41
-entries and counting; not yet a problem at this size, but a future round should watch for when a
-prune becomes due — `docs/audit/README.md`.)
+memory it graduates from. Do not pin a volatile entry count in this header; when an audit needs the
+current count, run `grep -cE '^- \*\*Heuristic:\*\*' references/heuristics.md` and record the date
+and result in the audit report.
 
 ## Triage & Grill
 - **Heuristic:** run a cross-requirement consistency scan before leaving Grill: contradictions,
@@ -80,6 +80,17 @@ prune becomes due — `docs/audit/README.md`.)
   dogfood, `[learn]` issue #59 (`SchwartzKamel/blogster`, stale local clone masking upstream
   retirement). **Landed in:** `references/self-improvement.md` (Health check target-freshness
   guardrail).
+- **Heuristic:** probe the selected headless agent's write capability before the first paid
+  iteration, and fail a build after repeated successful no-progress iterations.
+  **Why:** a read-only sandbox can return exit 0 while producing no artifact, burning the full loop
+  budget; `plan_changed=0` is already measured and must be a stall signal, not passive telemetry.
+  **Provenance:** `[learn]` issue #94. **Landed in:** `scripts/loop.sh`, `scripts/test-loop.sh`,
+  `docs/reference/cli-loop.md`.
+- **Heuristic:** treat `loop.sh --commit` as exclusive worktree ownership: require a clean baseline,
+  declare iteration-owned paths, and refuse undeclared staging.
+  **Why:** `git add -A` cannot distinguish a concurrent human edit from the loop's work, so a
+  successful commit can silently claim unrelated changes. **Provenance:** `[learn]` issue #95.
+  **Landed in:** `scripts/loop.sh`, `scripts/test-loop.sh`, `references/ralph-loop.md`.
 - **Heuristic:** treat an A→B→A→B alternation across four iterations as a named oscillation, and
   break it with a no-revert, different-architecture steer.
   **Why:** generic diff churn notices motion but misses the stronger signal that the loop is
@@ -142,6 +153,34 @@ prune becomes due — `docs/audit/README.md`.)
   deploys, invisible for hours until the human asked why "complete" work wasn't live. **Provenance:**
   wgm dogfood, `[learn]` issue #60. **Landed in:** `references/ralph-loop.md` (Backpressure in
   depth) · `SKILL.md` (Loop Validate step · Ship/Handoff).
+- **Heuristic:** when an outcome crosses a CDN, managed proxy, gateway, mesh, or ingress, read that
+  intermediary's documented eligibility and transformation rules before optimizing the surrounding
+  config.
+  **Why:** request-side cache ineligibility can make a correct origin policy inert, while a downstream
+  encoder may make an added compression tier a regression; the named artifacts can be internally
+  correct and still not decide the outcome. **Provenance:** `[learn]` issue #87. **Landed in:**
+  `references/ralph-loop.md` (Analyze) · `references/docs-audit.md`.
+- **Heuristic:** execute the getting-started path in a clean environment, and treat capability-style
+  prerequisites as incomplete until a command or exact link satisfies them.
+  **Why:** accuracy audits can confirm "provide a database" is true while a newcomer still has no way
+  to start one; only doing the journey exposes missing commands, options, and circular prerequisites.
+  **Provenance:** `[learn]` issue #91. **Landed in:** `references/docs-audit.md` ·
+  `docs/get-started/README.md`.
+- **Heuristic:** after correcting a documented fact, search the whole corpus for both old and new
+  values and record how any cited measurement can be regenerated.
+  **Why:** stale copies survive in unrelated runbooks and agent guides, and an un-reproducible number
+  cannot be independently checked. **Provenance:** `[learn]` issue #88. **Landed in:**
+  `references/ralph-loop.md` · `references/docs-audit.md`.
+- **Heuristic:** give structural documentation fleets a measured size band with a floor and ceiling,
+  plus explicit keep/cut rules, and compare aggregate counts before and after.
+  **Why:** a structure mandate without a budget inflates every lane, while trimming without a floor
+  deletes security statements and runnable commands. **Provenance:** `[learn]` issue #89. **Landed in:**
+  `references/docs-audit.md` · `docs/style-guide.md`.
+- **Heuristic:** mark complete reference tables and reject blank or placeholder cells; derive
+  constraints from validation logic rather than nearby constants.
+  **Why:** a blank constraint cell looks valid to structural and style checks while the code hard-fails
+  on the omitted bound. **Provenance:** `[learn]` issue #90. **Landed in:** `scripts/check-docs.sh`,
+  `scripts/test-check-docs.sh`, `references/docs-audit.md`.
 - **Heuristic:** when a skill already has an eval fixture, standardize the *graded* output on a
   per-run `grading.json` plus a cross-run `benchmark.json` before inventing bespoke summaries.
   **Why:** fixed schemas make manual judging automatable later, preserve assertion-level evidence,
@@ -215,6 +254,17 @@ prune becomes due — `docs/audit/README.md`.)
   **Why:** a single reviewer conflates "right thing" with "built correctly" and blesses its own
   assumptions. **Provenance:** Superpowers two-stage review. **Landed in:** `references/subagents.md`
   · `wgm-spec-reviewer` + `wgm-quality-reviewer`.
+- **Heuristic:** do not let a self-critique satisfy an adversarial-review requirement; scope self-review
+  to process, cost, scope, and missing measurements, and point an independent reviewer at load-bearing
+  claims.
+  **Why:** an author can reliably question their own doubts but remains blind to facts they still
+  believe, which is where shipped documentation and arithmetic errors hide. **Provenance:** `[learn]`
+  issue #96. **Landed in:** `SKILL.md`, `references/subagents.md`, and both code-review agent briefs.
+- **Heuristic:** treat persona findings and severity as hypotheses; verify them against the real
+  artifact before promoting an Agent action, and preserve rejected findings with their evidence.
+  **Why:** a plausible high-severity false positive can cause a correct document to be "fixed" into a
+  wrong one; adjudication is not transcription. **Provenance:** `[learn]` issue #93. **Landed in:**
+  `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
 - **Heuristic:** before accepting an automated edit to a skill/protocol document, gate it on a
@@ -276,6 +326,11 @@ prune becomes due — `docs/audit/README.md`.)
   failure would suppress exactly the signal that saves the most wasted work. **Provenance:** wgm
   dogfood, `[learn]` issue #30. **Landed in:** `docs/operator/running-the-loop.md` (Swarm — Planning
   a swarm well) · `references/stall-recovery.md` (Detecting a stall).
+- **Heuristic:** verify every swarm lane's artifact after it exits; `status=ok, commits=0` is a hard
+  failure, not a successful lane.
+  **Why:** a constrained or misconfigured agent can reason for minutes, exit zero, and produce no
+  commit; duration and status are not evidence of work. **Provenance:** `[learn]` issue #92. **Landed
+  in:** `scripts/swarm.sh`, `scripts/test-swarm.sh`, and `docs/reference/cli-swarm.md`.
 
 ## Local sandboxing (devcontainers)
 - **Heuristic:** when sandboxing the loop itself in a local devcontainer, reference ONE shared,

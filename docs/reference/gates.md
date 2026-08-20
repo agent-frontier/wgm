@@ -28,7 +28,7 @@ These check artifacts and fail on drift. They are safe to run any time.
 
 | Script | Checks | Exit |
 |---|---|---|
-| `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding | `0` green, `1` red |
+| `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding; marked complete tables have no blank cells; review/evidence/executability protocol contracts remain present | `0` green, `1` red |
 | `check-evals.sh` | `evals/evals.json` is valid JSON with an allow-listed key set, and every case carries `id`, `prompt`, `expected_output`, and a non-empty `assertions` array | `0` green, `1` red, `2` `jq` missing |
 | `check-trailers.sh` | Every commit in `BASE..HEAD` — **merge commits included** — carries the trailers the repository mandates | `0` green, `1` red |
 | `check-doc-sync.sh` | A diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or `--warn`, `1` red |
@@ -71,13 +71,13 @@ repositories, so **no real agent, model, network, or token is needed**.
 |---|---|
 | `test-install.sh` | Install, idempotent re-run, uninstall, WSL mirroring, companion install, `--no-companions` |
 | `test-install.ps1` | The same, for the PowerShell installer |
-| `test-loop.sh` | Limit knobs, retry and circuit breaker, metrics ledger, cost ceiling |
-| `test-swarm.sh` | Parallel branches, worktree pinning, memory consolidation, telemetry summary |
+| `test-loop.sh` | Limit knobs, capability probe, no-progress stall, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
+| `test-swarm.sh` | Parallel branches, worktree pinning, zero-commit failure, memory consolidation, telemetry summary |
 | `test-devcontainer.sh` | Sandbox init, base-image build, run, prune |
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
 | `test-check-evals.sh` | The schema gate rejects unknown and missing keys |
-| `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences |
+| `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, and blank marked-table cells |
 | `test-check-trailers.sh` | The trailer audit catches a bare generated merge commit |
 | `test-check-doc-sync.sh` | The doc-sync gate fires on undocumented surface and stays quiet otherwise |
 

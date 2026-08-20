@@ -61,8 +61,9 @@ path equal to wall time means one lane gated everything and the parallelism boug
 ## What the tooling records
 - **Per turn** (`.wgm/metrics.tsv`, on by default; `--metrics off` to disable): `start_timestamp`,
   `end_timestamp`, `iter`, `mode`, `agent`, `duration_s`, `plan_changed`, `result`, `cost`,
-  `parent`. The `parent` column comes from `$WGM_PARENT_TASK`, which `swarm.sh` sets per lane, so
-  every turn attributes to the lane that ran it.
+  `parent`. `result` is normally `ok` or `fail`; a build that reaches the configured repeated
+  no-progress limit records `stall`. The `parent` column comes from `$WGM_PARENT_TASK`, which
+  `swarm.sh` sets per lane, so every turn attributes to the lane that ran it.
 - **Per lane** (`.wgm/metrics/<prefix>-<n>.tsv`): the same ledger, written into the **parent**
   worktree so the summary survives `--cleanup` removing the lane's worktree.
 - **Per run**: the `== swarm telemetry ==` block — the three clocks, parked time, lane and turn

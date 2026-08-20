@@ -6,8 +6,9 @@ audit runs, who reviews (four personas), how a technical writer consolidates the
 durable artifact it leaves behind: the **paper trail**.
 
 This complements, and never replaces, `scripts/check-docs.sh` — the deterministic **structural**
-check (required files, balanced fences, dead links, placeholders). That check stays the fast, cheap,
-every-run gate. This audit is the slower, qualitative pass over what the docs actually *say*.
+check (required files, balanced fences, dead links, placeholders, and explicitly marked complete
+tables). That check stays the fast, cheap, every-run gate. This audit is the slower, qualitative pass
+over what the docs actually *say* and whether a reader can execute the path.
 
 ## Why this exists
 A loop that only checks structure can still ship stale, misleading, or contradictory prose. And a
@@ -73,6 +74,31 @@ optional/future pattern without ever touching `heuristics.md`, which is invisibl
 to (a) alone. If either has drifted, flag it as a finding; do not silently treat the landscape
 snapshot as current.
 
+## Evidence and executability gate
+Accuracy and executability are separate properties. A sentence can match the code and still leave a
+new operator unable to reach the intended state, especially when a prerequisite is phrased as a
+capability ("provide a database", "ensure the service is reachable", "have IDs ready"). Treat that
+shape as incomplete until the page supplies a runnable command or links to the exact page that does.
+
+For every getting-started or task journey:
+- execute the published commands end to end in a clean environment, against the real artifacts they
+  name; do not substitute a synthetic fixture that merely resembles them;
+- trace every prerequisite to the command or page that satisfies it and reject circular prerequisites;
+- deliberately run one invalid or degraded path and record the real operator-facing error string;
+- check placeholders and required options by running the command, not by confirming that the prose is
+  factually accurate.
+
+For reference tables, a `<!-- wgm: complete-table -->` marker opts the immediately following table
+into the structural gate. Every cell must be populated from the validating source; blank cells and
+placeholder dashes are open questions, not "not applicable" defaults. Derive constraints from parser
+and validation logic, not only from nearby constants or description strings.
+
+When a task crosses an intermediary owned by neither the caller nor the target (CDN, managed proxy,
+gateway, mesh, ingress, or platform service), verify that component's documented request eligibility,
+response transformation, and cache/compression rules before recommending a change. If the named
+artifacts are inert in production, record the actual fix location instead of polishing a cosmetic
+config.
+
 ## The technical writer (consolidation)
 One additional role — the **technical writer** — takes all four persona outputs and produces the
 single artifact an operator actually reads. It does not add new opinions of its own; it normalizes.
@@ -85,7 +111,12 @@ single artifact an operator actually reads. It does not add new opinions of its 
    the same discipline `references/subagents.md` already uses for the two-stage code review — applied
    here across four voices instead of two.
    If all four reports converge with zero dissent, say so in the header — `Unanimous: no dissent recorded` — adapted from `BMAD-METHOD`'s Anti-Consensus Club (`src/core-skills/bmad-party-mode/customize.toml`), surfacing easy agreement as a data point instead of silently assuming it.
-3. **Classify strictly by kind of action, never by persona.** Every surviving finding becomes exactly
+3. **Verify before promotion** — persona observations and severity are hypotheses, not Agent actions.
+   Verify every finding against the real artifact and its source of truth before classifying it.
+   Weight the highest-severity findings first because a false RED/AMBER action is more damaging than a
+   missed nit. Record rejected or already-mitigated findings in a `Rejected findings` table with the
+   exact command/source check and the evidence that disproved the claim; do not silently drop them.
+4. **Classify strictly by kind of action, never by persona.** Every surviving finding becomes exactly
    one of:
    - **Agent action** — the agent can execute this directly and deterministically (fix a broken
      link, update a stale example, add a missing section, sync a duplicated file). No human judgment
@@ -96,16 +127,31 @@ single artifact an operator actually reads. It does not add new opinions of its 
    - A finding's persona of origin is irrelevant to this classification — a junior-dev-raised typo is
      still an *Agent action*; a PM-raised status question can still be an *Operator action* even
      though it came from the "status" lens. The kind of action decides the bucket, nothing else.
-4. **Structure the report using the project's own README index.** Read the root `README.md` and
+5. **Structure the report using the project's own README index.** Read the root `README.md` and
    `docs/README.md` (or their equivalents in the host project). Use their existing index/Map
    structure — operator docs vs. agent docs, or whatever grouping the project's own README already
    declares — as the section scaffold for the consolidated report, rather than inventing a new
    taxonomy. As part of this step, verify the index itself: flag any README entry that links to a
    missing file, and any doc that exists but isn't indexed anywhere.
 
+## Fleet rewrite controls
+When a docs fleet applies a structural standard, structure is a compression device, not permission to
+inflate every page. Before dispatch, record line counts per file and in aggregate. Give each lane a
+target band with both a ceiling and a floor, name what may be removed (for example, result statements
+that merely restate an action), and name what must survive (verification points, warnings, security
+statements, and runnable commands). After consolidation, measure the same counts again and run a
+corpus-wide consistency scan; a net line-count improvement can hide both last-copy deletion and
+structure bloat.
+
+When a fact is corrected, sweep the full corpus for both the old and new values, including files whose
+titles are unrelated and historical/runbook copies. Search copy-paste commands separately. If a
+document cites a measured number or external rule, record the tool/source, inputs, date, and
+regeneration command so another reviewer can falsify it.
+
 ## The paper trail (the artifact)
 - **Format:** one file per audit run, from `assets/docs-audit-report.template.md` — four persona
-  sections, then the consolidated Agent-action / Operator-action tables, then a Dissent section.
+  sections, then the consolidated Agent-action / Operator-action tables, a `Rejected findings`
+  table with verification evidence, then a Dissent section.
 - **Placement** follows the same root-vs-`.wgm/` rule as every other artifact
   (`references/artifacts.md`): a greenfield project writes to `docs/audit/`; a project that already
   has `AGENTS.md` / `IMPLEMENTATION_PLAN.md` / `specs/` writes to `.wgm/docs/audit/` instead. Decide

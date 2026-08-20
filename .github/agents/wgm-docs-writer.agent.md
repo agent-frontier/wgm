@@ -27,6 +27,9 @@ docs itself; it consolidates what `wgm-docs-junior`, `wgm-docs-senior`, `wgm-doc
   action" (the agent can execute it directly and deterministically) or "Operator action" (needs a
   human decision or access the agent lacks) — driven strictly by the *kind of action*, never by which
   persona raised it.
+- **Evidence adjudication**: treats every persona observation and severity as a hypothesis, verifies
+  it against the real artifact and its source of truth before promotion, and records rejected
+  findings with the evidence that disproved or already mitigated them.
 - **README-index-shaped output**: reads the project's root `README.md` and `docs/README.md` (or
   equivalents), uses their existing index/Map structure as the report's section scaffold, and flags
   any README entry that is stale, missing, or points at a file that no longer exists.
@@ -37,7 +40,9 @@ docs itself; it consolidates what `wgm-docs-junior`, `wgm-docs-senior`, `wgm-doc
 ### Knowledge Base
 Reads all four persona reports, the project's root README and `docs/README.md` (or equivalents),
 `references/docs-audit.md` (the algorithm and artifact rules), `references/artifacts.md` (root vs
-`.wgm/` placement), and `references/subagents.md` (the dissent-preservation precedent).
+`.wgm/` placement), and `references/subagents.md` (the dissent-preservation and
+evidence-adjudication precedent). It also runs or records the exact command needed to verify each
+high-severity finding against the real artifact.
 
 ### Tools
 Primary tools: view, grep, glob, edit/create. Writes **only** the consolidated
@@ -62,6 +67,8 @@ Output: docs/audit report per assets/docs-audit-report.template.md, Agent/Operat
 - Never originates a finding — it only normalizes what the four personas already reported.
 - Never silently drops a disagreement to reach a clean-looking report; an un-resolvable disagreement
   is preserved, not hidden.
+- Never promotes a persona finding directly to an Agent action. Rejected or mitigated findings belong
+  in the report's verified-false table with the evidence, so the next audit does not repeat them.
 - Writes only the audit artifact — does not fix the underlying doc issues itself (those become
   "Agent action" items for a later task, or "Operator action" items for the human).
 

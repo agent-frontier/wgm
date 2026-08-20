@@ -22,6 +22,8 @@
 #      navigation never dead-ends.
 #  11. docs/README.md still links the style guide that documents all of the above.
 #  12. Companion skills avoid `../../` links, which break in the installed sibling-skill layout.
+#  13. Tables marked `<!-- wgm: complete-table -->` contain no blank or placeholder cells.
+#  14. The shipped review, evidence, and executable-journey protocol contracts remain present.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -197,6 +199,86 @@ for f in companions/*/SKILL.md; do
     note "companion uses a '../../' link that breaks once installed as a sibling skill: $f"
   fi
 done
+
+# 13 — complete-table markers turn a reference table's "all cells required" contract into a
+# deterministic check. Unmarked tables may use a blank layout cell; marked tables may not.
+for f in "${MD[@]}"; do
+  complete_table_hits="$(
+    awk '
+      /<!-- wgm: complete-table -->/ { enforce=1; row=0; separator_seen=0; next }
+      enforce && /\|/ {
+        row++
+        has_left=($0 ~ /^[[:space:]]*\|/)
+        has_right=(has_left && $0 ~ /\|[[:space:]]*$/)
+        n=split($0, cells, "|")
+        first=(has_left ? 2 : 1)
+        last=(has_right ? n-1 : n)
+        separator=1; bad=""
+        for (i=first; i<=last; i++) {
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[i])
+          if (cells[i] !~ /^:?-{3,}:?$/) separator=0
+          if (cells[i] == "" || cells[i] == "-" || cells[i] == "–" || cells[i] == "—" ||
+              (separator_seen && cells[i] ~ /^:?-{3,}:?$/)) bad=bad " " i-first+1
+        }
+        if (separator && !separator_seen && row == 2) { separator_seen=1; next }
+        if (!separator && bad != "") print FNR ": blank/placeholder cell(s):" bad
+        if (separator && separator_seen && bad != "") print FNR ": placeholder cell(s):" bad
+        next
+      }
+      enforce { enforce=0 }
+    ' "$f"
+  )"
+  if [[ -n "$complete_table_hits" ]]; then
+    while IFS= read -r hit; do
+      note "complete table in $f — $hit"
+    done <<< "$complete_table_hits"
+  fi
+done
+
+# 14 — the qualitative requirements are themselves load-bearing protocol. Keep a small deterministic
+# contract check so deleting the prose cannot leave a green structural gate with weaker behavior.
+PROTOCOL_FILES=(
+  "SKILL.md"
+  "references/subagents.md"
+  "SKILL.md"
+  ".github/agents/wgm-docs-writer.agent.md"
+  "references/ralph-loop.md"
+  "references/docs-audit.md"
+  "references/docs-audit.md"
+  "references/ralph-loop.md"
+  "references/docs-audit.md"
+  "references/docs-audit.md"
+  "references/docs-audit.md"
+  "docs/style-guide.md"
+  "docs/get-started/README.md"
+)
+PROTOCOL_PHRASES=(
+  "two independent reviewer passes"
+  "independent of the artifact author"
+  "adversarial correctness-review gate"
+  "Evidence adjudication"
+  "Commit ownership is explicit"
+  "Verify before promotion"
+  "rejected or already-mitigated findings"
+  "Corrected facts require a corpus sweep"
+  "intermediary owned by neither"
+  "execute the published commands end to end"
+  "target band with both a ceiling and a floor"
+  "wgm: complete-table"
+  "Execute the journey once"
+)
+for i in "${!PROTOCOL_FILES[@]}"; do
+  file="${ROOT}/${PROTOCOL_FILES[$i]}"
+  phrase="${PROTOCOL_PHRASES[$i]}"
+  if [[ ! -f "$file" ]]; then
+    note "protocol contract file is missing: $file"
+  elif ! grep -qF "$phrase" "$file"; then
+    note "protocol contract is missing from $file: $phrase"
+  fi
+done
+if (( FAIL == 0 )); then
+  ok "review/evidence/executability protocol contracts are present"
+fi
 
 # 9 — UTF-8 double-encoding (mojibake) sweep.
 # When several independent agents each write Markdown and their output is concatenated or merged,

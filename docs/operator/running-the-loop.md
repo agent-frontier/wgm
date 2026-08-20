@@ -12,6 +12,8 @@
   model escalation.
 - **Safety:** non-destructive by default — no commits or pushes without `--commit`; stop anytime
   with `Ctrl+C` or a `STOP` sentinel.
+- **Preflight:** a non-dry-run build probes the selected agent's write capability before iteration 1;
+  repeated exit-0 iterations with no plan progress are a first-class stall.
 - **Next:** [containers.md](containers.md) for live-service scenarios ·
   [devcontainers.md](devcontainers.md) for sandboxing the loop itself ·
   [troubleshooting.md](troubleshooting.md).
@@ -122,13 +124,15 @@ See [stall-recovery.md](../agent/stall-recovery.md) for what the agent does insi
 
 ## Operational limits & lifecycle hooks
 
-Guardrails for long autonomous runs — all **off by default**, so existing behavior is unchanged:
+Guardrails for long autonomous runs — time/cost/checkpoint controls remain **off by default**;
+capability probing and the no-progress safety guard are on by default:
 
 | Flag | Default | Effect |
 |---|---|---|
 | `--max-runtime-seconds N` | 0 (off) | Hard wall-clock cap; the loop stops before the iteration that would exceed it. |
-| `--idle-timeout N` | 0 (off) | Stop if the plan file makes no progress for N seconds — a stuck-loop circuit breaker. |
-| `--checkpoint-interval N` | 0 (off) | `git add -A && commit` every N build iterations, so a crash never loses work. |
+| `--idle-timeout N` | 0 (off) | Stop if the plan file makes no progress for N seconds — a time-based circuit breaker. |
+| `--max-no-progress-iterations N` | 3 | Fail after N successful build iterations leave the plan unchanged; `0` disables it. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |
+| `--checkpoint-interval N` | 0 (off) | Commit every N build iterations, so a crash never loses work; ownership manifests still apply. |
 | `--max-cost N` | 0 (off) | Stop once cumulative cost from `--cost-cmd` reaches N — the spend equivalent of `--max-runtime-seconds`. See [Cost ceiling](#cost-ceiling) below. |
 | `--notify "CMD"` | — | Run `CMD` on lifecycle events with `$WGM_EVENT` (`start`/`complete`/`error`) and `$WGM_ITER` set. |
 
@@ -151,6 +155,10 @@ The breaker counts only **consecutive** failures — any successful iteration re
 fast** on the first error (the pre-resilience behavior), set `--max-retries 0 --max-consecutive-failures 1`.
 Each retry and the breaker trip emit `--notify` events (`retry` / `error`).
 
+Before a real `build` or `plan` iteration, the loop asks the selected agent to create a unique
+disposable marker under `.wgm/` and checks that the marker exists with the expected content. A
+successful agent exit is not enough. `--dry-run` explicitly does **not** run this probe.
+
 ### Metrics ledger (data-driven runs)
 
 `--metrics FILE` appends a TSV row per iteration, so you can reason about a run's cost and behavior:
@@ -158,7 +166,7 @@ Each retry and the breaker trip emit `--notify` events (`retry` / `error`).
 | Columns | Meaning |
 |---|---|
 | `timestamp` · `iter` · `mode` · `agent` | when, which iteration, the mode, and frugal/main |
-| `duration_s` · `plan_changed` · `result` | wall-clock seconds, whether the plan advanced (1/0), `ok`/`fail` |
+| `duration_s` · `plan_changed` · `result` | wall-clock seconds, whether the plan advanced (1/0), `ok`/`fail`/`stall` |
 | `cost` | token/cost figure from `--cost-cmd` (empty if unset) |
 
 A host-agnostic loop can't read a black-box agent's token usage, so plug your own: `--cost-cmd "CMD"`
@@ -316,14 +324,16 @@ behalf unattended (`references/self-improvement.md`).
 
 - `Ctrl+C` at any time.
 - Create a `STOP` (or `.wgm/STOP`) sentinel to end after the current iteration.
-- Cap the run up front with `--max-runtime-seconds` or `--idle-timeout` (see above).
+- Cap the run up front with `--max-runtime-seconds`, `--idle-timeout`, or
+  `--max-no-progress-iterations` (see above).
 - In `build` mode the agent drops that sentinel itself when no must-have task remains, so the loop
   self-terminates.
 
 ## Commits
 
-`loop.sh` is non-destructive by default (no commits, no pushes). Pass `--commit` to
-`git add -A && git commit` after each build iteration. The agent still edits files during a normal
-run, so only run the loop in a workspace you trust it in.
+`loop.sh` is non-destructive by default (no commits, no pushes). Pass `--commit` to commit after
+each build iteration. Commit mode requires a clean baseline, takes exclusive ownership of the
+worktree, and stages only repository-relative paths declared in the iteration ownership manifest.
+Do not edit the worktree while the loop runs; use another worktree for concurrent human changes.
 
 See also: [containers.md](containers.md) · [troubleshooting.md](troubleshooting.md).

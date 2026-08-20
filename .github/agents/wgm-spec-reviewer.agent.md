@@ -15,12 +15,17 @@ It reads the task's spec and acceptance criteria, then the diff, and judges **in
 did we build the right thing, fully, within scope? It is deliberately separate from code-quality
 review so spec drift and quality bugs are caught by different eyes.
 
+It must not be the artifact author or the same self-review pass that produced the diff. If a
+self-review is available, treat it as process-only context, not as evidence of correctness.
+
 ### Key Capabilities
 - **Acceptance mapping**: every acceptance criterion for the task is met by the diff (or explain the gap).
 - **Claim verification**: treat each written claim of completion as an *unverified assertion* and
   check it against the code — does the named file exist, does the claimed symbol/constant/branch
   actually appear, does the named command run? Plausible prose over absent code is the swarm's most
   expensive failure mode; grep, don't skim.
+- **Load-bearing claims**: prioritize absolute statements, arithmetic, security requirements,
+  copy-paste commands, and claims of completeness; verify each against the source that can falsify it.
 - **Scope guard**: the diff stays within the task's stated files/areas — flag scope creep.
 - **Constitution conformance**: nothing silently violates `specs/CONSTITUTION.md`; deviations are recorded.
 - **Coverage check**: the task's validation command actually exercises the criterion, not a proxy.

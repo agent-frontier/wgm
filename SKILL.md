@@ -252,14 +252,16 @@ stop condition fires. **One task per iteration.** Each iteration:
    a container if a scenario needs a live service (`references/scoring.md`,
    `references/validation-env.md`). Deterministic checks still gate "done."
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
-   actually prove the task (not just "didn't crash")? You may split this into **two independent
-   subagents** — spec-compliance then code-quality — for higher-signal review. **Preserve dissent:**
-   record a reviewer's non-blocking reservation (or a disagreement between the two) as a follow-up,
-   never a silent PASS (`references/subagents.md`). **Verify claims against the code, don't skim
-   them:** a `done` in the plan — especially one written by a swarm lane — is an *unverified
-   assertion*. For each acceptance bullet, check the artifact: does the named file exist, does the
-   claimed symbol/constant/branch actually appear, does the named command run? Grep, don't trust
-   plausible prose (`references/subagents.md`, "Worktree swarm dispatch").
+   actually prove the task (not just "didn't crash")? Run **two independent reviewer passes** —
+   spec-compliance then code-quality — and ensure neither reviewer produced the artifact it is
+   judging. A self-critique may cover process, cost, scope, and missing measurements, but it cannot
+   satisfy an adversarial correctness-review gate; point the independent reviewer at load-bearing
+   claims instead (`references/subagents.md`). **Preserve dissent:** record a reviewer's non-blocking
+   reservation or a disagreement between the two as a follow-up, never a silent PASS.
+   **Verify claims against the code, don't skim them:** a `done` in the plan — especially one written
+   by a swarm lane — is an *unverified assertion*. For each acceptance bullet, check the artifact:
+   does the named file exist, does the claimed symbol/constant/branch actually appear, does the named
+   command run? Grep, don't trust plausible prose (`references/subagents.md`, "Worktree swarm").
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone. Once that
    validation command exits 0, commit the iteration with a Conventional Commits message (`type:

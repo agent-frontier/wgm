@@ -132,6 +132,38 @@ and reinstalls in one step.
 | **Cause** | Escalation engages only when **both** `--frugal-agent` and a main `--agent` are set. |
 | **Resolution** | Set both, and check `--escalate-after` (default `2`). See [Stall recovery](../agent/stall-recovery.md). |
 
+### "Capability probe failed"
+
+| | |
+|---|---|
+| **Symptom** | The loop exits before iteration 1 with a message that the agent did not create the disposable marker. |
+| **Cause** | The headless agent can read the workspace but cannot write to it, or the invocation used a constrained/no-tools mode. |
+| **Resolution** | Grant the invocation write access or use a full-shell agent, then rerun. `--dry-run` does not test this; a real `build` or `plan` always probes before spending the first iteration. |
+
+### "No progress: plan unchanged"
+
+| | |
+|---|---|
+| **Symptom** | A build exits non-zero after successful agent invocations that leave `IMPLEMENTATION_PLAN.md` unchanged. |
+| **Cause** | Exit status alone is not evidence of useful work; the agent may have produced prose without an artifact or stopped without recording progress. |
+| **Resolution** | Inspect the agent log and plan, fix the task or permission problem, then rerun. Increase `--max-no-progress-iterations` only when a plan-preserving iteration is intentional and documented. |
+
+### A `plan` or `extract` phase exits without its artifact
+
+| | |
+|---|---|
+| **Symptom** | A single phase exits non-zero with `Phase artifact missing`. |
+| **Cause** | The agent process returned zero without creating the plan or genes artifact promised by the phase. |
+| **Resolution** | Inspect the agent's write/tool permissions and rerun with a full-shell invocation. Do not treat a prose handoff as a substitute for the named file. |
+
+### "`--commit` requires a clean worktree" or "undeclared paths"
+
+| | |
+|---|---|
+| **Symptom** | A commit-mode loop refuses to start or refuses to stage a path. |
+| **Cause** | `--commit` takes exclusive ownership and will not sweep pre-existing or undeclared edits into an iteration commit. |
+| **Resolution** | Move human edits to another worktree or commit them before starting. The agent must declare each intentional repository-relative file in the iteration ownership manifest; never bypass the refusal with `git add -A`. |
+
 ### The build loop edits the wrong files, or drifts
 
 | | |
@@ -147,6 +179,14 @@ and reinstalls in one step.
 | **Symptom** | A lane exits immediately with a guard message. |
 | **Cause** | The lane was not in its assigned worktree and branch. The guard refuses to let it mutate the wrong tree. |
 | **Resolution** | This is working as intended. Check for a leftover worktree or branch from a prior run — `make clean-worktrees` clears both. |
+
+### A swarm lane says `ok` but has zero commits
+
+| | |
+|---|---|
+| **Symptom** | The swarm summary marks a lane as failed even though the lane process exited zero. |
+| **Cause** | `swarm.sh` verifies the artifact after waiting; a task lane with no reachable commit is a silent no-op, not a success. |
+| **Resolution** | Read `.wgm/swarm-logs/*.log`, confirm the agent invocation has tool/write permission, and rerun the lane. Do not merge or report a zero-commit lane as completed. |
 
 ## Validation
 

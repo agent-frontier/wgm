@@ -30,9 +30,33 @@ printf '# plan\n\n- seed\n' > IMPLEMENTATION_PLAN.md
 git add -A && git commit -qm seed
 
 # Fake agents (argv after `--`; loop.sh appends the prompt as a trailing arg the script ignores).
-AGENT_PROGRESS=(bash -c 'printf -- "- step\n" >> IMPLEMENTATION_PLAN.md' _)  # changes the plan
-AGENT_IDLE=(bash -c 'sleep 2' _)                                            # no change, burns time
-AGENT_SLOW=(bash -c 'sleep 2; printf -- "- slow\n" >> IMPLEMENTATION_PLAN.md' _)
+# The probe-aware agents model a real full-shell invocation: they create only the requested probe
+# during preflight, then write the plan and ownership manifest during a build iteration.
+# shellcheck disable=SC2016
+AGENT_PROGRESS=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; if [[ -n "${WGM_OWNERSHIP_MANIFEST:-}" ]]; then printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"; fi' _)  # changes the plan
+# shellcheck disable=SC2016
+AGENT_IDLE=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; sleep 2' _) # no change, burns time
+# shellcheck disable=SC2016
+AGENT_SLOW=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; sleep 2; printf -- "- slow\n" >> IMPLEMENTATION_PLAN.md; if [[ -n "${WGM_OWNERSHIP_MANIFEST:-}" ]]; then printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"; fi' _)
+AGENT_NO_WRITE=(bash -c 'exit 0' _)
+# shellcheck disable=SC2016
+AGENT_PLAN_NOOP=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; exit 0' _)
+# shellcheck disable=SC2016
+AGENT_EXTRACT_CREATE=(bash -c 'mkdir -p .wgm; printf "# Genes\n\n- reusable pattern\n" > .wgm/genes.md' _)
+# shellcheck disable=SC2016
+AGENT_EXTRACT_WGM_AGENT=(bash -c 'mkdir -p .wgm; printf "## Codebase patterns\n- reusable pattern\n" > .wgm/AGENTS.md' _)
+# shellcheck disable=SC2016
+AGENT_EXTRACT_EMPTY=(bash -c 'mkdir -p .wgm; : > .wgm/genes.md' _)
+# shellcheck disable=SC2016
+AGENT_EXTRACT_UNRELATED=(bash -c 'printf "unrelated change\n" >> AGENTS.md' _)
+# shellcheck disable=SC2016
+AGENT_NO_MANIFEST=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md' _)
+# shellcheck disable=SC2016
+AGENT_FOREIGN=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"; printf "unrelated\n" > foreign.txt' _)
+# shellcheck disable=SC2016
+AGENT_RENAME=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; mv rename-source.txt rename-dest.txt; git add -A -- rename-source.txt rename-dest.txt; printf -- "- rename\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\nrename-source.txt\nrename-dest.txt\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+# shellcheck disable=SC2016
+AGENT_STOP=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; mkdir -p .wgm; touch .wgm/STOP' _)
 
 OUT=""; RC=0
 run() {  # run loop.sh, capturing combined output + exit code without tripping set -e
@@ -50,11 +74,19 @@ else
 fi
 
 # 2) --dry-run surfaces the new limit knobs
-run build --dry-run --max-runtime-seconds 30 --idle-timeout 15 --checkpoint-interval 5 --notify 'echo hi' -- true
-if [[ "$RC" -eq 0 ]] && grep -q "max_runtime=30s idle_timeout=15s checkpoint_interval=5 notify=set" <<<"$OUT"; then
+run build --dry-run --max-runtime-seconds 30 --idle-timeout 15 --max-no-progress-iterations 3 --checkpoint-interval 5 --notify 'echo hi' -- true
+if [[ "$RC" -eq 0 ]] && grep -q "max_runtime=30s idle_timeout=15s no_progress_limit=3 checkpoint_interval=5 notify=set" <<<"$OUT"; then
   pass "dry-run surfaces the limit knobs"
 else
   fail "dry-run did not surface the limit knobs (rc=$RC)"
+fi
+
+# 2b) a successful but non-writing agent is rejected before the first paid iteration
+run build 1 --max-retries 0 -- "${AGENT_NO_WRITE[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Capability probe failed" <<<"$OUT"; then
+  pass "capability probe rejects an exit-0 agent that cannot write"
+else
+  fail "capability probe did not reject the silent agent (rc=$RC)"
 fi
 
 # 3) --checkpoint-interval 1 auto-commits after every build iteration
@@ -67,6 +99,46 @@ else
   fail "expected 3 checkpoint commits, got $((after - before)) (rc=$RC)"
 fi
 
+# 3b) --commit refuses a human edit that predates the loop
+printf 'human edit\n' > human.txt
+run build 1 --commit -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "requires a clean worktree" <<<"$OUT"; then
+  pass "--commit refuses a dirty baseline instead of sweeping it into a loop commit"
+else
+  fail "--commit did not refuse the dirty baseline (rc=$RC)"
+fi
+rm -f human.txt
+
+# 3c) a changed iteration without a manifest is not committed
+run build 1 --commit --max-retries 0 -- "${AGENT_NO_MANIFEST[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "ownership manifest is missing" <<<"$OUT"; then
+  pass "--commit requires an ownership manifest even when staging would be empty"
+else
+  fail "--commit accepted a missing ownership manifest (rc=$RC)"
+fi
+git show HEAD:IMPLEMENTATION_PLAN.md > IMPLEMENTATION_PLAN.md
+
+# 3d) an iteration that changes an undeclared path is not committed
+run build 1 --commit --max-retries 0 -- "${AGENT_FOREIGN[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "absent from its ownership manifest" <<<"$OUT"; then
+  pass "--commit refuses an undeclared concurrent edit"
+else
+  fail "--commit did not reject the undeclared path (rc=$RC)"
+fi
+git show HEAD:IMPLEMENTATION_PLAN.md > IMPLEMENTATION_PLAN.md
+rm -f foreign.txt .wgm/.loop-touched-* .wgm/.loop-owned-* .wgm/.loop-actual-*
+
+# 3e) a declared rename stages both repository paths without false ownership drift
+printf 'rename content\n' > rename-source.txt
+git add rename-source.txt && git commit -qm rename-seed
+run build 1 --commit --max-retries 0 -- "${AGENT_RENAME[@]}"
+if [[ "$RC" -eq 0 && ! -e rename-source.txt && -e rename-dest.txt ]] \
+  && git show --format= --name-status HEAD | grep -q '^R'; then
+  pass "--commit accepts a declared rename"
+else
+  fail "--commit mishandled a declared rename (rc=$RC)"
+fi
+
 # 4) --max-runtime-seconds caps the wall clock
 run build 10 --max-runtime-seconds 1 -- "${AGENT_SLOW[@]}"
 if [[ "$RC" -eq 0 ]] && grep -q "Reached max runtime" <<<"$OUT"; then
@@ -76,12 +148,107 @@ else
 fi
 
 # 5) --idle-timeout halts when the plan stops progressing
-run build 10 --idle-timeout 1 -- "${AGENT_IDLE[@]}"
+run build 10 --idle-timeout 1 --max-no-progress-iterations 0 -- "${AGENT_IDLE[@]}"
 if [[ "$RC" -eq 0 ]] && grep -q "Idle timeout" <<<"$OUT"; then
   pass "idle-timeout halts a stuck loop"
 else
   fail "idle-timeout did not halt a stuck loop (rc=$RC)"
 fi
+
+# 5b) the no-progress guard is independently exercised
+run build 10 --idle-timeout 60 --max-no-progress-iterations 1 -- "${AGENT_IDLE[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "No progress: plan unchanged" <<<"$OUT"; then
+  pass "no-progress guard halts a stuck loop"
+else
+  fail "no-progress guard did not halt a stuck loop (rc=$RC)"
+fi
+
+# 5c) a mutating single-phase mode must produce its promised artifact
+run extract 1 --metrics off -- "${AGENT_NO_WRITE[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact missing" <<<"$OUT"; then
+  pass "extract rejects an exit-0 agent with no genes artifact"
+else
+  fail "extract accepted a missing artifact (rc=$RC)"
+fi
+
+# 5d) a fresh project honors .wgm/STOP after the capability probe creates .wgm
+STOP_TMP="$(mktemp -d "$TMP/stop.XXXXXX")"
+git -C "$STOP_TMP" init -q
+git -C "$STOP_TMP" config user.email "wgm-test@example.com"
+git -C "$STOP_TMP" config user.name "wgm test"
+printf '# plan\n' > "$STOP_TMP/IMPLEMENTATION_PLAN.md"
+git -C "$STOP_TMP" add IMPLEMENTATION_PLAN.md && git -C "$STOP_TMP" commit -qm seed
+set +e
+STOP_OUT="$(cd "$STOP_TMP" && "$LOOP" build 5 --metrics off -- "${AGENT_STOP[@]}" 2>&1)"
+STOP_RC=$?
+set -e
+if [[ "$STOP_RC" -eq 0 ]] && grep -q "Stop sentinel found" <<<"$STOP_OUT"; then
+  pass "fresh projects honor the .wgm/STOP sentinel"
+else
+  fail "fresh project ignored .wgm/STOP (rc=$STOP_RC): $STOP_OUT"
+fi
+
+# 5e) plan/extract reject stale pre-existing artifacts when the phase makes no change
+run plan 1 --metrics off -- "${AGENT_PLAN_NOOP[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact unchanged" <<<"$OUT"; then
+  pass "plan rejects a stale unchanged artifact"
+else
+  fail "plan accepted an unchanged artifact (rc=$RC)"
+fi
+printf '## Codebase patterns\n' > AGENTS.md
+run extract 1 --metrics off -- "${AGENT_NO_WRITE[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact unchanged" <<<"$OUT"; then
+  pass "extract rejects a stale unchanged artifact"
+else
+  fail "extract accepted an unchanged artifact (rc=$RC)"
+fi
+rm -f AGENTS.md
+
+# 5f) frugal/main escalation gets a chance before the no-progress circuit breaker
+FRUGAL_CMD="bash -c 'if [[ -n \"\${WGM_CAPABILITY_PROBE_FILE:-}\" ]]; then printf \"%s\" \"\$WGM_CAPABILITY_PROBE_CONTENT\" > \"\$WGM_CAPABILITY_PROBE_FILE\"; exit 0; fi; exit 0' _"
+MAIN_CMD="bash -c 'printf -- \"- main\\n\" >> IMPLEMENTATION_PLAN.md' _"
+run build 3 --max-no-progress-iterations 3 --escalate-after 2 --retry-base-delay 0 --frugal-agent "$FRUGAL_CMD" --agent "$MAIN_CMD"
+if [[ "$RC" -eq 0 ]] && grep -q "escalating to main agent" <<<"$OUT" && grep -q -- "- main" IMPLEMENTATION_PLAN.md; then
+  pass "frugal/main escalation runs before the no-progress circuit breaker"
+else
+  fail "frugal/main escalation did not recover a no-progress run (rc=$RC): $OUT"
+fi
+
+# 5g) plan and extract accept meaningful artifacts they actually create or update
+run plan 1 --metrics off -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q -- "- step" IMPLEMENTATION_PLAN.md; then
+  pass "plan accepts a meaningful updated artifact"
+else
+  fail "plan rejected a meaningful artifact update (rc=$RC)"
+fi
+run extract 1 --metrics off -- "${AGENT_EXTRACT_CREATE[@]}"
+if [[ "$RC" -eq 0 ]] && [[ -s .wgm/genes.md ]]; then
+  pass "extract accepts a meaningful genes artifact"
+else
+  fail "extract rejected a meaningful genes artifact (rc=$RC)"
+fi
+run extract 1 --metrics off -- "${AGENT_EXTRACT_WGM_AGENT[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "Codebase patterns" .wgm/AGENTS.md; then
+  pass "extract accepts the existing-project .wgm/AGENTS.md destination"
+else
+  fail "extract rejected the .wgm/AGENTS.md destination (rc=$RC)"
+fi
+run extract 1 --metrics off -- "${AGENT_EXTRACT_EMPTY[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact invalid" <<<"$OUT"; then
+  pass "extract rejects an empty genes artifact"
+else
+  fail "extract accepted an empty genes artifact (rc=$RC)"
+fi
+rm -f .wgm/genes.md
+rm -f .wgm/AGENTS.md
+printf '## Codebase patterns\nexisting pattern\n## Other section\nexisting note\n' > AGENTS.md
+run extract 1 --metrics off -- "${AGENT_EXTRACT_UNRELATED[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact unchanged" <<<"$OUT"; then
+  pass "extract rejects an unrelated AGENTS.md change"
+else
+  fail "extract accepted an unrelated AGENTS.md change (rc=$RC)"
+fi
+rm -f AGENTS.md
 
 # 6) --notify fires the start + complete lifecycle events
 # shellcheck disable=SC2016  # $WGM_EVENT must stay literal here; loop.sh expands it at notify time
@@ -137,7 +304,7 @@ fi
 # 12) a transient agent failure is retried and recovers (the loop does not abort)
 rm -f .retry_n
 # shellcheck disable=SC2016  # the agent script body must stay literal; loop.sh's child shell expands it
-AGENT_FLAKY=(bash -c 'n=$(cat .retry_n 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > .retry_n; [ "$n" -ge 2 ] || exit 1; printf -- "- recovered\n" >> IMPLEMENTATION_PLAN.md' _)
+AGENT_FLAKY=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; n=$(cat .retry_n 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > .retry_n; [ "$n" -ge 2 ] || exit 1; printf -- "- recovered\n" >> IMPLEMENTATION_PLAN.md' _)
 run build 1 --max-retries 2 --retry-base-delay 0 -- "${AGENT_FLAKY[@]}"
 if [[ "$RC" -eq 0 ]] && grep -q "retry 1/2" <<<"$OUT" && grep -q -- "- recovered" IMPLEMENTATION_PLAN.md; then
   pass "retries a transient agent failure and recovers"
@@ -147,7 +314,8 @@ fi
 rm -f .retry_n
 
 # 13) persistent failure trips the circuit breaker (and does not loop forever)
-AGENT_FAIL=(bash -c 'exit 1' _)
+# shellcheck disable=SC2016
+AGENT_FAIL=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; exit 1' _)
 run build 10 --max-retries 0 --retry-base-delay 0 --max-consecutive-failures 2 -- "${AGENT_FAIL[@]}"
 if [[ "$RC" -eq 1 ]] && grep -q "Circuit breaker: 2 consecutive" <<<"$OUT"; then
   pass "circuit breaker stops after N consecutive failures"

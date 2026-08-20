@@ -28,8 +28,12 @@ printf '# plan\n\n- seed\n' > IMPLEMENTATION_PLAN.md
 git add -A && git commit -qm seed
 BASE="$(git rev-parse HEAD)"
 
-# Fake agent: appends to the plan so loop.sh's --commit has something to commit on each branch.
-AGENT_OK=(bash -c 'printf -- "- did work\n" >> IMPLEMENTATION_PLAN.md' _)
+# Fake agents: create the probe during preflight, then append to the plan and declare the files the
+# loop is allowed to commit.
+# shellcheck disable=SC2016
+AGENT_OK=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- did work\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+# shellcheck disable=SC2016
+AGENT_NOOP=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; : > "$WGM_OWNERSHIP_MANIFEST"' _)
 
 printf 'add feature A\nadd feature B\n' > tasks.txt
 
@@ -49,7 +53,7 @@ reset_swarm() {  # tear down every worktree under .wgm/worktrees + every wgm/* b
   while IFS= read -r b; do
     git branch -D "$b" >/dev/null 2>&1 || true
   done < <(git for-each-ref --format='%(refname:short)' refs/heads/ | grep -E '^wgm/' || true)
-  rm -rf .wgm/worktrees .wgm/metrics
+  rm -rf .wgm/worktrees .wgm/metrics .wgm/swarm-logs
   rm -f .wgm/memories.md
 }
 
@@ -77,7 +81,8 @@ reset_swarm
 # 2b) each lane's prompt re-pins its absolute worktree and expected branch, so a later turn cannot
 #     drift back to the parent checkout and mutate it ([learn] issue #73).
 # shellcheck disable=SC2016  # $1 is the fake agent's own positional (the prompt), not ours.
-AGENT_CAPTURE=(bash -c 'printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "%s" "$1" > "$PWD/.prompt.txt"' _)
+# shellcheck disable=SC2016
+AGENT_CAPTURE=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "%s" "$1" > "$PWD/.prompt.txt"; printf "IMPLEMENTATION_PLAN.md\n.prompt.txt\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
 run --tasks tasks.txt --max-iterations 1 -- "${AGENT_CAPTURE[@]}"
 pinned=0
 for w in .wgm/worktrees/wgm-swarm-1 .wgm/worktrees/wgm-swarm-2; do
@@ -114,7 +119,8 @@ fi
 reset_swarm
 
 # 5) per-stream memories are consolidated back into the main worktree
-AGENT_MEMORIES=(bash -c "printf -- '- did work\n' >> IMPLEMENTATION_PLAN.md; mkdir -p .wgm; printf 'lesson from %s\n' \"\$(git branch --show-current)\" >> .wgm/memories.md" _)
+# shellcheck disable=SC2016
+AGENT_MEMORIES=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- did work\n" >> IMPLEMENTATION_PLAN.md; mkdir -p .wgm; printf "lesson from %s\n" "$(git branch --show-current)" >> .wgm/memories.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
 run --tasks tasks.txt --max-iterations 1 -- "${AGENT_MEMORIES[@]}"
 if [[ "$RC" -eq 0 ]] \
    && [[ -f .wgm/memories.md ]] \
@@ -133,6 +139,15 @@ if grep -q "no human is present to answer, so treating only this run as declined
   pass "the standing post-swarm harvest-hive dispatch ran safely with no consent file yet"
 else
   fail "swarm.sh did not dispatch harvest-hive.sh after consolidating memories: $OUT"
+fi
+reset_swarm
+
+# 2c) a lane that exits 0 but produces no commit is a hard swarm failure
+run -n 1 --max-iterations 1 --prefix wgm/noop -- "${AGENT_NOOP[@]}"
+if [[ "$RC" -ne 0 ]] && grep -q "no verifiable commit artifact" <<<"$OUT"; then
+  pass "an exit-0 lane with zero commits is reported as a failure"
+else
+  fail "zero-commit lane was treated as successful (rc=$RC): $OUT"
 fi
 reset_swarm
 

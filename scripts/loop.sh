@@ -39,7 +39,10 @@
 #   --downgrade-after N  consecutive progressing iterations before downgrading to frugal (default: 5)
 #   --max-runtime-seconds N  hard wall-clock cap for the whole loop; 0 = unlimited (default: 0)
 #   --idle-timeout N     stop if the plan makes no progress for N seconds; 0 = disabled (default: 0)
-#   --checkpoint-interval N  git add -A && commit every N build iterations; 0 = off (default: 0)
+#   --max-no-progress-iterations N
+#                        fail a build after N successful iterations leave the plan unchanged;
+#                        0 = disabled (default: 3)
+#   --checkpoint-interval N  commit every N build iterations; 0 = off (default: 0)
 #   --notify "CMD"       run CMD (shell) on lifecycle events with $WGM_EVENT (start|complete|error)
 #                        and $WGM_ITER set; best-effort — its failure never fails the loop
 #   --gates FILE         project-wide backpressure: a YAML file with a `gates:` list of commands,
@@ -67,12 +70,13 @@
 #                        references/devcontainers.md. A no-op with --dry-run (annotates the
 #                        preview instead of launching a container).
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
-#   --commit             git add -A && git commit after each build iteration (off by default)
+#   --commit             commit each build iteration; takes exclusive ownership of the worktree
 #   -h | --help          show this help
 #
 # Safety:
 #   * Non-destructive by default (no commits, no pushes) unless --commit is passed. The agent may
 #     still edit files during a non-dry run — run this only in a workspace you trust it in.
+#   * Every non-dry-run build or plan probes agent write capability before iteration 1.
 #   * build/review modes refuse to run without an IMPLEMENTATION_PLAN.md (root or .wgm/).
 #   * Stop anytime with Ctrl+C, or create a .wgm/STOP (or ./STOP) sentinel to end after the
 #     current iteration. In build mode the agent is told to create that sentinel when no
@@ -103,6 +107,7 @@ ESCALATE_AFTER=2
 DOWNGRADE_AFTER=5
 MAX_RUNTIME=0
 IDLE_TIMEOUT=0
+MAX_NO_PROGRESS=3
 CHECKPOINT_INTERVAL=0
 NOTIFY=""
 GATES_FILE=""
@@ -138,6 +143,7 @@ while [[ $# -gt 0 ]]; do
     --downgrade-after) [[ $# -ge 2 ]] || { echo "--downgrade-after requires a number" >&2; exit 2; }; DOWNGRADE_AFTER="$2"; shift 2 ;;
     --max-runtime-seconds) [[ $# -ge 2 ]] || { echo "--max-runtime-seconds requires a number" >&2; exit 2; }; MAX_RUNTIME="$2"; shift 2 ;;
     --idle-timeout) [[ $# -ge 2 ]] || { echo "--idle-timeout requires a number" >&2; exit 2; }; IDLE_TIMEOUT="$2"; shift 2 ;;
+    --max-no-progress-iterations) [[ $# -ge 2 ]] || { echo "--max-no-progress-iterations requires a number" >&2; exit 2; }; MAX_NO_PROGRESS="$2"; shift 2 ;;
     --checkpoint-interval) [[ $# -ge 2 ]] || { echo "--checkpoint-interval requires a number" >&2; exit 2; }; CHECKPOINT_INTERVAL="$2"; shift 2 ;;
     --notify) [[ $# -ge 2 ]] || { echo "--notify requires a command" >&2; exit 2; }; NOTIFY="$2"; shift 2 ;;
     --gates) [[ $# -ge 2 ]] || { echo "--gates requires a file" >&2; exit 2; }; GATES_FILE="$2"; shift 2 ;;
@@ -166,7 +172,7 @@ case "$MODE" in
 esac
 
 case "$CONTAINER" in podman|docker) ;; *) echo "Invalid --container: $CONTAINER (podman|docker)" >&2; exit 2 ;; esac
-for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$CHECKPOINT_INTERVAL" "$MAX_RETRIES" "$RETRY_BASE_DELAY" "$RETRY_MAX_DELAY" "$MAX_CONSEC_FAIL"; do
+for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE_TIMEOUT" "$MAX_NO_PROGRESS" "$CHECKPOINT_INTERVAL" "$MAX_RETRIES" "$RETRY_BASE_DELAY" "$RETRY_MAX_DELAY" "$MAX_CONSEC_FAIL"; do
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "expected a non-negative integer, got: $n" >&2; exit 2; }
 done
 # --max-cost is a plain number, not necessarily an integer (a cost figure may be fractional).
@@ -231,7 +237,7 @@ case "$MODE" in
   plan)     TASK="Run ONLY the Plan phase: write/refresh specs and ${PLAN_REF}. Stop at the Plan-exit gate." ;;
   review)   TASK="Run ONLY a Review: assess the current diff against the acceptance criteria in ${PLAN_REF}. Do NOT write new code." ;;
   preflight) TASK="Run ONLY Preflight: score the plan's readiness 0-100 (goal clarity, observable success criteria, scenario coverage of the demo path, acceptance->backpressure mapping, scope edges) per references/scoring.md. If readiness is below ~80, list the weakest dimensions to fix and STOP. Do NOT implement." ;;
-  extract)  TASK="Run ONLY gene transfusion: survey the exemplar codebase at ${SOURCE_DIR:-<set --source DIR>} and distill reusable patterns into .wgm/genes.md (or AGENTS.md 'Codebase patterns') per references/gene-transfusion.md. Extract patterns, not code; cite sources. Do NOT implement features." ;;
+  extract)  TASK="Run ONLY gene transfusion: survey the exemplar codebase at ${SOURCE_DIR:-<set --source DIR>} and distill reusable patterns into .wgm/genes.md (or root/.wgm/AGENTS.md under 'Codebase patterns', following artifact placement) per references/gene-transfusion.md. Extract patterns, not code; cite sources. Do NOT implement features." ;;
   build)    TASK="Read ${PLAN_REF}, pick the SINGLE most important pending task, implement it, run its validation/backpressure command, review the diff, and update the plan. Do EXACTLY ONE task, then stop. If NO pending must-have task remains, do not edit code — write the Ship/Handoff summary and create the ${STOP_FILE} sentinel file to end the loop." ;;
 esac
 
@@ -267,9 +273,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "== wgm loop (dry run) =="
   echo "mode=${MODE} max_iterations=${MAX_ITERS} plan=${PLAN_REF} commit=${DO_COMMIT}"
   echo "threshold=${THRESHOLD} stratified=${STRATIFIED} container=${CONTAINER} scenarios=${SCENARIOS_DIR:-auto} frugal=${FRUGAL_AGENT:+set}"
-  echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
+  echo "max_runtime=${MAX_RUNTIME}s idle_timeout=${IDLE_TIMEOUT}s no_progress_limit=${MAX_NO_PROGRESS} checkpoint_interval=${CHECKPOINT_INTERVAL} notify=${NOTIFY:+set}"
   echo "retries=${MAX_RETRIES} retry_base=${RETRY_BASE_DELAY}s retry_max=${RETRY_MAX_DELAY}s circuit_breaker=${MAX_CONSEC_FAIL}"
   echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set} max_cost=${MAX_COST}"
+  echo "capability_probe=on (dry-run never executes the probe)"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
   echo "devcontainer=${USE_DEVCONTAINER}$([[ $USE_DEVCONTAINER -eq 1 ]] && echo ' (would re-exec this whole invocation inside scripts/devcontainer.sh — skipped for --dry-run)')"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
@@ -309,15 +316,24 @@ fi
 
 # ----- run the loop ---------------------------------------------------------
 run_main() {
-  if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
-    if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | "${AGENT_ARGV[@]}"
-    else "${AGENT_ARGV[@]}" "$PROMPT"; fi
-  elif [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | eval "$AGENT"
-  else eval "$AGENT \"\$PROMPT\""; fi
+  run_with_prompt "$ITER_PROMPT" main
 }
 run_frugal() {
-  if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | eval "$FRUGAL_AGENT"
-  else eval "$FRUGAL_AGENT \"\$PROMPT\""; fi
+  run_with_prompt "$ITER_PROMPT" frugal
+}
+run_with_prompt() {
+  local prompt="$1" role="$2"
+  if [[ "$role" == "frugal" ]]; then
+    if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$prompt" | eval "$FRUGAL_AGENT"
+    else eval "$FRUGAL_AGENT \"\$prompt\""; fi
+  elif [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
+    if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$prompt" | "${AGENT_ARGV[@]}"
+    else "${AGENT_ARGV[@]}" "$prompt"; fi
+  elif [[ "$PROMPT_STDIN" == "1" ]]; then
+    printf '%s' "$prompt" | eval "$AGENT"
+  else
+    eval "$AGENT \"\$prompt\""
+  fi
 }
 # GNU date wants -d @EPOCH; BSD/macOS date wants -r EPOCH. Fall back to the raw epoch if neither works.
 epoch_to_utc() {
@@ -336,12 +352,42 @@ plan_hash() {
   fi
 }
 
+file_hash() {
+  local file="$1"
+  if command -v sha1sum >/dev/null 2>&1; then sha1sum "$file" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then shasum "$file" | awk '{print $1}'
+  else cksum "$file" | awk '{print $1}'; fi
+}
+
+file_hash_or_none() {
+  local file="$1"
+  if [[ -f "$file" ]]; then file_hash "$file"; else printf 'none'; fi
+}
+
+codebase_patterns_content() {
+  local file content
+  for file in AGENTS.md .wgm/AGENTS.md; do
+    [[ -f "$file" ]] || continue
+    content="$(awk '
+      /^##+[[:space:]]+Codebase patterns[[:space:]]*$/ { capture=1 }
+      capture && /^##+[[:space:]]+/ && $0 !~ /Codebase patterns/ && NR > 1 { exit }
+      capture { print }
+    ' "$file")"
+    [[ -n "${content//[[:space:]]/}" ]] || continue
+    printf '%s\n%s\n' "$file" "$content"
+  done
+}
+
+meaningful_file() {
+  [[ -f "$1" ]] && grep -q '[^[:space:]]' "$1"
+}
+
 notify() {  # $1 = lifecycle event; best-effort, its failure never breaks the loop
   [[ -n "$NOTIFY" ]] || return 0
   WGM_EVENT="$1" WGM_ITER="${ITER:-0}" bash -c "$NOTIFY" || true
 }
 
-record_metrics() {  # $1 = result (ok|fail); best-effort, never breaks the loop
+record_metrics() {  # $1 = result (ok|fail|stall); best-effort, never breaks the loop
   local dur changed cost ts ts_start parent
   dur=$(( $(date +%s) - ITER_START ))
   if [[ "$(plan_hash)" != "$HASH_BEFORE" ]]; then changed=1; else changed=0; fi
@@ -374,6 +420,175 @@ ESC_ENABLED=0
 if [[ -n "$FRUGAL_AGENT" ]]; then ACTIVE="frugal"; else ACTIVE="main"; fi
 run_current() { if [[ "$ACTIVE" == "frugal" ]]; then run_frugal; else run_main; fi; }
 
+# A successful agent process is not evidence that it can mutate the target tree. Probe the exact
+# command selected for the first iteration with a unique disposable file before paying for a build.
+PROBE_FILE=""
+probe_capability() {
+  [[ "$MODE" == "build" || "$MODE" == "plan" ]] || return 0
+
+  mkdir -p .wgm
+  PROBE_FILE="$(pwd)/.wgm/.loop-write-probe-${$}-${RANDOM}"
+  local probe_content="wgm-capability-probe" probe_plan_hash probe_rc
+  rm -f "$PROBE_FILE"
+  probe_plan_hash="$(plan_hash)"
+  echo "Capability probe: asking ${ACTIVE} agent to create a disposable write marker."
+  export WGM_CAPABILITY_PROBE_FILE="$PROBE_FILE"
+  export WGM_CAPABILITY_PROBE_CONTENT="$probe_content"
+  set +e
+  run_with_prompt "Capability probe only. Create the file at ${PROBE_FILE} with exactly ${probe_content}, then stop. Do not edit any other path, run tests, or commit." "$ACTIVE"
+  probe_rc=$?
+  set -e
+  unset WGM_CAPABILITY_PROBE_FILE WGM_CAPABILITY_PROBE_CONTENT
+
+  if [[ "$probe_rc" -ne 0 || ! -f "$PROBE_FILE" || "$(cat "$PROBE_FILE" 2>/dev/null || true)" != "$probe_content" ]]; then
+    rm -f "$PROBE_FILE"
+    echo "Capability probe failed: the ${ACTIVE} agent exited ${probe_rc} without creating the required marker." >&2
+    echo "Grant the agent write access or use a full-shell invocation, then rerun the lifecycle." >&2
+    notify error
+    return 1
+  fi
+  rm -f "$PROBE_FILE"
+  if [[ "$(plan_hash)" != "$probe_plan_hash" ]]; then
+    echo "Capability probe failed: the agent changed the plan during the probe." >&2
+    notify error
+    return 1
+  fi
+  echo "Capability probe: passed."
+}
+
+git_status_paths() {
+  git status --porcelain=v1 | while IFS= read -r status_line; do
+    path="${status_line:3}"
+    if [[ "${status_line:0:2}" == *R* || "${status_line:0:2}" == *C* ]] && [[ "$path" == *" -> "* ]]; then
+      printf '%s\n' "${path%% -> *}" "${path##* -> }"
+    else
+      printf '%s\n' "$path"
+    fi
+  done | sort -u
+}
+
+COMMIT_MODE=0
+if [[ "$MODE" == "build" && ( "$DO_COMMIT" -eq 1 || "$CHECKPOINT_INTERVAL" -ne 0 ) ]]; then
+  COMMIT_MODE=1
+fi
+
+assert_clean_commit_baseline() {
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Refusing to commit: current directory is not a Git worktree." >&2
+    return 1
+  fi
+  local dirty
+  dirty="$(git_status_paths | grep -v '^\.wgm/' || true)"
+  if [[ -n "$dirty" ]]; then
+    echo "Refusing to commit: --commit requires a clean worktree before iteration 1." >&2
+    printf 'Unowned paths already present:\n%s\n' "$dirty" >&2
+    echo "Commit or move those edits, or run without --commit; the loop must own its worktree exclusively." >&2
+    return 1
+  fi
+}
+
+OWNERSHIP_MANIFESTS=()
+stage_owned_paths() {
+  local owned_tmp actual_tmp undeclared path manifest
+  owned_tmp=".wgm/.loop-owned-${ITER}-$$"
+  actual_tmp=".wgm/.loop-actual-${ITER}-$$"
+  if [[ "${#OWNERSHIP_MANIFESTS[@]}" -eq 0 ]]; then
+    echo "Refusing to commit: no iteration ownership manifest was registered." >&2
+    return 1
+  fi
+  : > "$owned_tmp"
+  for manifest in "${OWNERSHIP_MANIFESTS[@]}"; do
+    if [[ ! -f "$manifest" ]]; then
+      echo "Refusing to commit: iteration ownership manifest is missing: $manifest" >&2
+      rm -f "$owned_tmp" "$actual_tmp"
+      return 1
+    fi
+    while IFS= read -r path || [[ -n "$path" ]]; do
+      [[ -n "${path//[[:space:]]/}" ]] || continue
+      [[ "$path" == \#* ]] && continue
+      case "$path" in
+        "$PWD"/*) path="${path#"$PWD"/}" ;;
+        ./*) path="${path#./}" ;;
+      esac
+      if [[ "$path" == "." || "$path" == */ || -d "$path" ]]; then
+        echo "Refusing to commit: ownership manifest contains a directory or root path: $path" >&2
+        rm -f "$owned_tmp" "$actual_tmp"
+        return 1
+      fi
+      printf '%s\n' "$path" >> "$owned_tmp"
+    done < "$manifest"
+  done
+  sort -u "$owned_tmp" -o "$owned_tmp"
+  git_status_paths | grep -v '^\.wgm/' > "$actual_tmp" || true
+  undeclared="$(comm -23 "$actual_tmp" "$owned_tmp" || true)"
+  if [[ -n "$undeclared" ]]; then
+    echo "Refusing to commit: iteration changed paths absent from its ownership manifest." >&2
+    printf 'Undeclared paths:\n%s\n' "$undeclared" >&2
+    echo "Stop the loop, move the unrelated edits to another worktree, then rerun." >&2
+    rm -f "$owned_tmp" "$actual_tmp"
+    return 1
+  fi
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    [[ -n "$path" ]] || continue
+    git add -A -- "$path"
+  done < "$owned_tmp"
+  if git diff --cached --name-only | grep -v '^\.wgm/' | comm -23 - "$owned_tmp" | grep -q .; then
+    echo "Refusing to commit: staged paths exceed the iteration ownership manifest." >&2
+    rm -f "$owned_tmp" "$actual_tmp"
+    return 1
+  fi
+  rm -f "$owned_tmp" "$actual_tmp"
+  return 0
+}
+
+stop_requested() {
+  [[ -f "$STOP_FILE" || -f "STOP" || -f ".wgm/STOP" ]]
+}
+
+verify_phase_artifact() {
+  local root_after wgm_after genes_after patterns_after
+  case "$MODE" in
+    plan)
+      root_after="$(file_hash_or_none IMPLEMENTATION_PLAN.md)"
+      wgm_after="$(file_hash_or_none .wgm/IMPLEMENTATION_PLAN.md)"
+      if [[ ! -f IMPLEMENTATION_PLAN.md && ! -f .wgm/IMPLEMENTATION_PLAN.md ]]; then
+        echo "Phase artifact missing: plan did not create IMPLEMENTATION_PLAN.md (root or .wgm/)." >&2
+      elif [[ "$root_after" == "$PHASE_PLAN_ROOT_BEFORE" && "$wgm_after" == "$PHASE_PLAN_WGM_BEFORE" ]]; then
+        echo "Phase artifact unchanged: plan did not update IMPLEMENTATION_PLAN.md." >&2
+      elif { [[ -f IMPLEMENTATION_PLAN.md ]] && ! meaningful_file IMPLEMENTATION_PLAN.md; } \
+        || { [[ -f .wgm/IMPLEMENTATION_PLAN.md ]] && ! meaningful_file .wgm/IMPLEMENTATION_PLAN.md; }; then
+        echo "Phase artifact invalid: plan created an empty IMPLEMENTATION_PLAN.md." >&2
+      else
+        if { [[ "$root_after" != "$PHASE_PLAN_ROOT_BEFORE" ]] && [[ -f IMPLEMENTATION_PLAN.md ]] && grep -q '^#' IMPLEMENTATION_PLAN.md; } \
+          || { [[ "$wgm_after" != "$PHASE_PLAN_WGM_BEFORE" ]] && [[ -f .wgm/IMPLEMENTATION_PLAN.md ]] && grep -q '^#' .wgm/IMPLEMENTATION_PLAN.md; }; then
+          return 0
+        fi
+        echo "Phase artifact invalid: plan did not produce a structured plan document." >&2
+      fi
+      ;;
+    extract)
+      genes_after="$(file_hash_or_none .wgm/genes.md)"
+      patterns_after="$(codebase_patterns_content)"
+      if [[ ! -f .wgm/genes.md && ! -f AGENTS.md && ! -f .wgm/AGENTS.md ]]; then
+        echo "Phase artifact missing: extract did not create .wgm/genes.md or a root/.wgm/AGENTS.md Codebase patterns section." >&2
+      elif [[ "$genes_after" == "$PHASE_GENES_BEFORE" && "$patterns_after" == "$PHASE_AGENT_PATTERNS_BEFORE" ]]; then
+        echo "Phase artifact unchanged: extract did not update its genes artifact." >&2
+      elif [[ "$genes_after" != "$PHASE_GENES_BEFORE" ]] && meaningful_file .wgm/genes.md; then
+        return 0
+      elif [[ "$patterns_after" != "$PHASE_AGENT_PATTERNS_BEFORE" ]] \
+        && [[ -n "${patterns_after//[[:space:]]/}" ]]; then
+        return 0
+      else
+        echo "Phase artifact invalid: extract changed no meaningful genes artifact or root/.wgm/AGENTS.md Codebase patterns section." >&2
+      fi
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 # Run one agent invocation, retrying a non-zero exit with exponential backoff + full jitter
 # (AWS-style), capped at --retry-max-delay. Returns 0 on success, the last failure code otherwise.
 run_iteration() {
@@ -401,6 +616,10 @@ PROG=0
 START_TS=$(date +%s)
 LAST_PROG_TS=$START_TS
 notify start
+if [[ "$DRY_RUN" -eq 0 && "$COMMIT_MODE" -eq 1 ]]; then
+  assert_clean_commit_baseline || exit 1
+fi
+probe_capability || exit 1
 while :; do
   ITER=$((ITER + 1))
   if [[ "$MAX_ITERS" -ne 0 && "$ITER" -gt "$MAX_ITERS" ]]; then
@@ -409,16 +628,30 @@ while :; do
   if [[ "$MAX_RUNTIME" -ne 0 && $(( $(date +%s) - START_TS )) -ge "$MAX_RUNTIME" ]]; then
     echo "Reached max runtime (${MAX_RUNTIME}s)."; break
   fi
-  if [[ -f "$STOP_FILE" ]]; then echo "Stop sentinel '$STOP_FILE' found; ending."; break; fi
+  if stop_requested; then echo "Stop sentinel found; ending."; break; fi
 
   echo ""
   echo "==================== wgm ${MODE} (${ACTIVE}) — iteration ${ITER} ===================="
   HASH_BEFORE="$(plan_hash)"
   ITER_START=$(date +%s)
+  ITER_PROMPT="$PROMPT"
+  PHASE_PLAN_ROOT_BEFORE="$(file_hash_or_none IMPLEMENTATION_PLAN.md)"
+  PHASE_PLAN_WGM_BEFORE="$(file_hash_or_none .wgm/IMPLEMENTATION_PLAN.md)"
+  PHASE_GENES_BEFORE="$(file_hash_or_none .wgm/genes.md)"
+  PHASE_AGENT_PATTERNS_BEFORE="$(codebase_patterns_content)"
+  if [[ "$COMMIT_MODE" -eq 1 ]]; then
+    OWNERSHIP_MANIFEST="$(pwd)/.wgm/.loop-touched-${ITER}-$$"
+    rm -f "$OWNERSHIP_MANIFEST"
+    OWNERSHIP_MANIFESTS+=("$OWNERSHIP_MANIFEST")
+    export WGM_OWNERSHIP_MANIFEST="$OWNERSHIP_MANIFEST"
+    ITER_PROMPT="${PROMPT}
+Commit ownership: before you finish, write every repository-relative file path you intentionally changed in this iteration to ${OWNERSHIP_MANIFEST}, one path per line. Do not list directories, do not list unrelated edits, and do not commit the manifest itself."
+  else
+    unset WGM_OWNERSHIP_MANIFEST
+  fi
   if run_iteration; then
     CONSEC_FAIL=0
     COMPLETED=$((COMPLETED + 1))
-    record_metrics ok
   else
     CONSEC_FAIL=$((CONSEC_FAIL + 1))
     record_metrics fail
@@ -436,7 +669,19 @@ while :; do
     [[ "$DO_COMMIT" -eq 1 ]] && DO_CP=1
     [[ "$CHECKPOINT_INTERVAL" -ne 0 && $(( ITER % CHECKPOINT_INTERVAL )) -eq 0 ]] && DO_CP=1
     if [[ "$DO_CP" -eq 1 ]]; then
-      git add -A && git commit -m "wgm: build iteration ${ITER}" || echo "(nothing to commit)"
+      if ! stage_owned_paths; then
+        record_metrics fail
+        notify error
+        exit 1
+      fi
+      if git diff --cached --quiet; then
+        echo "(nothing to commit)"
+      elif ! git commit -m "chore: wgm build iteration ${ITER}"; then
+        record_metrics fail
+        notify error
+        exit 1
+      fi
+      OWNERSHIP_MANIFESTS=()
     fi
   fi
 
@@ -444,6 +689,25 @@ while :; do
   if [[ "$MODE" == "build" ]]; then
     HASH_AFTER="$(plan_hash)"
     [[ "$HASH_AFTER" != "$HASH_BEFORE" ]] && LAST_PROG_TS=$(date +%s)
+    if [[ "$HASH_AFTER" == "$HASH_BEFORE" ]]; then
+      NOPROG=$((NOPROG + 1))
+      PROG=0
+    else
+      NOPROG=0
+      PROG=$((PROG + 1))
+    fi
+    if stop_requested; then
+      record_metrics ok
+      echo "Stop sentinel found after iteration ${ITER}; ending."
+      break
+    fi
+    if [[ "$MAX_NO_PROGRESS" -ne 0 && "$NOPROG" -ge "$MAX_NO_PROGRESS" ]]; then
+      record_metrics stall
+      echo "No progress: plan unchanged for ${NOPROG} successful build iteration(s); treating the exit-0 agent as stalled." >&2
+      notify error
+      exit 1
+    fi
+    record_metrics ok
     if [[ "$IDLE_TIMEOUT" -ne 0 && $(( $(date +%s) - LAST_PROG_TS )) -ge "$IDLE_TIMEOUT" ]]; then
       echo "Idle timeout: no plan progress for ${IDLE_TIMEOUT}s; ending."; break
     fi
@@ -451,8 +715,6 @@ while :; do
       echo "Reached max cost (${CUM_COST} >= ${MAX_COST})."; break
     fi
     if [[ "$ESC_ENABLED" -eq 1 ]]; then
-      if [[ "$HASH_AFTER" != "$HASH_BEFORE" ]]; then PROG=$((PROG + 1)); NOPROG=0
-      else NOPROG=$((NOPROG + 1)); PROG=0; fi
       if [[ "$ACTIVE" == "frugal" && "$NOPROG" -ge "$ESCALATE_AFTER" ]]; then
         ACTIVE="main"; NOPROG=0; PROG=0
         echo "↑ escalating to main agent (no progress for ${ESCALATE_AFTER} iteration(s))."
@@ -461,6 +723,13 @@ while :; do
         echo "↓ downgrading to frugal agent (${DOWNGRADE_AFTER} progressing iteration(s))."
       fi
     fi
+  else
+    if ! verify_phase_artifact; then
+      record_metrics fail
+      notify error
+      exit 1
+    fi
+    record_metrics ok
   fi
 
   # Single-phase modes do one pass.

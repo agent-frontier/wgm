@@ -132,6 +132,8 @@ fi
 mkdir -p "$WT_DIR"
 METRICS_DIR="$(pwd)/.wgm/metrics"
 mkdir -p "$METRICS_DIR"
+LOG_DIR="$(pwd)/.wgm/swarm-logs"
+mkdir -p "$LOG_DIR"
 SWARM_START=$(date +%s)
 
 PIDS=()
@@ -175,7 +177,7 @@ for task in "${TASKS[@]}"; do
     WGM_PARENT_TASK="${task:-stream-${i}}" \
       "$LOOP" build "$MAXIT" "${reqflag[@]}" --commit \
       --metrics "${METRICS_DIR}/${SAFE_PREFIX}-${i}.tsv" -- "${AGENT_ARGV[@]}"
-  ) >"${dir}/.swarm.log" 2>&1 &
+  ) >"${LOG_DIR}/${SAFE_PREFIX}-${i}.log" 2>&1 &
   PIDS+=("$!")
   BRANCHES+=("$br")
   DIRS+=("$dir")
@@ -193,6 +195,11 @@ for idx in "${!PIDS[@]}"; do
   if wait "${PIDS[$idx]}"; then st="ok"; else st="FAIL"; FAIL=1; fi
   LANE_END[idx]="$(date +%s)"
   commits="$(git rev-list --count "HEAD..${BRANCHES[$idx]}" 2>/dev/null || echo '?')"
+  if [[ "$st" == "ok" && ( "$commits" == "0" || "$commits" == "?" ) ]]; then
+    st="FAIL"
+    FAIL=1
+    echo "✗ stream $((idx + 1)): agent exited successfully but produced no verifiable commit artifact." >&2
+  fi
   printf '%-7s %-24s %-6s %s\n' "$((idx + 1))" "${BRANCHES[$idx]}" "$st" "$commits"
 done
 
@@ -312,6 +319,6 @@ fi
 if [[ "$FAIL" -eq 0 ]]; then
   echo "swarm: all ${#PIDS[@]} stream(s) ok"
 else
-  echo "swarm: one or more streams failed (see ${WT_DIR}/*/.swarm.log)" >&2
+  echo "swarm: one or more streams failed (see ${LOG_DIR}/*.log)" >&2
 fi
 exit "$FAIL"
