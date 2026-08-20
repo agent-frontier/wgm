@@ -10,12 +10,14 @@ parallelism across *reviewer roles* within one task.
 
 ## Syntax
 
-```
-scripts/swarm.sh --tasks FILE [FLAGS] -- AGENT_ARGV...
-scripts/swarm.sh -n COUNT     [FLAGS] -- AGENT_ARGV...
+```bash
+WGM_SKILL_ROOT="${WGM_SKILL_ROOT:-$HOME/.agents/skills/wgm}"
+"$WGM_SKILL_ROOT/scripts/swarm.sh" --tasks FILE [FLAGS] -- AGENT_ARGV...
+"$WGM_SKILL_ROOT/scripts/swarm.sh" -n COUNT     [FLAGS] -- AGENT_ARGV...
 ```
 
-Run it from the target project's root.
+Run the installed skill path from the target project's root. A checkout-local `./scripts/swarm.sh`
+also works when you are developing wgm itself.
 
 ## Before you begin
 
@@ -101,11 +103,15 @@ git worktree remove .wgm/worktrees/wgm-swarm-1
 git branch -D wgm/swarm/1
 ```
 
-To clear every leftover worktree and branch at once:
+To clear one leftover worktree and branch:
 
 ```bash
-make clean-worktrees
+git worktree remove --force .wgm/worktrees/wgm-swarm-1
+git branch -D wgm/swarm/1
 ```
+
+For the wgm source checkout, `make clean-worktrees` remains a convenience wrapper around this
+target-project-independent Git cleanup.
 
 ## After every run
 

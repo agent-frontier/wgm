@@ -8,8 +8,10 @@ only when a scenario needs a live service.
 ## Podman-first, Docker fallback
 Prefer **Podman** with **OCI** images (rootless by default); **Docker** is a drop-in fallback — the
 same OCI image and argument-compatible commands work under either. Prefer a **`Containerfile`** (the
-OCI name); fall back to `Dockerfile`. The skill picks `podman` if present, else `docker`;
-`scripts/loop.sh` exposes `--container podman|docker` to force one.
+OCI name); fall back to `Dockerfile`. `scripts/loop.sh` resolves `--container auto` to available
+Podman, then Docker, and reports `unavailable` when neither exists. `--container podman|docker`
+forces one and fails clearly if that engine is absent. The runner selects and reports the engine; a
+host adapter or agent owns the actual build/run/readiness/scenario execution flow below.
 
 | Action | Podman | Docker |
 |---|---|---|

@@ -4,7 +4,7 @@
 **Status:** current maturity record  
 **Operator hypothesis:** **Stage 9 at least**  
 **Independent assessment:** **Stage 8.5 operational / Stage 9 candidate**  
-**Current release line:** `main` at `12fff427` (PR #97)
+**Current release line:** `main` at `27a52bf` (PR #98)
 
 ## Executive summary
 
@@ -68,6 +68,17 @@ The latest hardening pass closed the ten-issue wave #87-#96 through PR #97. Thos
 most direct evidence that the system is operating as an orchestrator rather than merely describing
 one: the orchestrator now verifies its own agent artifacts, lane artifacts, review evidence, and
 commit boundaries.
+
+## Current growth-pass status
+
+| Slice | Status | Evidence |
+|---|---|---|
+| Public semantics, first-build paths, installed-skill commands, plan indexes | Implemented | `bash scripts/check-docs.sh`, `bash scripts/test-check-docs.sh` |
+| Host-enforced project gates and container selection | Implemented | `bash scripts/test-loop.sh`; `auto -> podman -> docker -> unavailable` resolution |
+| Honest plugin boundary and normal-loop Hive harvest hook | Implemented | `references/plugin-integration.md` proposed/unwired status; loop and swarm harnesses |
+| Interruptible agent execution | Implemented on supported hosts | `--agent-timeout-seconds` with GNU `timeout`/`gtimeout`; cooperative fallback otherwise |
+| Final growth audit | Implemented in this growth pass | `docs/audit/2026-08-20T1729Z_growth-opportunities-final.md`; `make validate` is green |
+| Remote delivery | Pending in this worktree | Reviewed PR and merged validation remain the final delivery gate |
 
 ## WGM evidence at the emerging Stage 9 boundary
 

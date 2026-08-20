@@ -121,6 +121,7 @@ self-tests).
 
 Design records, kept for provenance rather than as current instructions:
 
+- [Complete plans index](plans/README.md) — the full dated inventory and status policy.
 - [2026-08-20 — Stage 8+ growth record](plans/2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md) — why wgm is
   assessed as Stage 9 emerging/supervised, what is already orchestrated, and what full self-improvement
   autonomy still requires.

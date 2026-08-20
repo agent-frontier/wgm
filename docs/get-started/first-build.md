@@ -1,12 +1,12 @@
 # Your first build
 
-A complete worked example, from an empty request to a validated feature. Follow it end to end and
-you will have seen every gate wgm enforces and why each one exists.
+A worked lifecycle template, from an empty request to a validated feature. Follow the protocol shape
+end to end, substituting the real commands and paths from the project you are actually building.
 
 ## Executive overview
 
 - **For:** a first-time operator who wants to see the whole lifecycle once, concretely.
-- **You'll get:** a feature built, a real test proving it, and a plan file you can resume from.
+- **You'll get:** a feature plan, a real project validation command, and a resumable handoff.
 - **Time:** roughly 20 minutes for a small feature.
 - **Watch out:** the two places people get surprised are the Plan-exit gate (wgm stops and waits)
   and the demo-validation task (wgm refuses to call a build done without one).
@@ -18,6 +18,9 @@ you will have seen every gate wgm enforces and why each one exists.
 - You have a project open. A small existing repository is ideal; a greenfield directory also works.
 - Your project has a test or build command. If it does not, that is fine — wgm's first task will be
   to create one, and you will see that happen.
+- If the project already has `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, or `specs/`, expect wgm's
+  artifacts under `.wgm/`; use `find . -maxdepth 3 -name 'IMPLEMENTATION_PLAN.md' -print` to locate
+  the active plan.
 
 ## Step 1: State the request
 
@@ -71,7 +74,7 @@ assumptions in the spec instead of asking.
 
 wgm writes its artifacts and **stops**. This is the Plan-exit gate, and it is deliberate.
 
-Open `IMPLEMENTATION_PLAN.md`. Each task should name four things:
+Open the active `IMPLEMENTATION_PLAN.md` (root or `.wgm/`). Each task should name four things:
 
 | Field | Example |
 |---|---|
@@ -83,8 +86,9 @@ Open `IMPLEMENTATION_PLAN.md`. Each task should name four things:
 **Caution:** A task with no runnable validation command cannot be honestly marked done. If you see
 one, say so now — it is far cheaper to fix here than after five iterations have built on it.
 
-Check the holdout scenario too. `scenarios/` describes success from a user's seat, and **the build
-never reads it** — that is what stops the agent from writing code shaped to pass its own grader.
+Check the holdout scenario too. It lives in `scenarios/` or `.wgm/scenarios/` and describes success
+from a user's seat. **The build never reads it** — that is what stops the agent from writing code
+shaped to pass its own grader.
 
 ## Step 4: Approve, and let one iteration run
 
@@ -134,10 +138,12 @@ The last must-have task in every plan runs the spec's smallest end-to-end demo p
 declare a build finished until it passes.
 
 ```bash
-mycli status --json | jq .
+# Replace PROJECT_DEMO_COMMAND with the exact command recorded in your plan.
+PROJECT_DEMO_COMMAND
 ```
 
-This is the difference between "the tests pass" and "the thing works."
+This page intentionally does not invent a `mycli` or `src/` fixture. The project owns the demo
+command; wgm's own repository uses `make validate` as its deterministic repository gate.
 
 ## Step 7: Read the handoff
 
@@ -158,8 +164,10 @@ Do not take the summary's word for it. Two checks take a minute:
 
    ```bash
    git log --oneline -5
-   grep -rn "the symbol the task claimed to add" src/
+   grep -rn "KNOWN_SYMBOL" PROJECT_SOURCE_DIRECTORY/
    ```
+
+   Replace `KNOWN_SYMBOL` and `PROJECT_SOURCE_DIRECTORY` with the exact artifact named by the task.
 
 **Caution:** A plan entry marked done is an *assertion*. In one measured run, four of five tasks
 marked done by parallel lanes carried at least one false claim, and every one of them read

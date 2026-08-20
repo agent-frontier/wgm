@@ -1,6 +1,11 @@
 # Plugin Integration Points in wgm
 
-This document describes where and how plugins are invoked in wgm's lifecycle.
+This document describes where and how a compatible host adapter may invoke plugins in wgm's lifecycle.
+
+> **Status: proposed/unwired host integration.** These snippets define the adapter contract; the
+> portable shell runner discovers no plugin hooks and does not invoke Python registry calls. A host
+> that implements this adapter must own timeouts, project enablement, context provenance, and
+> fail-safe reporting. Until then, plugin metadata is informational.
 
 ## Discovery & Registration (Phase 0 — Triage)
 
@@ -250,7 +255,8 @@ If you're building a wgm plugin:
 
 1. **Implement `invoke(hook_name, context)`** — receive context dict, return result dict
 2. **Handle errors gracefully** — never raise; return `{ success: False, error: "..." }`
-3. **Respect timeouts** — plugins are given `plugin.toml` timeout seconds max
+3. **Respect timeouts** — a host adapter must enforce the `plugin.toml` timeout; the portable runner
+   does not invoke this contract
 4. **Log sparingly** — write to stderr only for errors/warnings
 5. **Return structured results** — match the schema in PLUGIN_PROTOCOL.md
 

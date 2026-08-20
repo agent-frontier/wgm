@@ -2,9 +2,15 @@
 
 This document specifies the contract for wgm plugins — extensible modules that integrate with wgm's lifecycle to add capabilities like knowledge validation, code analysis, or specialized testing.
 
+> **Integration status:** this is a host-integration contract and registry reference. The portable
+> `scripts/loop.sh` runner does not invoke plugin hooks directly today; a compatible host adapter
+> must own dispatch, enablement, timeout enforcement, and failure reporting. Do not treat the
+> pseudocode below as evidence that a hook ran.
+
 ## Overview
 
-**Goal:** Enable third-party skills and tools to hook into wgm's lifecycle without modifying wgm itself.
+**Goal:** Enable third-party skills and tools to hook into wgm's lifecycle without modifying wgm
+itself when a host adapter implements this contract.
 
 **Core principle:** Plugins are **optional, composable, and fail-safe**. If a plugin is unavailable or errors, wgm continues normally.
 
@@ -53,12 +59,12 @@ enabled_by_default = true
 - `lifecycle`: List of hooks this plugin implements (`plan`, `validate`, `custom`)
 - `requires`: Soft dependencies; plugin warns if missing but doesn't fail
 - `depends_on`: Hard dependencies; plugin refuses to run if missing
-- `timeout`: Max seconds for a single invocation (prevents hangs)
-- `enabled_by_default`: Can be disabled per-project in CONSTITUTION.md
+- `timeout`: Requested max seconds for a single invocation; enforcement belongs to the host adapter
+- `enabled_by_default`: Host-adapter default only; the portable runner does not enforce it
 
 ## Lifecycle Hooks
 
-wgm invokes plugins at standard points in its lifecycle:
+When a compatible host adapter is present, it may invoke plugins at standard points in the lifecycle:
 
 ### `plan` Hook
 
@@ -181,7 +187,7 @@ Reserved for future specialized plugins. Plugin defines when it fires and what i
 **Error Handling:**
 - Plugin must catch all exceptions and return `{ success: False, error: "<message>" }`
 - wgm logs the error; does not crash
-- If timeout is exceeded, wgm forcibly stops the plugin and returns timeout error
+- If timeout is exceeded, the host adapter must forcibly stop the plugin and return a timeout error
 
 **Example (pseudocode):**
 

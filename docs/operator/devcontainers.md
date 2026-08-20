@@ -13,7 +13,7 @@
   your own UID (not the image's), label everything so `prune` is safely scoped, never mount your
   whole `$HOME`.
 - **Fastest path:** `scripts/devcontainer.sh build-base` once, then
-  `scripts/loop.sh build --devcontainer -- copilot -p`.
+  `scripts/loop.sh build --devcontainer --devcontainer-mount ~/.copilot:/home/wgm/.copilot -- copilot -p --allow-all-tools`.
 - **Next:** [running-the-loop.md](running-the-loop.md) · [containers.md](containers.md) (the
   *other* container use case — validating the app under test, not the loop itself).
 
@@ -60,7 +60,7 @@ VS Code can also open for interactive work.
 ./scripts/devcontainer.sh build-base                     # build the shared image once
 ./scripts/devcontainer.sh build-base --force             # rebuild it anyway
 ./scripts/devcontainer.sh run -- echo hello              # execute one command sandboxed
-./scripts/devcontainer.sh run --mount ~/.copilot -- copilot -p "hi"   # + an agent's auth dir
+./scripts/devcontainer.sh run --mount ~/.copilot:/home/wgm/.copilot -- copilot -p --allow-all-tools "hi"   # + an agent's auth dir
 ./scripts/devcontainer.sh prune                          # disk hygiene report + scoped cleanup
 ./scripts/devcontainer.sh run --dry-run -- CMD            # preview the exact command; run nothing
 ```
@@ -80,8 +80,8 @@ VS Code can also open for interactive work.
 ## Running the loop itself sandboxed
 
 ```bash
-export WGM_AGENT='copilot -p'
-./scripts/loop.sh build 20 --devcontainer
+export WGM_AGENT='copilot -p --allow-all-tools'
+./scripts/loop.sh build 20 --devcontainer --devcontainer-mount ~/.copilot:/home/wgm/.copilot
 ```
 
 `--devcontainer` re-execs the *entire* `loop.sh` invocation inside the sandbox via

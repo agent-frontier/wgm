@@ -16,8 +16,10 @@
   [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
 
 Some acceptance scenarios can only be judged against the software **actually running** — an HTTP
-API, a CLI, or a TUI. wgm runs those in a throwaway **OCI container**, **Podman-first** (Docker is a
-drop-in fallback). Containers are optional: reach for one only when a scenario needs a live service.
+API, a CLI, or a TUI. wgm selects a throwaway **OCI container engine**, **Podman-first** (Docker is a
+drop-in fallback), and reports the choice to the validating host/agent. The runner does not pretend
+that selecting an engine proves the host adapter built, started, waited for, and cleaned up the app.
+Containers are optional: reach for one only when a scenario needs a live service.
 
 The terse rules live in [`references/validation-env.md`](../../references/validation-env.md); this is
 the operator-facing version.
@@ -47,8 +49,9 @@ The commands are argument-compatible, so the same flow works under either engine
 | Logs | `podman logs wgm-app` | `docker logs wgm-app` |
 | Stop/rm | `podman rm -f wgm-app` | `docker rm -f wgm-app` |
 
-Force one explicitly with `loop.sh --container podman|docker`; otherwise wgm uses Podman when it is
-available and falls back to Docker.
+Force one explicitly with `loop.sh --container podman|docker`; otherwise `--container auto` uses
+Podman when it is available and falls back to Docker. If neither is available, the runner reports
+that scenario container validation is unavailable instead of claiming it ran.
 
 ## When to skip the container
 

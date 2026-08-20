@@ -101,9 +101,11 @@ Invoke as a slash command with an optional **mode** and a request:
 | `/wgm review` | Review the current diff against acceptance criteria |
 
 **Modes:** `grill`, `analyze`, `plan`, `build` (alias `loop`), `review`.
-A trailing `only` runs that single phase and stops; without `only`, a mode starts at that phase and
-continues forward. A leading word counts as a mode only if it's a known keyword followed by `only`,
-`:`, or end of input — so `/wgm build the auth module` is treated as a request, not `build` mode.
+`grill`, `analyze`, `plan`, and `review` are single-phase entry points and always stop at their
+phase gate; a trailing `only` is accepted for emphasis and is redundant for them. `build` resumes
+the loop and may continue across iterations unless capped. A leading word counts as a mode only if
+it's a known keyword followed by `only`, `:`, or end of input — so `/wgm build the auth module` is
+treated as a request, not `build` mode.
 
 **Your first run, end to end** — `/wgm add a dark-mode toggle`:
 1. **Grill** — wgm asks one focused question at a time (e.g. *"persist the choice in `localStorage` —
@@ -204,12 +206,12 @@ flowchart LR
   swarm · `wgm-hermes`, the hive courier); the two code reviewers run independently and **preserve
   dissent** — a minority concern is recorded, never collapsed into a silent PASS
   (`references/subagents.md`).
-- **Docs-audit paper trail** — a mandatory, automatic audit of documentation *quality* (not just
+- **Docs-audit paper trail** — a mandatory lifecycle audit of documentation *quality* (not just
   structure) from four vantage points — junior dev, senior dev, principal dev, PM — consolidated by
-  a technical-writer role into one committed report per run. Every action item is labeled strictly
-  **Agent action** or **Operator action** (never by persona), and the report is indexed the same way
-  this README indexes its own docs. No need to ask for it — it runs automatically at Ship/Handoff
-  (`references/docs-audit.md`).
+  a technical-writer role into one committed report per run. A compatible host dispatcher owns the
+  persona launch and report gate; the portable runner does not pretend to provide that host service.
+  Every action item is labeled strictly **Agent action** or **Operator action** and the report is
+  indexed with the docs corpus (`references/docs-audit.md`).
 - **Trigger eval** — a hand-curated should/should-not-trigger fixture that catches drift in
   `SKILL.md`'s mode-parsing rule and the "Use this when"/"Do NOT use this when" boundary
   (`references/trigger-eval.md`).

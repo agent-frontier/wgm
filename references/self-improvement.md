@@ -226,7 +226,7 @@ Rules:
   **re-scanned** and publication is refused — non-zero exit, no network call — if any residual
   survives: a URL, an absolute or Windows path, an email, a commit-hash-like token, the local
   repository's owner/name/basename (read from `git remote` and the working directory), or any token
-  in an operator-supplied `$WGM_HIVE_DENYLIST`. A candidate over the single-lesson size ceiling
+  from the newline-delimited denylist file named by `$WGM_HIVE_DENYLIST`. A candidate over the single-lesson size ceiling
   (`--max-bytes`, default 2000) is refused for the same reason. `consent: true` does **not** bypass
   any of this. Dry-run prints the exact candidate that real mode would file
   (`scripts/test-harvest-hive.sh` pins all of it; [learn] issue #79).

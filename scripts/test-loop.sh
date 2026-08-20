@@ -38,9 +38,14 @@ AGENT_PROGRESS=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then prin
 AGENT_IDLE=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; sleep 2' _) # no change, burns time
 # shellcheck disable=SC2016
 AGENT_SLOW=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; sleep 2; printf -- "- slow\n" >> IMPLEMENTATION_PLAN.md; if [[ -n "${WGM_OWNERSHIP_MANIFEST:-}" ]]; then printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"; fi' _)
+# shellcheck disable=SC2016
+# shellcheck disable=SC2016
+AGENT_FORK_HANG=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; (sleep 10) & child=$!; echo "$child" > child.pid; wait "$child"' _)
 AGENT_NO_WRITE=(bash -c 'exit 0' _)
 # shellcheck disable=SC2016
 AGENT_PLAN_NOOP=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; exit 0' _)
+# shellcheck disable=SC2016
+AGENT_CUSTOM_PLAN=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; mkdir -p "$(dirname "$WGM_PLAN_FILE")"; printf "# custom plan\n\n- generated\n" > "$WGM_PLAN_FILE"' _)
 # shellcheck disable=SC2016
 AGENT_EXTRACT_CREATE=(bash -c 'mkdir -p .wgm; printf "# Genes\n\n- reusable pattern\n" > .wgm/genes.md' _)
 # shellcheck disable=SC2016
@@ -53,6 +58,8 @@ AGENT_EXTRACT_UNRELATED=(bash -c 'printf "unrelated change\n" >> AGENTS.md' _)
 AGENT_NO_MANIFEST=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md' _)
 # shellcheck disable=SC2016
 AGENT_FOREIGN=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"; printf "unrelated\n" > foreign.txt' _)
+# shellcheck disable=SC2016
+AGENT_COMMIT_FLAKY=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; mkdir -p .wgm; n=$(cat .wgm/.commit_retry_n 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > .wgm/.commit_retry_n; [ "$n" -ge 2 ] || exit 1; printf -- "- commit recovered\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
 # shellcheck disable=SC2016
 AGENT_RENAME=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; mv rename-source.txt rename-dest.txt; git add -A -- rename-source.txt rename-dest.txt; printf -- "- rename\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\nrename-source.txt\nrename-dest.txt\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
 # shellcheck disable=SC2016
@@ -79,6 +86,20 @@ if [[ "$RC" -eq 0 ]] && grep -q "max_runtime=30s idle_timeout=15s no_progress_li
   pass "dry-run surfaces the limit knobs"
 else
   fail "dry-run did not surface the limit knobs (rc=$RC)"
+fi
+
+# 2a) explicit auto uses the same availability resolver as the default
+run build --dry-run --container auto -- true
+if [[ "$RC" -eq 0 ]] && grep -qE "container=(podman|docker|unavailable)" <<<"$OUT"; then
+  pass "explicit container auto resolves without treating auto as an executable"
+else
+  fail "explicit container auto did not resolve (rc=$RC): $OUT"
+fi
+run build --dry-run --devcontainer --devcontainer-mount "$TMP/auth:/home/wgm/.copilot" -- true
+if [[ "$RC" -eq 0 ]] && grep -q "mounts=1" <<<"$OUT"; then
+  pass "devcontainer auth mounts are forwarded by the loop"
+else
+  fail "devcontainer auth mount was not surfaced (rc=$RC): $OUT"
 fi
 
 # 2b) a successful but non-writing agent is rejected before the first paid iteration
@@ -128,7 +149,17 @@ fi
 git show HEAD:IMPLEMENTATION_PLAN.md > IMPLEMENTATION_PLAN.md
 rm -f foreign.txt .wgm/.loop-touched-* .wgm/.loop-owned-* .wgm/.loop-actual-*
 
-# 3e) a declared rename stages both repository paths without false ownership drift
+# 3e) a failed commit-mode iteration does not poison the next manifest
+run build 2 --commit --max-retries 0 -- "${AGENT_COMMIT_FLAKY[@]}"
+if [[ "$RC" -eq 0 && "$(git log --oneline --all | grep -c 'chore: wgm build iteration' || true)" -ge 1 ]]; then
+  pass "commit-mode recovery discards the failed iteration manifest"
+else
+  fail "commit-mode recovery retained a stale manifest (rc=$RC): $OUT"
+fi
+rm -f .wgm/.commit_retry_n
+git show HEAD:IMPLEMENTATION_PLAN.md > IMPLEMENTATION_PLAN.md
+
+# 3f) a declared rename stages both repository paths without false ownership drift
 printf 'rename content\n' > rename-source.txt
 git add rename-source.txt && git commit -qm rename-seed
 run build 1 --commit --max-retries 0 -- "${AGENT_RENAME[@]}"
@@ -163,7 +194,30 @@ else
   fail "no-progress guard did not halt a stuck loop (rc=$RC)"
 fi
 
-# 5c) a mutating single-phase mode must produce its promised artifact
+# 5c) an active agent is bounded when the host exposes GNU timeout/gtimeout
+if { command -v timeout >/dev/null 2>&1 && timeout --help 2>&1 | grep -q -- '--kill-after'; } \
+  || { command -v gtimeout >/dev/null 2>&1 && gtimeout --help 2>&1 | grep -q -- '--kill-after'; }; then
+  rm -f timeout.tsv child.pid
+  run build 1 --agent-timeout-seconds 1 --metrics timeout.tsv --max-retries 0 --max-consecutive-failures 1 -- "${AGENT_FORK_HANG[@]}"
+  child_alive=0
+  if [[ -f child.pid ]] && kill -0 "$(cat child.pid)" 2>/dev/null; then child_alive=1; fi
+  if [[ "$RC" -eq 1 ]] && grep -q "Agent timed out" <<<"$OUT" \
+    && grep -q $'\tfail\t' timeout.tsv && [[ "$child_alive" -eq 0 ]]; then
+    pass "agent-timeout-seconds terminates the process group and records failure"
+  else
+    fail "agent-timeout-seconds did not terminate/process-record a hung agent (rc=$RC): $OUT"
+  fi
+  rm -f timeout.tsv child.pid
+else
+  run build --dry-run --agent-timeout-seconds 1 -- true
+  if [[ "$RC" -eq 0 ]] && grep -q "cooperative" <<<"$OUT"; then
+    pass "agent-timeout-seconds reports the cooperative fallback"
+  else
+    fail "agent-timeout-seconds did not report unsupported-host fallback (rc=$RC)"
+  fi
+fi
+
+# 5d) a mutating single-phase mode must produce its promised artifact
 run extract 1 --metrics off -- "${AGENT_NO_WRITE[@]}"
 if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact missing" <<<"$OUT"; then
   pass "extract rejects an exit-0 agent with no genes artifact"
@@ -171,7 +225,7 @@ else
   fail "extract accepted a missing artifact (rc=$RC)"
 fi
 
-# 5d) a fresh project honors .wgm/STOP after the capability probe creates .wgm
+# 5e) a fresh project honors .wgm/STOP after the capability probe creates .wgm
 STOP_TMP="$(mktemp -d "$TMP/stop.XXXXXX")"
 git -C "$STOP_TMP" init -q
 git -C "$STOP_TMP" config user.email "wgm-test@example.com"
@@ -188,7 +242,7 @@ else
   fail "fresh project ignored .wgm/STOP (rc=$STOP_RC): $STOP_OUT"
 fi
 
-# 5e) plan/extract reject stale pre-existing artifacts when the phase makes no change
+# 5f) plan/extract reject stale pre-existing artifacts when the phase makes no change
 run plan 1 --metrics off -- "${AGENT_PLAN_NOOP[@]}"
 if [[ "$RC" -eq 1 ]] && grep -q "Phase artifact unchanged" <<<"$OUT"; then
   pass "plan rejects a stale unchanged artifact"
@@ -204,7 +258,7 @@ else
 fi
 rm -f AGENTS.md
 
-# 5f) frugal/main escalation gets a chance before the no-progress circuit breaker
+# 5g) frugal/main escalation gets a chance before the no-progress circuit breaker
 FRUGAL_CMD="bash -c 'if [[ -n \"\${WGM_CAPABILITY_PROBE_FILE:-}\" ]]; then printf \"%s\" \"\$WGM_CAPABILITY_PROBE_CONTENT\" > \"\$WGM_CAPABILITY_PROBE_FILE\"; exit 0; fi; exit 0' _"
 MAIN_CMD="bash -c 'printf -- \"- main\\n\" >> IMPLEMENTATION_PLAN.md' _"
 run build 3 --max-no-progress-iterations 3 --escalate-after 2 --retry-base-delay 0 --frugal-agent "$FRUGAL_CMD" --agent "$MAIN_CMD"
@@ -214,12 +268,19 @@ else
   fail "frugal/main escalation did not recover a no-progress run (rc=$RC): $OUT"
 fi
 
-# 5g) plan and extract accept meaningful artifacts they actually create or update
+# 5h) plan and extract accept meaningful artifacts they actually create or update
 run plan 1 --metrics off -- "${AGENT_PROGRESS[@]}"
 if [[ "$RC" -eq 0 ]] && grep -q -- "- step" IMPLEMENTATION_PLAN.md; then
   pass "plan accepts a meaningful updated artifact"
 else
   fail "plan rejected a meaningful artifact update (rc=$RC)"
+fi
+rm -f custom/plan.md
+run plan 1 --plan custom/plan.md --metrics off -- "${AGENT_CUSTOM_PLAN[@]}"
+if [[ "$RC" -eq 0 ]] && [[ -s custom/plan.md ]]; then
+  pass "plan supports an explicitly selected new plan path"
+else
+  fail "plan rejected an explicitly selected new plan path (rc=$RC): $OUT"
 fi
 run extract 1 --metrics off -- "${AGENT_EXTRACT_CREATE[@]}"
 if [[ "$RC" -eq 0 ]] && [[ -s .wgm/genes.md ]]; then
@@ -251,13 +312,37 @@ fi
 rm -f AGENTS.md
 
 # 6) --notify fires the start + complete lifecycle events
+mkdir -p .wgm
+printf '%s\n' '- durable test lesson' > .wgm/memories.md
 # shellcheck disable=SC2016  # $WGM_EVENT must stay literal here; loop.sh expands it at notify time
-run build 1 --notify 'printf "%s\n" "$WGM_EVENT" >> events.log' -- "${AGENT_PROGRESS[@]}"
+run build 1 --notify 'printf "%s\n" "$WGM_EVENT" >> events.log' -- "${AGENT_STOP[@]}"
 if [[ "$RC" -eq 0 ]] && [[ -f events.log ]] && grep -qx start events.log && grep -qx complete events.log; then
   pass "notify emits start + complete"
 else
   fail "notify did not emit both start and complete"
 fi
+if grep -q "Ship/Handoff harvest" <<<"$OUT"; then
+  pass "normal build completion invokes the consent-gated harvest hook"
+else
+  fail "normal build completion did not invoke the harvest hook"
+fi
+rm -f .wgm/STOP
+run build 1 --metrics off -- "${AGENT_STOP[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "memories unchanged; skipping duplicate harvest" <<<"$OUT"; then
+  pass "unchanged memories do not trigger duplicate harvest side effects"
+else
+  fail "unchanged memories triggered an unbounded duplicate harvest (rc=$RC): $OUT"
+fi
+mkdir -p .github
+printf 'consent: false\nauto_report: false\n' > .github/wgm-hive.yml
+rm -f .wgm/STOP
+run build 1 --metrics off -- "${AGENT_STOP[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "invoking consent-gated harvest-hive hook" <<<"$OUT"; then
+  pass "a consent-state change reopens unchanged-memory harvest"
+else
+  fail "a consent-state change did not reopen harvest (rc=$RC): $OUT"
+fi
+rm -rf .github .wgm/STOP .wgm/memories.md .wgm/.last-harvest-hash
 
 # 7) portability: run by absolute path from a foreign cwd resolves the plan in THIS dir
 run build --dry-run -- true
@@ -266,6 +351,17 @@ if [[ "$RC" -eq 0 ]] && grep -q "plan=IMPLEMENTATION_PLAN.md" <<<"$OUT" && ! gre
 else
   fail "did not resolve the cwd plan when run by absolute path (rc=$RC)"
 fi
+
+# 7b) existing-project artifact placement prefers the .wgm plan when both are present
+mkdir -p .wgm
+printf '# wgm plan\n' > .wgm/IMPLEMENTATION_PLAN.md
+run build --dry-run -- true
+if [[ "$RC" -eq 0 ]] && grep -q "plan=.wgm/IMPLEMENTATION_PLAN.md" <<<"$OUT"; then
+  pass "dual-plan projects select the .wgm implementation plan"
+else
+  fail "dual-plan selection did not prefer .wgm (rc=$RC): $OUT"
+fi
+rm -f .wgm/IMPLEMENTATION_PLAN.md
 
 # 8) wgm.yml gates are auto-detected, parsed, and injected into the build prompt
 printf 'gates:\n  - echo gate-a\n  - echo gate-b\n' > wgm.yml
@@ -282,6 +378,50 @@ if [[ "$RC" -eq 2 ]] && grep -q "gates file not found" <<<"$OUT"; then
   pass "missing --gates file is rejected"
 else
   fail "missing --gates file not rejected (rc=$RC)"
+fi
+
+# 9b) configured project gates execute in the host runner, not only in the prompt
+printf 'gates:\n  - false\n' > wgm.yml
+run build 1 --max-retries 0 -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Project gate failed" <<<"$OUT"; then
+  pass "a failing project gate fails the host iteration"
+else
+  fail "a failing project gate did not fail the host iteration (rc=$RC): $OUT"
+fi
+printf 'gates:\n  - true\n' > wgm.yml
+run build 1 --max-retries 0 -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "Project gate 1/1" <<<"$OUT"; then
+  pass "a passing project gate clears the host iteration"
+else
+  fail "a passing project gate did not clear the host iteration (rc=$RC): $OUT"
+fi
+printf 'not_gates: true\n' > wgm.yml
+run build --dry-run -- true
+if [[ "$RC" -eq 2 ]] && grep -q "must declare a gates" <<<"$OUT"; then
+  pass "a malformed project gate file is rejected"
+else
+  fail "a malformed project gate file was accepted (rc=$RC): $OUT"
+fi
+printf 'gates:\n' > wgm.yml
+run build --dry-run -- true
+if [[ "$RC" -eq 2 ]] && grep -q "no executable gate" <<<"$OUT"; then
+  pass "an empty project gate list is rejected"
+else
+  fail "an empty project gate list was accepted (rc=$RC): $OUT"
+fi
+printf 'gates: [true]\n' > wgm.yml
+run build --dry-run -- true
+if [[ "$RC" -eq 0 ]] && grep -q "gates=wgm.yml (1)" <<<"$OUT"; then
+  pass "an inline project gate list is parsed"
+else
+  fail "an inline project gate list was not parsed (rc=$RC): $OUT"
+fi
+printf 'gates:\n  - "true"\n' > wgm.yml
+run build --dry-run -- true
+if [[ "$RC" -eq 0 ]] && grep -q "gates=wgm.yml (1)" <<<"$OUT"; then
+  pass "a quoted block project gate is parsed"
+else
+  fail "a quoted block project gate was not parsed (rc=$RC): $OUT"
 fi
 rm -f wgm.yml
 

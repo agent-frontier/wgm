@@ -14,6 +14,8 @@
   with `Ctrl+C` or a `STOP` sentinel.
 - **Preflight:** a non-dry-run build probes the selected agent's write capability before iteration 1;
   repeated exit-0 iterations with no plan progress are a first-class stall.
+- **Devcontainer credentials:** pass `--devcontainer-mount HOST[:CONTAINER]` for a narrowly scoped
+  agent auth/config directory; the loop never mounts a whole home directory automatically.
 - **Next:** [containers.md](containers.md) for live-service scenarios ·
   [devcontainers.md](devcontainers.md) for sandboxing the loop itself ·
   [troubleshooting.md](troubleshooting.md).
@@ -52,9 +54,9 @@ See [`references/ralph-loop.md`](../../references/ralph-loop.md) for the underly
 
 ```bash
 # A shell-evaluated command (prompt appended as the last arg):
-export WGM_AGENT='copilot -p'
+export WGM_AGENT='copilot -p --allow-all-tools'
 # …or pass argv after `--` (invoked without eval — safest):
-./scripts/loop.sh build -- copilot -p
+./scripts/loop.sh build -- copilot -p --allow-all-tools
 ```
 
 If your agent reads the prompt from stdin, set `WGM_PROMPT_STDIN=1`.
@@ -66,7 +68,7 @@ one installed copy drives any project — run the skill's copy from your project
 
 ```bash
 # from your project's root — the path depends on where wgm installed (see installation.md):
-~/.agents/skills/wgm/scripts/loop.sh build -- copilot -p
+~/.agents/skills/wgm/scripts/loop.sh build -- copilot -p --allow-all-tools
 # a handy alias makes it one word from anywhere:
 alias wgm-loop="$HOME/.agents/skills/wgm/scripts/loop.sh"
 wgm-loop build 20 --max-runtime-seconds 3600
@@ -99,7 +101,7 @@ an alias of `build`). `build`/`review`/`preflight` refuse to run without an `IMP
 | `--threshold N` | 95 | Satisfaction target the build converges to. |
 | `--scenarios DIR` | `scenarios/` or `.wgm/scenarios/` | Where holdout scenarios live. |
 | `--stratified` | off | Validate scenarios by ascending tier (1→2→3). |
-| `--container podman\|docker` | podman | Engine for containerized scenario validation. |
+| `--container auto\|podman\|docker` | auto | Auto-selects available Podman, then Docker; explicit unavailable engines fail before the run. |
 | `--frugal-agent "CMD"` | — | Cheap model for routine iterations. |
 | `--escalate-after N` | 2 | No-progress iterations before escalating to `--agent`. |
 | `--downgrade-after N` | 5 | Progressing iterations before downgrading to frugal. |
@@ -131,6 +133,7 @@ capability probing and the no-progress safety guard are on by default:
 |---|---|---|
 | `--max-runtime-seconds N` | 0 (off) | Hard wall-clock cap; the loop stops before the iteration that would exceed it. |
 | `--idle-timeout N` | 0 (off) | Stop if the plan file makes no progress for N seconds — a time-based circuit breaker. |
+| `--agent-timeout-seconds N` | 0 (off) | Terminate an active agent process group after N seconds with GNU `timeout`/`gtimeout`; unsupported hosts use a stated cooperative fallback. |
 | `--max-no-progress-iterations N` | 3 | Fail after N successful build iterations leave the plan unchanged; `0` disables it. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |
 | `--checkpoint-interval N` | 0 (off) | Commit every N build iterations, so a crash never loses work; ownership manifests still apply. |
 | `--max-cost N` | 0 (off) | Stop once cumulative cost from `--cost-cmd` reaches N — the spend equivalent of `--max-runtime-seconds`. See [Cost ceiling](#cost-ceiling) below. |
@@ -245,10 +248,10 @@ not bundle a token dashboard. It only gives you the hook and the ledger so an op
 
 ## Project gates (wgm.yml)
 
-A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands
-**every build iteration** must drive to exit 0 before a task is `done`. They are a quality *floor*
-independent of any single task's own check. `loop.sh` auto-detects the file (override with
-`--gates FILE`) and injects the list into each build prompt.
+A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands the
+host runner executes after every build iteration. They are a quality *floor* independent of any
+single task's own check. `loop.sh` auto-detects the file (override with `--gates FILE`), runs each
+command, and names a failing command before the iteration can be recorded as successful.
 
 ```yaml
 # wgm.yml
@@ -264,8 +267,8 @@ gates:
 ```
 
 Gates are **shell commands** — use only a file you trust. A starter lives in
-[`assets/wgm.example.yml`](../../assets/wgm.example.yml). Today the loop injects the gates as
-mandatory backpressure into the prompt; having `loop.sh` also run them itself is a planned follow-up.
+[`assets/wgm.example.yml`](../../assets/wgm.example.yml). The prompt still receives the list as
+context, but the host runner is the source of truth for the exit status.
 
 ## Swarm — parallel worktrees
 
@@ -275,10 +278,11 @@ the branches — one thought per branch.
 
 ```bash
 # one stream per line; each line is that stream's scope
+mkdir -p .wgm
 printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
-./scripts/swarm.sh --tasks .wgm/tasks.txt -- copilot -p   # or set $WGM_AGENT
+~/.agents/skills/wgm/scripts/swarm.sh --tasks .wgm/tasks.txt -- copilot -p --allow-all-tools   # or set $WGM_AGENT
 # …or N identical streams (race / diversity):
-./scripts/swarm.sh -n 3 --max-iterations 20 -- copilot -p
+~/.agents/skills/wgm/scripts/swarm.sh -n 3 --max-iterations 20 -- copilot -p --allow-all-tools
 ```
 
 | Flag | Effect |

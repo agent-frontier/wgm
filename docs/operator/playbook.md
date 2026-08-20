@@ -25,9 +25,9 @@ This is the minimum an operator needs to memorize to run wgm correctly, without 
       `IMPLEMENTATION_PLAN.md` / `specs/` / `scenarios/` / `docs/audit/` at the root; an existing
       project gets them under `.wgm/` instead, so wgm never clobbers your files
       ([`references/artifacts.md`](../../references/artifacts.md)).
-- [ ] Decide up front whether this build needs **Ralph-lite** (in-session, default) or **Ralph-full**
-      (`scripts/loop.sh`, fresh context per iteration — for large/ambiguous builds). See
-      [running-the-loop.md](running-the-loop.md).
+- [ ] Choose **Ralph-full** (`scripts/loop.sh`, fresh context per iteration) whenever a
+      non-interactive agent is available. Use **Ralph-lite** in-session only for interactive-only
+      hosts or Quick-track work. See [running-the-loop.md](running-the-loop.md).
 - [ ] If you'll validate against a live service, confirm Podman or Docker is available
       ([containers.md](containers.md)).
 
@@ -63,8 +63,9 @@ flowchart TD
    `Gate check:` block at the end of each iteration should be all PASS. A task is `done` only if its
    validation command exited 0 — anything else should read `blocked` or `pending`, never `done`.
 7. **At Ship/Handoff, look for the docs-audit report first.** On Standard/Full tracks this is
-   mandatory — wgm should not declare Ship complete without one. See the next section for how to
-   read it.
+   mandatory. A compatible host dispatcher must launch the persona swarm; the portable loop cannot
+   create that host-level dispatcher itself. If the report is absent, record the limitation and do
+   not call the audit gate green. See the next section for how to read it.
 8. **Confirm the repo is left resumable.** `IMPLEMENTATION_PLAN.md` should be current enough that a
    fresh `/wgm build` could pick up where this run left off.
 
