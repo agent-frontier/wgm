@@ -230,6 +230,11 @@ flowchart LR
   memories, this project's own GitHub Issues, cross-pollinated external research) and, once a
   project consents once via a committed `.github/wgm-hive.yml`, report it upstream automatically —
   no further per-run asking — so wgm grows from every codebase (`references/self-improvement.md`).
+- **Stage 8+ growth** — wgm is independently assessed as an **operational Stage 8.5 / Stage 9
+  candidate**: it can improve its own control plane from evidence, but still requires human/host
+  gates for consent, review, promotion, and rollback. See the
+  [growth-stage record](docs/plans/2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md)
+  and the external [Gas Town stages model](https://docs.gt.villamarket.ai/docs/guides/eight-stages).
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).

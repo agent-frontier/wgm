@@ -17,6 +17,7 @@ New here? Start with **[Get started](get-started/README.md)**.
 | Look up an exact flag or file path | [Reference](reference/README.md) |
 | Fix something that went wrong | [Troubleshooting](operator/troubleshooting.md) |
 | Understand *why* wgm works this way | [Concepts](#concepts-how-wgm-thinks) |
+| Track wgm's maturity and growth | [Stage 8+ growth record](plans/2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md) |
 | Contribute to wgm itself | [Contributing](../CONTRIBUTING.md) · [Style guide](style-guide.md) |
 
 ## Documentation sections
@@ -120,6 +121,9 @@ self-tests).
 
 Design records, kept for provenance rather than as current instructions:
 
+- [2026-08-20 — Stage 8+ growth record](plans/2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md) — why wgm is
+  assessed as Stage 9 emerging/supervised, what is already orchestrated, and what full self-improvement
+  autonomy still requires.
 - [2026-06-16 — competitive analysis and improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
   compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me (**all tiers
   shipped**).
