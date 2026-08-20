@@ -4,7 +4,7 @@
 **Status:** current maturity record  
 **Operator hypothesis:** **Stage 9 at least**  
 **Independent assessment:** **Stage 8.5 operational / Stage 9 candidate**  
-**Current release line:** `main` at `12fff427` (PR #97)
+**Current release line:** `main` at `27a52bf` (PR #98)
 
 ## Executive summary
 
