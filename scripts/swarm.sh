@@ -25,6 +25,7 @@
 #   --max-iterations N  per-stream loop.sh build iteration cap; 0 = until each self-stops (default: 0)
 #   --prefix NAME       branch/worktree name prefix (default: wgm/swarm)
 #   --worktree-dir DIR  base dir for the worktrees (default: .wgm/worktrees; gitignored by wgm)
+#   --gates FILE        project-wide gate file forwarded to every lane
 #   --cleanup           remove the worktree dirs when done — branches are KEPT for merging
 #   --dry-run           print the plan; create no worktrees and run nothing
 #   -h | --help         show this help
@@ -62,6 +63,7 @@ COUNT=0
 MAXIT=0
 PREFIX="wgm/swarm"
 WT_DIR=".wgm/worktrees"
+GATES_FILE=""
 CLEANUP=0
 DRY_RUN=0
 AGENT_ARGV=()
@@ -76,6 +78,7 @@ while [[ $# -gt 0 ]]; do
     --max-iterations) [[ $# -ge 2 ]] || { echo "--max-iterations requires a number" >&2; exit 2; }; MAXIT="$2"; shift 2 ;;
     --prefix) [[ $# -ge 2 ]] || { echo "--prefix requires a name" >&2; exit 2; }; PREFIX="$2"; shift 2 ;;
     --worktree-dir) [[ $# -ge 2 ]] || { echo "--worktree-dir requires a dir" >&2; exit 2; }; WT_DIR="$2"; shift 2 ;;
+    --gates) [[ $# -ge 2 ]] || { echo "--gates requires a file" >&2; exit 2; }; GATES_FILE="$2"; shift 2 ;;
     --cleanup) CLEANUP=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --) shift; AGENT_ARGV=("$@"); break ;;
@@ -87,6 +90,11 @@ done
 for n in "$COUNT" "$MAXIT"; do
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "expected a non-negative integer, got: $n" >&2; exit 2; }
 done
+
+if [[ -n "$GATES_FILE" ]]; then
+  [[ -f "$GATES_FILE" ]] || { echo "gates file not found: $GATES_FILE" >&2; exit 2; }
+  [[ -r "$GATES_FILE" ]] || { echo "gates file is unreadable: $GATES_FILE" >&2; exit 2; }
+fi
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not inside a git repository." >&2; exit 2; }
 
@@ -119,7 +127,7 @@ SAFE_PREFIX="${PREFIX//\//-}"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "== wgm swarm (dry run) =="
-  echo "streams=${#TASKS[@]} prefix=${PREFIX} worktree_dir=${WT_DIR} max_iterations=${MAXIT} cleanup=${CLEANUP}"
+  echo "streams=${#TASKS[@]} prefix=${PREFIX} worktree_dir=${WT_DIR} max_iterations=${MAXIT} cleanup=${CLEANUP} gates=${GATES_FILE:-auto}"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"; else echo "agent=\$WGM_AGENT"; fi
   i=0
   for task in "${TASKS[@]}"; do
@@ -135,6 +143,17 @@ mkdir -p "$METRICS_DIR"
 LOG_DIR="$(pwd)/.wgm/swarm-logs"
 mkdir -p "$LOG_DIR"
 SWARM_START=$(date +%s)
+PARENT_GATES_FILE=""
+if [[ -n "$GATES_FILE" ]]; then
+  PARENT_GATES_FILE="$GATES_FILE"
+elif [[ -f wgm.yml ]]; then
+  PARENT_GATES_FILE="wgm.yml"
+elif [[ -f .wgm/gates.yml ]]; then
+  PARENT_GATES_FILE=".wgm/gates.yml"
+fi
+if [[ -n "$PARENT_GATES_FILE" && "$PARENT_GATES_FILE" != /* ]]; then
+  PARENT_GATES_FILE="$(cd "$(dirname "$PARENT_GATES_FILE")" && pwd)/$(basename "$PARENT_GATES_FILE")"
+fi
 
 copy_lane_artifacts() {
   local rel parent
@@ -174,6 +193,8 @@ for task in "${TASKS[@]}"; do
   fi
   copy_lane_artifacts
   reqflag=()
+  lane_gate_args=()
+  [[ -n "$PARENT_GATES_FILE" ]] && lane_gate_args=(--gates "$PARENT_GATES_FILE")
   # Re-pin the lane's worktree on every turn. An agent that keeps working from retained context
   # drifts back to the parent checkout and can advance the parent's own branch, so the absolute
   # worktree path and expected branch are restated in the request itself rather than assumed to
@@ -193,8 +214,8 @@ for task in "${TASKS[@]}"; do
       echo "✗ lane guard: expected worktree ${abs_dir} on ${br}, got ${top:-<none>} on ${cur:-<none>}" >&2
       exit 1
     fi
-    WGM_PARENT_TASK="${task:-stream-${i}}" \
-      "$LOOP" build "$MAXIT" "${reqflag[@]}" --commit \
+    WGM_SWARM_LANE=1 WGM_PARENT_TASK="${task:-stream-${i}}" \
+      "$LOOP" build "$MAXIT" "${reqflag[@]}" "${lane_gate_args[@]}" --commit \
       --metrics "${METRICS_DIR}/${SAFE_PREFIX}-${i}.tsv" -- "${AGENT_ARGV[@]}"
   ) >"${LOG_DIR}/${SAFE_PREFIX}-${i}.log" 2>&1 &
   PIDS+=("$!")

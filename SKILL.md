@@ -341,14 +341,14 @@ next iteration is a consolidation task (help land existing PRs), not another net
   is **already published, do not rewrite shared history**: build a replacement two-parent merge from
   the same parents with the trailers present and prove `old^{tree} == replacement^{tree}` before
   promoting it (`[learn]` issue #82).
-- **Audit the docs — mandatory, no need to ask (Standard/Full).** Dispatch the docs-audit swarm:
-  four independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
-  technical-writer role into one paper-trail report — every action item labeled strictly **Agent
-  action** or **Operator action** — committed under `docs/audit/` (or `.wgm/docs/audit/`). A
-  consolidated pass must eventually cover every Standard-track PR, though on that track a dedicated
-  run MAY be deferred and batched across a same-session run of PRs rather than dispatched after each
-  one (see "Batching" in `references/docs-audit.md`); Quick tracks rely on `scripts/check-docs.sh`
-  alone.
+- **Audit the docs — mandatory lifecycle evidence, host-dispatched (Standard/Full).** A compatible
+  host dispatcher must run the docs-audit swarm: four independent persona reviews (junior dev ·
+  senior dev · principal dev · PM), consolidated by a technical-writer role into one paper-trail
+  report — every action item labeled strictly **Agent action** or **Operator action** — committed
+  under `docs/audit/` (or `.wgm/docs/audit/`). The portable `loop.sh` runner does not own this
+  dispatcher; when the host cannot provide it, the operator must record the limitation and run the
+  available structural gate instead of treating a missing report as success. A consolidated pass
+  must eventually cover every Standard-track PR; Quick tracks rely on `scripts/check-docs.sh` alone.
 - **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` — including any swarm-consolidated
   stream lessons folded into it — for a lesson that is durable, cross-project, and sanitized (about
   wgm's behavior — never the host's code or secrets), then **always anonymize it** before drafting

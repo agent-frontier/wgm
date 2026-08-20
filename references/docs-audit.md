@@ -1,9 +1,11 @@
 # Docs audit — the core, automatic paper trail
 
-Documentation quality is audited **automatically**, as a mandatory part of the lifecycle — an
-operator should never have to ask wgm to "please review the docs." This reference defines when the
-audit runs, who reviews (four personas), how a technical writer consolidates their feedback, and what
-durable artifact it leaves behind: the **paper trail**.
+Documentation quality is a **mandatory lifecycle requirement**, but the persona dispatcher is
+host-owned: the portable shell runner cannot launch arbitrary host subagents by itself. A compatible
+host should run the audit without requiring a separate user reminder; if no such host dispatcher is
+available, the operator must record that limitation rather than claiming the audit passed. This
+reference defines when the audit runs, who reviews (four personas), how a technical writer consolidates
+their feedback, and what durable artifact it leaves behind: the **paper trail**.
 
 This complements, and never replaces, `scripts/check-docs.sh` — the deterministic **structural**
 check (required files, balanced fences, dead links, placeholders, and explicitly marked complete

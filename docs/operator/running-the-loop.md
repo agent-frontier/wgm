@@ -14,6 +14,8 @@
   with `Ctrl+C` or a `STOP` sentinel.
 - **Preflight:** a non-dry-run build probes the selected agent's write capability before iteration 1;
   repeated exit-0 iterations with no plan progress are a first-class stall.
+- **Devcontainer credentials:** pass `--devcontainer-mount HOST[:CONTAINER]` for a narrowly scoped
+  agent auth/config directory; the loop never mounts a whole home directory automatically.
 - **Next:** [containers.md](containers.md) for live-service scenarios ·
   [devcontainers.md](devcontainers.md) for sandboxing the loop itself ·
   [troubleshooting.md](troubleshooting.md).

@@ -233,10 +233,10 @@ git init
 # 2. Run the host adapter configured to use wgm with your plugin
 /wgm plan: test feature
 
-# 3. Check the host adapter logs for plugin invocation
-grep "my-plugin" ~/.copilot/skills/wgm/session.log
+# 3. Check the host adapter's documented log/output for plugin invocation
+grep "my-plugin" HOST_ADAPTER_LOG
 
-# 4. Verify your hook was called
+# 4. Verify the adapter's callback fixture or structured result
 grep "my-plugin" .wgm/IMPLEMENTATION_PLAN.md
 ```
 

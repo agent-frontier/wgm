@@ -71,8 +71,8 @@ repositories, so **no real agent, model, network, or token is needed**.
 |---|---|
 | `test-install.sh` | Install, idempotent re-run, uninstall, WSL mirroring, companion install, `--no-companions` |
 | `test-install.ps1` | The same, for the PowerShell installer |
-| `test-loop.sh` | Limit knobs, capability probe, no-progress stall, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
-| `test-swarm.sh` | Parallel branches, worktree pinning, zero-commit failure, memory consolidation, telemetry summary |
+| `test-loop.sh` | Limit knobs, capability probe, no-progress stall, project-gate execution, container selection, phase artifacts, watchdog timeout, harvest idempotency, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
+| `test-swarm.sh` | Parallel branches, worktree/artifact pinning, project-gate propagation, partial-setup failure, zero-commit failure, memory consolidation, telemetry summary |
 | `test-devcontainer.sh` | Sandbox init, base-image build, run, prune |
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |

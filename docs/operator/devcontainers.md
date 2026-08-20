@@ -13,7 +13,7 @@
   your own UID (not the image's), label everything so `prune` is safely scoped, never mount your
   whole `$HOME`.
 - **Fastest path:** `scripts/devcontainer.sh build-base` once, then
-  `scripts/loop.sh build --devcontainer -- copilot -p --allow-all-tools`.
+  `scripts/loop.sh build --devcontainer --devcontainer-mount ~/.copilot:/home/wgm/.copilot -- copilot -p --allow-all-tools`.
 - **Next:** [running-the-loop.md](running-the-loop.md) · [containers.md](containers.md) (the
   *other* container use case — validating the app under test, not the loop itself).
 
@@ -81,7 +81,7 @@ VS Code can also open for interactive work.
 
 ```bash
 export WGM_AGENT='copilot -p --allow-all-tools'
-./scripts/loop.sh build 20 --devcontainer
+./scripts/loop.sh build 20 --devcontainer --devcontainer-mount ~/.copilot:/home/wgm/.copilot
 ```
 
 `--devcontainer` re-execs the *entire* `loop.sh` invocation inside the sandbox via

@@ -108,6 +108,10 @@ and, importantly, what they do not.
 |---|---|---|
 | `--gates FILE` | auto-detect `wgm.yml` or `.wgm/gates.yml` | A YAML file with a `gates:` list of commands executed by the host after each build iteration. |
 
+The gate file accepts a block list (`gates:` followed by `- command`) or a simple inline list
+(`gates: [command-a, command-b]`). Use the block form when a command contains a comma or needs
+shell quoting; commands are trusted shell text and execute in the target project directory.
+
 ### Execution
 
 | Flag | Default | Description |
@@ -115,6 +119,7 @@ and, importantly, what they do not.
 | `--commit` | off | Commit after each build iteration. Requires a clean baseline, exclusive worktree ownership, and an iteration path manifest. |
 | `--checkpoint-interval N` | `0` (off) | Commit every N build iterations, independent of `--commit`. |
 | `--devcontainer` | off | Run the entire invocation inside wgm's shared local sandbox. A no-op with `--dry-run`. |
+| `--devcontainer-mount HOST[:CONTAINER]` | none | Repeatable credential/config bind mount forwarded to the sandbox; requires `--devcontainer`. |
 | `--notify "CMD"` | none | Run CMD on lifecycle events with `$WGM_EVENT` (`start`, `complete`, `error`, `retry`) and `$WGM_ITER` set. Best-effort. |
 | `--dry-run` | off | Print the prompt and the command that would run; invoke nothing, including the capability probe. |
 | `-h`, `--help` | — | Show usage. |
@@ -141,8 +146,8 @@ missing manifest or undeclared path fails closed instead of being swept into the
 | Code | Meaning |
 |---|---|
 | `0` | The loop finished: iterations exhausted, a stop condition fired, or the stop sentinel appeared. |
-| `1` | A capability probe, phase-artifact, no-progress, ownership, single-phase, or circuit-breaker check failed; or `build`/`review`/`preflight` ran with no `IMPLEMENTATION_PLAN.md`. |
-| `2` | Misconfiguration: unknown flag, non-numeric knob value, missing `--gates` file, or no agent configured. |
+| `1` | A capability probe, phase-artifact, project-gate, timeout, no-progress, ownership, single-phase, or circuit-breaker check failed; or `build`/`review`/`preflight` ran with no `IMPLEMENTATION_PLAN.md`. |
+| `2` | Misconfiguration: unknown flag, non-numeric knob value, malformed/unreadable gate file, unavailable explicit container engine, missing `--gates` file, or no agent configured. |
 
 ## Stopping a run
 

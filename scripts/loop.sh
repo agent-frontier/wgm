@@ -75,6 +75,8 @@
 #                        across every project, never a per-project build. See
 #                        references/devcontainers.md. A no-op with --dry-run (annotates the
 #                        preview instead of launching a container).
+#   --devcontainer-mount HOST[:CONTAINER]
+#                        repeatable credential/config bind mount forwarded to the devcontainer
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             commit each build iteration; takes exclusive ownership of the worktree
 #   -h | --help          show this help
@@ -130,6 +132,7 @@ CUM_COST=0
 USE_DEVCONTAINER=0
 AGENT_TIMEOUT=0
 TIMEOUT_BIN=""
+DEV_MOUNTS=()
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
@@ -141,6 +144,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --commit)  DO_COMMIT=1; shift ;;
     --devcontainer) USE_DEVCONTAINER=1; shift ;;
+    --devcontainer-mount) [[ $# -ge 2 ]] || { echo "--devcontainer-mount requires HOST[:CONTAINER]" >&2; exit 2; }; DEV_MOUNTS+=("$2"); shift 2 ;;
     --agent)   [[ $# -ge 2 ]] || { echo "--agent requires a command" >&2; exit 2; }; AGENT="$2"; shift 2 ;;
     --frugal-agent) [[ $# -ge 2 ]] || { echo "--frugal-agent requires a command" >&2; exit 2; }; FRUGAL_AGENT="$2"; shift 2 ;;
     --request) [[ $# -ge 2 ]] || { echo "--request requires text" >&2; exit 2; }; REQUEST="$2"; shift 2 ;;
@@ -191,6 +195,10 @@ done
 [[ "$MAX_COST" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "expected a non-negative number for --max-cost, got: $MAX_COST" >&2; exit 2; }
 if [[ -z "$COST_CMD" ]] && awk -v m="$MAX_COST" 'BEGIN{exit !(m>0)}'; then
   echo "⚠ --max-cost is set but --cost-cmd is not; the cost ceiling will never trigger." >&2
+fi
+if [[ "${#DEV_MOUNTS[@]}" -gt 0 && "$USE_DEVCONTAINER" -eq 0 ]]; then
+  echo "--devcontainer-mount requires --devcontainer." >&2
+  exit 2
 fi
 
 resolve_runtime_primitives() {
@@ -280,6 +288,8 @@ if [[ -n "$GATES_FILE" ]]; then
     done
   else
     while IFS= read -r _g; do
+      _g="${_g#"${_g%%[![:space:]]*}"}"; _g="${_g%"${_g##*[![:space:]]}"}"
+      _g="${_g#\"}"; _g="${_g%\"}"; _g="${_g#\'}"; _g="${_g%\'}"
       [[ -n "$_g" ]] && GATES+=("$_g")
     done < <(
       awk '
@@ -342,7 +352,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set} max_cost=${MAX_COST}"
   echo "capability_probe=on (dry-run never executes the probe)"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
-  echo "devcontainer=${USE_DEVCONTAINER}$([[ $USE_DEVCONTAINER -eq 1 ]] && echo ' (would re-exec this whole invocation inside scripts/devcontainer.sh — skipped for --dry-run)')"
+  echo "devcontainer=${USE_DEVCONTAINER} mounts=${#DEV_MOUNTS[@]}$([[ $USE_DEVCONTAINER -eq 1 ]] && echo ' (would re-exec this whole invocation inside scripts/devcontainer.sh — skipped for --dry-run)')"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
   echo "--- prompt ---"; printf '%s\n' "$PROMPT"
@@ -367,14 +377,25 @@ fi
 if [[ "$USE_DEVCONTAINER" -eq 1 && -z "${WGM_IN_DEVCONTAINER:-}" ]]; then
   SKILL_ROOT="$(cd "$HERE/.." && pwd)"
   REEXEC_ARGV=()
+  _skip_mount_value=0
   for _a in "${ORIGINAL_ARGV[@]}"; do
-    [[ "$_a" == "--devcontainer" ]] || REEXEC_ARGV+=("$_a")
+    if [[ "$_skip_mount_value" -eq 1 ]]; then
+      _skip_mount_value=0
+      continue
+    fi
+    case "$_a" in
+      --devcontainer) ;;
+      --devcontainer-mount) _skip_mount_value=1 ;;
+      *) REEXEC_ARGV+=("$_a") ;;
+    esac
   done
   ENV_FLAGS=()
+  MOUNT_FLAGS=()
+  for _mount in "${DEV_MOUNTS[@]}"; do MOUNT_FLAGS+=(--mount "$_mount"); done
   [[ -n "${WGM_AGENT:-}" ]] && ENV_FLAGS+=(--env WGM_AGENT)
   [[ -n "${WGM_FRUGAL_AGENT:-}" ]] && ENV_FLAGS+=(--env WGM_FRUGAL_AGENT)
   [[ -n "${WGM_PROMPT_STDIN:-}" ]] && ENV_FLAGS+=(--env WGM_PROMPT_STDIN)
-  exec "$HERE/devcontainer.sh" run --skill-dir "$SKILL_ROOT" "${ENV_FLAGS[@]}" -- \
+  exec "$HERE/devcontainer.sh" run --skill-dir "$SKILL_ROOT" "${MOUNT_FLAGS[@]}" "${ENV_FLAGS[@]}" -- \
     /opt/wgm-skill/scripts/loop.sh "${REEXEC_ARGV[@]}"
 fi
 
@@ -761,10 +782,19 @@ discard_iteration_ownership() {
 }
 
 run_harvest_hook() {
-  local memories=".wgm/memories.md" hash marker=".wgm/.last-harvest-hash" rc
-  [[ "$MODE" == "build" && "$LOOP_FAILED" -eq 0 && -x "$HERE/harvest-hive.sh" ]] || return 0
+  local memories=".wgm/memories.md" hash marker=".wgm/.last-harvest-hash" rc memory_hash consent_hash
+  [[ "$MODE" == "build" && "$LOOP_FAILED" -eq 0 && "$LOOP_HANDOFF" -eq 1 ]] || return 0
+  [[ "${WGM_SWARM_LANE:-0}" -eq 0 && -x "$HERE/harvest-hive.sh" ]] || return 0
   [[ -s "$memories" ]] || return 0
-  hash="$(file_hash "$memories")"
+  memory_hash="$(file_hash "$memories")"
+  consent_hash="$(file_hash_or_none .github/wgm-hive.yml)"
+  if command -v sha1sum >/dev/null 2>&1; then
+    hash="$(printf '%s\n%s\n' "$memory_hash" "$consent_hash" | sha1sum | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    hash="$(printf '%s\n%s\n' "$memory_hash" "$consent_hash" | shasum | awk '{print $1}')"
+  else
+    hash="$(printf '%s\n%s\n' "$memory_hash" "$consent_hash" | cksum | awk '{print $1}')"
+  fi
   if [[ -f "$marker" ]] && [[ "$(cat "$marker" 2>/dev/null || true)" == "$hash" ]]; then
     echo "Ship/Handoff harvest: memories unchanged; skipping duplicate harvest."
     return 0
@@ -794,6 +824,7 @@ ITER=0
 COMPLETED=0
 CONSEC_FAIL=0
 LOOP_FAILED=0
+LOOP_HANDOFF=0
 NOPROG=0
 PROG=0
 START_TS=$(date +%s)
@@ -817,6 +848,8 @@ while :; do
   echo "==================== wgm ${MODE} (${ACTIVE}) — iteration ${ITER} ===================="
   HASH_BEFORE="$(plan_hash)"
   ITER_START=$(date +%s)
+  STOP_BEFORE=0
+  stop_requested && STOP_BEFORE=1
   ITER_PROMPT="$PROMPT"
   PHASE_PLAN_ROOT_BEFORE="$(file_hash_or_none IMPLEMENTATION_PLAN.md)"
   PHASE_PLAN_WGM_BEFORE="$(file_hash_or_none .wgm/IMPLEMENTATION_PLAN.md)"
@@ -882,6 +915,7 @@ Commit ownership: before you finish, write every repository-relative file path y
       PROG=$((PROG + 1))
     fi
     if stop_requested; then
+      [[ "$STOP_BEFORE" -eq 0 ]] && LOOP_HANDOFF=1
       record_metrics ok
       echo "Stop sentinel found after iteration ${ITER}; ending."
       break

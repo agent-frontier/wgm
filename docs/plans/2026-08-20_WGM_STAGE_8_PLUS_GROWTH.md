@@ -77,7 +77,8 @@ commit boundaries.
 | Host-enforced project gates and container selection | Implemented | `bash scripts/test-loop.sh`; `auto -> podman -> docker -> unavailable` resolution |
 | Honest plugin boundary and normal-loop Hive harvest hook | Implemented | `references/plugin-integration.md` proposed/unwired status; loop and swarm harnesses |
 | Interruptible agent execution | Implemented on supported hosts | `--agent-timeout-seconds` with GNU `timeout`/`gtimeout`; cooperative fallback otherwise |
-| Final growth audit and remote delivery | Pending in this worktree | Full `make validate`, final docs audit, and reviewed merge remain the gate |
+| Final growth audit | Implemented in this growth pass | `docs/audit/2026-08-20T1729Z_growth-opportunities-final.md`; `make validate` is green |
+| Remote delivery | Pending in this worktree | Reviewed PR and merged validation remain the final delivery gate |
 
 ## WGM evidence at the emerging Stage 9 boundary
 

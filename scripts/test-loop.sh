@@ -95,6 +95,12 @@ if [[ "$RC" -eq 0 ]] && grep -qE "container=(podman|docker|unavailable)" <<<"$OU
 else
   fail "explicit container auto did not resolve (rc=$RC): $OUT"
 fi
+run build --dry-run --devcontainer --devcontainer-mount "$TMP/auth:/home/wgm/.copilot" -- true
+if [[ "$RC" -eq 0 ]] && grep -q "mounts=1" <<<"$OUT"; then
+  pass "devcontainer auth mounts are forwarded by the loop"
+else
+  fail "devcontainer auth mount was not surfaced (rc=$RC): $OUT"
+fi
 
 # 2b) a successful but non-writing agent is rejected before the first paid iteration
 run build 1 --max-retries 0 -- "${AGENT_NO_WRITE[@]}"
@@ -309,7 +315,7 @@ rm -f AGENTS.md
 mkdir -p .wgm
 printf '%s\n' '- durable test lesson' > .wgm/memories.md
 # shellcheck disable=SC2016  # $WGM_EVENT must stay literal here; loop.sh expands it at notify time
-run build 1 --notify 'printf "%s\n" "$WGM_EVENT" >> events.log' -- "${AGENT_PROGRESS[@]}"
+run build 1 --notify 'printf "%s\n" "$WGM_EVENT" >> events.log' -- "${AGENT_STOP[@]}"
 if [[ "$RC" -eq 0 ]] && [[ -f events.log ]] && grep -qx start events.log && grep -qx complete events.log; then
   pass "notify emits start + complete"
 else
@@ -320,7 +326,23 @@ if grep -q "Ship/Handoff harvest" <<<"$OUT"; then
 else
   fail "normal build completion did not invoke the harvest hook"
 fi
-rm -f .wgm/memories.md .wgm/.last-harvest-hash
+rm -f .wgm/STOP
+run build 1 --metrics off -- "${AGENT_STOP[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "memories unchanged; skipping duplicate harvest" <<<"$OUT"; then
+  pass "unchanged memories do not trigger duplicate harvest side effects"
+else
+  fail "unchanged memories triggered an unbounded duplicate harvest (rc=$RC): $OUT"
+fi
+mkdir -p .github
+printf 'consent: false\nauto_report: false\n' > .github/wgm-hive.yml
+rm -f .wgm/STOP
+run build 1 --metrics off -- "${AGENT_STOP[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "invoking consent-gated harvest-hive hook" <<<"$OUT"; then
+  pass "a consent-state change reopens unchanged-memory harvest"
+else
+  fail "a consent-state change did not reopen harvest (rc=$RC): $OUT"
+fi
+rm -rf .github .wgm/STOP .wgm/memories.md .wgm/.last-harvest-hash
 
 # 7) portability: run by absolute path from a foreign cwd resolves the plan in THIS dir
 run build --dry-run -- true
@@ -393,6 +415,13 @@ if [[ "$RC" -eq 0 ]] && grep -q "gates=wgm.yml (1)" <<<"$OUT"; then
   pass "an inline project gate list is parsed"
 else
   fail "an inline project gate list was not parsed (rc=$RC): $OUT"
+fi
+printf 'gates:\n  - "true"\n' > wgm.yml
+run build --dry-run -- true
+if [[ "$RC" -eq 0 ]] && grep -q "gates=wgm.yml (1)" <<<"$OUT"; then
+  pass "a quoted block project gate is parsed"
+else
+  fail "a quoted block project gate was not parsed (rc=$RC): $OUT"
 fi
 rm -f wgm.yml
 

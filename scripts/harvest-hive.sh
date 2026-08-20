@@ -24,7 +24,8 @@
 #     the source memories file.
 #   * The courier FAILS CLOSED: after scrubbing, the rendered title+body is scanned for residual
 #     host identifiers (URLs, absolute paths, emails, commit hashes, the local repo owner/name/
-#     basename, plus any $WGM_HIVE_DENYLIST tokens) and for the single-lesson size ceiling. Any hit
+#     basename, plus any token from the newline-delimited file named by $WGM_HIVE_DENYLIST) and for
+#     the single-lesson size ceiling. Any hit
 #     refuses publication with a non-zero exit and no network call.
 #   * Dry run never calls `gh`; it only prints what would be written/filed.
 

@@ -78,6 +78,17 @@ else
 fi
 reset_swarm
 
+# 2a) parent project gates are copied into each lane and executed there
+printf 'gates:\n  - test -f IMPLEMENTATION_PLAN.md\n' > wgm.yml
+run --tasks tasks.txt --max-iterations 1 --prefix wgm/gates -- "${AGENT_OK[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "Project gate 1/1" .wgm/swarm-logs/wgm-gates-1.log; then
+  pass "project gates propagate into and execute inside swarm lanes"
+else
+  fail "project gates did not propagate into the swarm lane (rc=$RC): $OUT"
+fi
+rm -f wgm.yml
+reset_swarm
+
 # 2b) each lane's prompt re-pins its absolute worktree and expected branch, so a later turn cannot
 #     drift back to the parent checkout and mutate it ([learn] issue #73).
 # shellcheck disable=SC2016  # $1 is the fake agent's own positional (the prompt), not ours.
@@ -139,6 +150,11 @@ if grep -q "no human is present to answer, so treating only this run as declined
   pass "the standing post-swarm harvest-hive dispatch ran safely with no consent file yet"
 else
   fail "swarm.sh did not dispatch harvest-hive.sh after consolidating memories: $OUT"
+fi
+if [[ "$RC" -eq 0 ]] && ! grep -R -q "Ship/Handoff harvest" .wgm/swarm-logs; then
+  pass "swarm lanes defer harvest side effects to the parent"
+else
+  fail "a swarm lane invoked the parent-only harvest hook"
 fi
 reset_swarm
 

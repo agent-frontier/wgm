@@ -6,6 +6,8 @@ for the discipline and [`docs/operator/playbook.md`](../operator/playbook.md) fo
 
 | Date (UTC) | Verdict | Covers | Report |
 |---|---|---|---|
+| 2026-08-20T1731Z | AMBER | Final growth-opportunities audit after gate, watchdog, harvest, plan, swarm, and plugin-boundary fixes | [2026-08-20T1731Z_growth-opportunities-final.md](2026-08-20T1731Z_growth-opportunities-final.md) |
+| 2026-08-20T1729Z | AMBER | Final growth-opportunities review: T1-T4 host boundaries, watchdogs, gates, harvest, and Stage 8.5 record | [2026-08-20T1729Z_growth-opportunities-final.md](2026-08-20T1729Z_growth-opportunities-final.md) |
 | 2026-08-20T0744Z | AMBER | Focused Ship/Handoff review for capability hardening (#87–#96) | [2026-08-20T0744Z_capability-hardening-final.md](2026-08-20T0744Z_capability-hardening-final.md) |
 | 2026-08-20T0718Z | RED | Full-track Plan-exit baseline for capability hardening (#87–#96), clean `origin/main` `af1a54e` | [2026-08-20T0718Z_capability-hardening-baseline.md](2026-08-20T0718Z_capability-hardening-baseline.md) |
 | 2026-07-09T0113Z | RED | PRs #62-#65 | [2026-07-09T0113Z_pr62-65-post-merge-audit.md](2026-07-09T0113Z_pr62-65-post-merge-audit.md) |
