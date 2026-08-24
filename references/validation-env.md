@@ -40,6 +40,17 @@ running service is the only way to observe the behavior a scenario describes.
 - Bind to **localhost**; pick a free port (and parameterize it) to avoid collisions across iterations.
 - **Never** bake secrets into the image or mount credential files; pass throwaway test config only.
 - Always clean up (`--rm`, remove dangling images) so iterations don't leak containers.
+- **`localhost` is the right default only for a *same-side* consumer.** Bind/publish on loopback
+  when the thing that calls the service runs on the same OS instance. When the consumer lives across
+  a virtualization boundary — a **Windows process calling a service inside WSL**, a browser on the
+  host calling a VM guest — loopback inside the guest is invisible to it: the guest's `127.0.0.1` is
+  not the host's. Publish on all interfaces (or forward the port) and have the consumer use the
+  guest's routable address (for WSL, the distro's IPv4) — noting that an all-interfaces bind is
+  **LAN-reachable while it runs**, so keep such a service disposable, short-lived, and free of real
+  data. **Verify it from the consumer's own OS**: a
+  guest-side `curl` cannot observe that boundary at all, because it never crosses it. Run
+  `bash scripts/test-wsl-windows-boundary.sh` on a Windows+WSL host to contrast both binds with a
+  real Windows-origin probe (`[learn]` issue `agent-frontier/wgm#101`).
 - **An isolated verifier must own its target directory.** A validation chain that inherits a
   globally shared build-target override (a `*_TARGET_DIR`-style env var, a shared cache path, a
   user-level tool config) can emit artifacts *outside* the stage-local path its verifier then

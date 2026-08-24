@@ -214,6 +214,14 @@ and reinstalls in one step.
 | **Cause** | No container engine, or a port or readiness problem. |
 | **Resolution** | Confirm `podman` or `docker` is installed, or pass `--container` explicitly. Check the readiness wait and that the published port is free. See [Containers](containers.md). |
 
+### A service running in WSL is unreachable from Windows
+
+| | |
+|---|---|
+| **Symptom** | The service answers `curl` inside WSL, but a Windows browser, editor, or CLI cannot connect (and a WebSocket never opens). |
+| **Cause** | It is published on **WSL loopback**. The guest's `127.0.0.1` is not the Windows host's, so a loopback-only bind is invisible across the interop boundary. A Linux-side probe cannot see this at all — it never crosses the boundary. |
+| **Resolution** | Publish on **all interfaces** (`0.0.0.0` / `-p`) and connect from Windows to the distro's **WSL IPv4** (`ip -4 -o addr show scope global`). Keep `localhost` for same-side probes only. Confirm it from Windows, not from WSL: on a Windows+WSL host run `bash scripts/test-wsl-windows-boundary.sh`, which contrasts both binds with a real Windows-origin probe. On any other host it exits 3 with the reason. See [Containers](containers.md#reaching-a-service-across-an-os-boundary) and `[learn]` issue [agent-frontier/wgm#101](https://github.com/agent-frontier/wgm/issues/101). |
+
 ### A test passes alone but fails in the suite
 
 | | |

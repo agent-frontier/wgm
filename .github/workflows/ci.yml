@@ -93,10 +93,18 @@ jobs:
         # gate honest. Needs no network, no gh, and no token — contents: read is enough.
         run: bash scripts/test-release-index.sh
 
+      # Portable half of the WSL/Windows boundary check. The REAL boundary cannot run here: a
+      # GitHub-hosted Linux runner has no Windows interop and a hosted Windows runner has no WSL
+      # distro, so scripts/test-wsl-windows-boundary.sh is a manual / self-hosted-runner command and
+      # is never marked verified from this job ([learn] issue agent-frontier/wgm#101).
+      - name: WSL boundary harness (bash, no real WSL in hosted CI)
+        run: bash scripts/test-wsl-boundary-harness.sh
+
       - name: Install scripts (PowerShell)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/install.ps1), [ref]$null, [ref]$null) | Out-Null
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/test-install.ps1), [ref]$null, [ref]$null) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/test-wsl-reachability.ps1), [ref]$null, [ref]$null) | Out-Null
           ./scripts/test-install.ps1
