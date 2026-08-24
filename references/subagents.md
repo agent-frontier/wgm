@@ -305,8 +305,10 @@ grep exposed them. So before integrating:
 ## Portability & the external loop
 - **In-session:** dispatch via the host's subagent mechanism. Copilot reads `.github/agents/*.agent.md`;
   for other hosts copy them into the agent dir they scan (e.g. `.claude/agents/`).
-- **No subagent mechanism at all:** the docs-audit swarm still runs, via `scripts/audit.sh`'s
-  opaque-command dispatch (above). That is a fallback with weaker independence, and it says so.
+- **No subagent mechanism at all:** the docs-audit swarm still has a dispatch path — `scripts/audit.sh`'s
+  opaque-command runner (above) — provided the host's headless command is configured as its agent.
+  That is a fallback with weaker independence, and it says so; whether it has been exercised on a
+  particular harness is recorded per entry in `compatibility/harnesses.json`, not assumed here.
 - **Ralph-full (`scripts/loop.sh`):** today the loop runs one role per iteration. Mapping each role to
   its own agent command (a per-role implementer/reviewer dispatch) is the next step toward a true
   multi-agent swarm; until then the single agent plays each role in sequence per the Loop steps.

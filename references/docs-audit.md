@@ -1,10 +1,12 @@
 # Docs audit — the core, automatic paper trail
 
 Documentation quality is a **mandatory lifecycle requirement**. Dispatch has two honest paths: a host
-with a native subagent mechanism runs the five roles itself, and every other host runs
-`scripts/audit.sh`, the portable dispatcher that drives the same five roles through one opaque
-headless agent command. What the portable runner still cannot do is launch *host* subagents — five
-briefs against one agent buys independence of context and lens, not of model or tooling. A compatible
+with a native subagent mechanism runs the five roles itself, and any other host can use
+`scripts/audit.sh`, the portable dispatcher designed to drive the same five roles through one opaque
+headless agent command — once that command is configured as its agent. What the portable runner still
+cannot do is launch *host* subagents: five briefs against one agent buys independence of context and
+lens, not of model or tooling. Whether the portable path has actually been exercised on a given
+harness is recorded per entry in `compatibility/harnesses.json`, never assumed. A compatible
 host should run the audit without requiring a separate user reminder; if neither dispatch path is
 available, the operator must record that limitation rather than claiming the audit passed. This
 reference defines when the audit runs, who reviews (four personas), how a technical writer consolidates

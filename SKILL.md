@@ -423,9 +423,9 @@ next iteration is a consolidation task (help land existing PRs), not another net
   independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
   technical-writer role into one paper-trail report — every action item labeled strictly **Agent
   action** or **Operator action** — committed under `docs/audit/` (or `.wgm/docs/audit/`). Dispatch
-  it with the host's subagents, or on a host without them with `scripts/audit.sh`, which drives the
-  same five roles through one headless agent command (independence of context and lens, not of model
-  or tooling — record that). A consolidated pass must eventually cover every Standard-track PR;
+  it with the host's subagents, or on a host without them with `scripts/audit.sh`, built to drive the
+  same five roles through one configured headless command (independence of context and lens, not of
+  model or tooling — record that). A consolidated pass must eventually cover every Standard-track PR;
   Quick tracks rely on `scripts/check-docs.sh` alone.
 - **Harvest the juice (self-improvement).** Scan `.wgm/memories.md` — including any swarm-consolidated
   stream lessons folded into it — for a lesson that is durable, cross-project, and sanitized (about
