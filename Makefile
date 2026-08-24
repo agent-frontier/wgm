@@ -39,10 +39,11 @@ docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixtu
 	bash scripts/check-evals.sh
 	bash scripts/check-harnesses.sh
 
-test: ## Run the bash harnesses (install, loop, swarm, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync)
+test: ## Run the bash harnesses (install, loop, swarm, audit, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync)
 	bash scripts/test-install.sh
 	bash scripts/test-loop.sh
 	bash scripts/test-swarm.sh
+	bash scripts/test-audit.sh
 	bash scripts/test-devcontainer.sh
 	bash scripts/test-harvest-hive.sh
 	bash scripts/test-grade-evals.sh

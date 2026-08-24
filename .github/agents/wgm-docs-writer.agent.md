@@ -76,3 +76,12 @@ Output: docs/audit report per assets/docs-audit-report.template.md, Agent/Operat
 Runs last, after all four persona reviewers have reported (`references/subagents.md`). Its output —
 the paper-trail report — is what gates Ship/Handoff for Standard/Full tracks: Ship cannot be declared
 complete without a report existing, per `SKILL.md`.
+
+**Input/output contract (host-independent).** Input is the four persona reports plus the audit's
+scope — all four, or the audit is aborted before this role runs. Output is exactly one consolidated
+report: deduped findings, a preserved `Dissent` section, a `Rejected findings` table carrying the
+evidence that disproved each one, and every surviving finding labelled **Agent action** or
+**Operator action** by the kind of action required. When dispatched by `scripts/audit.sh`, write the
+report to the path in `$WGM_AUDIT_REPORT_FILE`, or print it to STDOUT if the host cannot write files;
+producing neither fails the audit and no report is filed. This role consolidates and never edits the
+project's own files — the dispatcher files the report.

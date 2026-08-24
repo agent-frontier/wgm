@@ -150,6 +150,30 @@ flowchart LR
   track, a Plan-exit baseline pass plus opportunistic passes on doc-touching diffs. Quick skips the
   swarm entirely and relies on `scripts/check-docs.sh`.
 
+### Portable dispatch when the host has no subagents (`scripts/audit.sh`)
+The five roles above are archetypes, not a host feature. `scripts/audit.sh` runs them through **one
+opaque headless agent command** — the same agent invoked five times with five briefs — so the swarm
+survives on a host with no subagent primitive at all, exactly as the ruggedness gate does. It is
+configured like `scripts/loop.sh` (`$WGM_AGENT`, `--agent "CMD"`, a `--` argv passthrough invoked
+without eval, `WGM_PROMPT_STDIN=1`), and it assumes no marketplace, agent registry, or vendor
+subagent API exists. Flags: [`docs/reference/cli-audit.md`](../docs/reference/cli-audit.md).
+
+Ownership boundaries the dispatcher makes deterministic rather than merely asking for:
+
+| Boundary | Enforcement |
+|---|---|
+| Personas report; they never edit | The git working tree is snapshotted around every role; a mutation fails the run. |
+| Four independent lenses, one scope | Every persona gets the identical bounded scope, and none is told where a sibling's report lives. |
+| The writer runs last, on four real reports | A persona that fails, times out, or returns nothing blocks the writer and fails the audit. |
+| The writer consolidates; it does not review | Its brief carries the four report paths plus the dedupe/dissent/verify/label rules, and nothing else. |
+| A failed audit leaves no artifact | No report file is written unless the writer produced a real one — never a success-shaped stub. |
+| The holdout stays the validator's | `scenarios/` is never read, named, or modified by the dispatcher. |
+
+**Say what it is.** Five briefs against one agent buys independence of context and lens, not of model
+or tooling — the same recorded-limitation discipline the serial ruggedness fallback uses above. Prefer
+a real subagent dispatch where the host offers one, and record the weaker independence where it does
+not.
+
 ## Hive courier (`wgm-hermes`)
 The Hive Growth Loop's messenger role: it aggregates lessons from every source
 (`references/self-improvement.md`'s Capture section), **always anonymizes** them, reads
@@ -277,6 +301,8 @@ grep exposed them. So before integrating:
 ## Portability & the external loop
 - **In-session:** dispatch via the host's subagent mechanism. Copilot reads `.github/agents/*.agent.md`;
   for other hosts copy them into the agent dir they scan (e.g. `.claude/agents/`).
+- **No subagent mechanism at all:** the docs-audit swarm still runs, via `scripts/audit.sh`'s
+  opaque-command dispatch (above). That is a fallback with weaker independence, and it says so.
 - **Ralph-full (`scripts/loop.sh`):** today the loop runs one role per iteration. Mapping each role to
   its own agent command (a per-role implementer/reviewer dispatch) is the next step toward a true
   multi-agent swarm; until then the single agent plays each role in sequence per the Loop steps.

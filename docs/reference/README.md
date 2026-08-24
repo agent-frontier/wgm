@@ -10,6 +10,7 @@ exactly does this accept?"* — for *"how do I do X?"*, start with the
 |---|---|
 | [loop.sh](cli-loop.md) | The Ralph outer loop: modes, every flag, environment variables, exit codes, stop conditions |
 | [swarm.sh](cli-swarm.md) | Parallel worktree streams: flags, partitioning rules, lane safety, telemetry output |
+| [audit.sh](cli-audit.md) | The portable docs-audit dispatcher: flags, role ordering, report placement, what it refuses to do |
 | [Installers](cli-install.md) | `install.sh` and `install.ps1`: flags, targets, environment variables, verification |
 
 ## Validation and files
