@@ -209,19 +209,26 @@ What the dispatcher enforces rather than merely requests:
 - **No success-shaped artifact from a failed run.** A failing writer produces no file at all; the
   paper trail never gains an entry that implies a pass.
 - **Read-only roles, checked not trusted — and terminal.** One baseline is taken before any role
-  runs, and every attempt is compared against *that*. A mutation aborts the audit immediately: no
-  retry, no re-baseline (re-reading the tree would adopt the damage as the new "clean" state and let
-  the retry pass), and the change is deliberately left in place to be inspected and reverted.
-  Crucially, the baseline is not "is the tree dirty?": an agent that **commits**, **stashes**, or
-  writes a **gitignored** path leaves a spotless `git status`, so the snapshot also covers HEAD and
-  branch, the stash ref and its depth, and ignored paths outside `.wgm/`. A role that mutates and
-  then reverts *exactly* within its turn is not detectable by a before/after comparison — that hole
-  is named here rather than pretended away.
+  runs, and every attempt is compared against *that*. Any change aborts the audit immediately: no
+  retry, no re-baseline (re-reading the tree would adopt it as the new "clean" state and let the
+  retry pass), and nothing is reverted, so the evidence survives.
+  The baseline is not "is the tree dirty?": an agent that **commits**, **stashes**, or writes a
+  **gitignored** path leaves a spotless `git status`, so the snapshot also covers HEAD and branch,
+  the stash ref and its depth, ignored paths outside `.wgm/`, and a content hash of the staged and
+  unstaged diffs.
+- **Evidence, not accusation.** The dispatcher cannot tell a role's write from a concurrent editor,
+  watcher, or build in the same checkout — they produce the same delta. So it reports
+  `repository state changed during <role>; origin unknown (role or concurrent process)`, prints the
+  exact bounded delta between the two snapshots, and stops. It never claims the role did it. Two
+  holes stay named rather than pretended away: a change made and reverted *exactly* within one turn
+  is invisible to a before/after comparison, and a content-only rewrite of an untracked or ignored
+  file leaves its status line unchanged.
 - **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
   may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
   repeating a decision does not improve it.
-- **One audit at a time per tree.** An atomic `.wgm/audit.lock` (`mkdir`) is taken before any role
-  runs; concurrent audits would otherwise read each other's legitimate writes as mutations and could
+- **One audit at a time per tree.** An atomic `.wgm/audit.lock` (`mkdir`) at the **worktree root** is
+  taken before any role runs, so runs launched from different subdirectories serialize on the same
+  tree; concurrent audits would otherwise read each other's legitimate writes as changes and could
   file two reports for one moment.
 - **No guard, no run.** Outside a git working tree there is nothing to snapshot, so the dispatcher
   refuses by default rather than silently dropping its own safety property. `--allow-unguarded` is the

@@ -86,7 +86,7 @@ afterwards — the dispatcher prints the reminder and leaves the wording to the 
 | Accept an exit-0 banner as a report | `Ready.` or `I could not read that path.` passes any "did it succeed and is the file non-empty?" check. Content is checked against the contract the prompt demanded. |
 | Let a role change the repository | Roles report; the dispatcher writes. Every attempt is compared against one run baseline, and a change is **terminal**: no retry, no re-baseline, and it is left in place for you to inspect. |
 | Audit a non-git tree by default | With no git tree there is no read-only guard at all. Pass `--allow-unguarded` to accept that explicitly; the run then says out loud that the guard is off. |
-| Run two audits in one tree at once | They would interleave their read-only guards and could file two reports for one moment. An atomic `.wgm/audit.lock` (created with `mkdir`) refuses the second before any role runs. |
+| Run two audits in one tree at once | They would interleave their read-only guards and could file two reports for one moment. An atomic `.wgm/audit.lock` (created with `mkdir`) refuses the second before any role runs. The lock hangs off the **worktree root**, so two runs launched from different subdirectories still serialize on the same tree. |
 | Read or name the holdout scenarios | `scenarios/` belongs to `wgm-validator`. An audit that read it would contaminate the holdout. |
 | Accept `--slug ../../elsewhere` | The slug is a filename. Traversal is rejected before anything runs. |
 | Share a scratch directory between runs | Each run gets its own `mktemp -d` working directory under `.wgm/`, so two concurrent audits cannot race. |
@@ -101,16 +101,28 @@ change a repository all leave `git status` spotless. The baseline therefore cove
 | `HEAD` and the current branch | A role that **commits** its edit, amends, resets, or switches branch — the tree goes clean and the change moves into history. |
 | The stash ref and its depth | A role that **stashes** its edit — the tree goes clean and the work hides in `refs/stash`. |
 | Tracked, untracked, **and ignored** paths outside `.wgm/` | A role that writes a **gitignored** path, which never appears in a default `git status` at all. |
-| Unstaged and staged diffs | Ordinary in-place edits. |
+| A content hash of the staged and unstaged diffs | An in-place edit to a file that was already modified, where the status line does not change. |
 
-`.wgm/` is excluded deliberately: that is the dispatcher's own scratch, and its lock and working
-directory live there.
+Every git command is anchored at the worktree root, so `.wgm/` means the *root* scratch directory no
+matter which subdirectory the audit was launched from. That exclusion is deliberate: the lock and the
+run's working directory live there.
 
-**Limitation, stated rather than papered over.** This is a before/after comparison, so a role that
-mutates and then reverts *exactly* within its own turn is invisible to it. Closing that needs
-continuous filesystem observation, which this script does not do. Note also that `--ignored` walks
-the ignored tree on every attempt; on a repository with a large vendored or build directory that walk
-is the cost of seeing ignored writes.
+**It reports the change; it does not name a culprit.** A concurrent editor, formatter, watcher, or
+build running in the same checkout produces a delta identical to a role's write, so the message is
+`repository state changed during ROLE; origin unknown (role or concurrent process)`, followed by
+the **exact delta** as a bounded `diff -u` of the two snapshots. Re-run with nothing else writing to
+the tree to tell the two apart. The run stops either way — an audit whose repository moved underneath
+it is not trustworthy regardless of who moved it — and nothing is reverted, so the change stays
+available for inspection.
+
+**Limitations, stated rather than papered over.**
+
+- A change made and then reverted *exactly* within one role's turn is invisible: this compares two
+  states, and closing it needs continuous filesystem observation, which this script does not do.
+- A content-only rewrite of an *untracked or ignored* file leaves its status line identical, so
+  creation and deletion of such paths are caught but an in-place rewrite is not.
+- `--ignored` walks the ignored tree on every attempt; on a repository with a large vendored or build
+  directory, that walk is the cost of seeing ignored writes.
 
 ## The report contract
 
@@ -143,7 +155,7 @@ decision is not improved by repeating it.
 | Failure | Retried? | Why |
 |---|---|---|
 | Non-zero exit, timeout, empty output, broken report contract | Yes, up to `--retries` | Transient: a flaky call or a wandering agent may get it right on the next fresh prompt. |
-| A role changed the repository (tree, HEAD, stash, or an ignored path) | **Never** | The baseline is never re-read, so a retry would be measured against the mutated repository and pass. The run aborts at once and the change stays visible. |
+| The repository changed during a role (tree, HEAD, stash, or an ignored path) | **Never** | The baseline is never re-read, so a retry would be measured against the changed repository and pass. The run aborts at once and the change stays visible. |
 | The lock is already held | **Never** | Whether to wait for another audit is the operator's call, not the dispatcher's. |
 
 A `--timeout-seconds` bound needs GNU `timeout` or `gtimeout`. Without one the run says so and falls
@@ -154,7 +166,7 @@ back to a cooperative timeout it cannot enforce — it never implies a bound it 
 | Code | Meaning |
 |---|---|
 | `0` | Four persona passes were consolidated and the report was written. |
-| `1` | A role failed, timed out, changed the repository, or broke its report contract. No report was written. |
+| `1` | A role failed, timed out, broke its report contract, or the repository changed mid-run. No report was written. |
 | `2` | Refused before any role ran: unknown flag, missing flag value, invalid slug, no agent, a non-git target without `--allow-unguarded`, or another audit holding this tree's lock. |
 
 ## Examples

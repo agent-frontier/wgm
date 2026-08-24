@@ -53,10 +53,13 @@
 #     report contract below.
 #   * Every role is read-only, and that is CHECKED against one run baseline after every attempt —
 #     covering HEAD and branch (a role that COMMITS leaves a clean tree), the stash ref and depth (a
-#     role that STASHES leaves a clean tree), and every tracked, untracked, and IGNORED path outside
-#     .wgm/. A role that mutates any of it fails the run TERMINALLY — no retry, no re-baseline, and
-#     the mutation is left in place for you to inspect and clean up. A role that mutates and then
-#     reverts exactly within its own turn is not detectable by a before/after comparison.
+#     role that STASHES leaves a clean tree), every tracked, untracked, and IGNORED path outside
+#     .wgm/, and a content hash of the staged and unstaged diffs. Any change fails the run
+#     TERMINALLY — no retry, no re-baseline, nothing reverted — and the exact delta is printed.
+#     The message says the repository changed DURING a role and that the origin is unknown; it does
+#     not accuse the role, because a concurrent editor, watcher, or build in the same checkout
+#     produces the same delta. A change made and then reverted exactly within one turn is not
+#     detectable by a before/after comparison.
 #   * A role that exits non-zero, times out, produces nothing, or produces something that does not
 #     satisfy its report contract fails the run, blocks the writer, and exits non-zero with the
 #     reason on stderr. No success-shaped report is ever created from a failed run.
@@ -80,7 +83,8 @@
 #   Anything looser lets a banner become the paper trail.
 #
 # Exit 0 = a consolidated report was produced.
-# Exit 1 = a role failed, timed out, edited the tree, or broke its report contract (no report).
+# Exit 1 = a role failed, timed out, broke its report contract, or the repository changed mid-run
+#          (no report is written in any of those cases).
 # Exit 2 = refused before any role ran: bad flag, bad slug, no agent, a non-git target without
 #          --allow-unguarded, or another audit already holding this tree's lock.
 
@@ -102,6 +106,7 @@ DRY_RUN=0
 TIMEOUT_BIN=""
 
 PERSONAS=(wgm-docs-junior wgm-docs-senior wgm-docs-principal wgm-docs-pm)
+STATE_DELTA_LINES=40
 WRITER="wgm-docs-writer"
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
@@ -315,7 +320,19 @@ fi
 # legitimate) writes as a mutation, and both can file a report for the same moment. `mkdir` is the
 # portable atomic test-and-set, so the loser is refused before any role runs — and a refusal is
 # never retried, because waiting on a lock is the operator's decision, not the dispatcher's.
-LOCK_DIR="$(pwd)/.wgm/audit.lock"
+#
+# The lock and the scratch dir hang off the WORKTREE ROOT, not $(pwd). Two audits launched from two
+# different subdirectories of the same checkout are two audits of the same tree: keyed on $(pwd)
+# they would take two different locks, serialize on nothing, and then each read the other's writes
+# as a repository mutation. Anchoring on `git rev-parse --show-toplevel` makes "one audit per tree"
+# actually mean the tree. Outside a git checkout (--allow-unguarded) there is no root to ask for, so
+# $(pwd) is the only available anchor and the lock is per-directory.
+if [[ "$GIT_GUARD" -eq 1 ]]; then
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+else
+  REPO_ROOT="$(pwd)"
+fi
+LOCK_DIR="${REPO_ROOT}/.wgm/audit.lock"
 LOCK_HELD=0
 WORK=""
 cleanup() {
@@ -326,13 +343,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p .wgm
+mkdir -p "${REPO_ROOT}/.wgm"
 if mkdir "$LOCK_DIR" 2>/dev/null; then
   LOCK_HELD=1
   printf 'pid=%s\nstarted=%s\ncwd=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(pwd)" \
     > "${LOCK_DIR}/owner" 2>/dev/null || true
 else
   echo "✗ refusing to start: another docs audit already holds this tree's lock." >&2
+  echo "  tree: ${REPO_ROOT}" >&2
   echo "  lock: ${LOCK_DIR}" >&2
   if [[ -f "${LOCK_DIR}/owner" ]]; then sed 's/^/    /' "${LOCK_DIR}/owner" >&2 || true; fi
   echo "  Wait for that run to finish. If no audit is running, the lock is stale — remove it with:" >&2
@@ -344,13 +362,13 @@ fi
 # `mktemp -d` with a unique template: even under the lock, a kept working dir from an earlier run
 # must never be reused or clobbered. It lives under .wgm/ (wgm's own scratch space, gitignored) so
 # the run leaves no residue in the project's tree.
-WORK="$(mktemp -d "$(pwd)/.wgm/audit-run-XXXXXX")"
+WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
 
 # ----- read-only guard ------------------------------------------------------
 # Roles report; they never edit. The prompt says so, but a prompt is not a gate. ONE baseline is
 # taken here, before any role runs, and every attempt is compared against THAT — never against a
-# freshly re-read tree. Re-baselining after a mutation would adopt the damage as the new "clean"
-# state and let the retry pass.
+# freshly re-read tree. Re-baselining after a change would adopt it as the new "clean" state and let
+# the retry pass.
 #
 # "Is the working tree dirty?" is NOT the question, because the three cheapest ways for an agent to
 # change a repository all leave a pristine `git status`:
@@ -358,27 +376,65 @@ WORK="$(mktemp -d "$(pwd)/.wgm/audit-run-XXXXXX")"
 #   * it stashes    — the edit moves into refs/stash and the tree goes clean again;
 #   * it writes an ignored path — the edit was never in `git status` to begin with.
 # So the snapshot covers where the repository IS (HEAD, branch), where work can be HIDDEN (the stash
-# ref and its depth), and every path state including ignored ones. Only `.wgm/` is excluded — that
-# is the dispatcher's own scratch, which it is entitled to write.
+# ref and its depth), every path state including ignored ones, and a content hash of the staged and
+# unstaged diffs. Only `.wgm/` is excluded — that is the dispatcher's own scratch, which it is
+# entitled to write. Every git command is anchored at the worktree root, so the exclusion means the
+# root `.wgm/` no matter which subdirectory the audit was launched from.
 #
-# Known limitation, stated rather than papered over: this compares two states, so a role that mutates
-# and then reverts EXACTLY within its own turn is invisible to the guard. That is a real hole and it
-# is not closed here — closing it needs continuous filesystem observation, not a before/after hash.
-# `--ignored` also costs a full ignored-path walk on every attempt; on a repository with a huge
-# ignored tree (vendored dependencies, build output) that is the price of seeing ignored writes.
-tree_snapshot() {
-  [[ "$GIT_GUARD" -eq 1 ]] || { echo "no-git-guard"; return 0; }
+# The snapshot is a FILE of stable, sorted lines rather than a bare hash, because a hash can only
+# say "something changed". A file can be diffed, and the exact delta is what turns an accusation
+# into evidence — which matters because the dispatcher genuinely cannot tell a role's write from a
+# concurrent editor, watcher, or build running in the same tree. It reports the change and the
+# delta, and explicitly does NOT claim to know the origin.
+#
+# Known limitations, stated rather than papered over:
+#   * a role that changes something and reverts it EXACTLY within its own turn is invisible: this
+#     compares two states, and closing that needs continuous filesystem observation;
+#   * a content-only edit to an untracked or ignored file leaves its status line identical, so the
+#     path list catches its creation and deletion but not a rewrite in place;
+#   * `--ignored` walks the ignored tree on every attempt, which on a repository with a large
+#     vendored or build directory is the price of seeing ignored writes.
+snapshot_state() {  # $1 = file to write the snapshot into
+  local out="$1"
+  if [[ "$GIT_GUARD" -ne 1 ]]; then
+    echo "no-git-guard" > "$out"
+    return 0
+  fi
   {
-    echo "head:$(git rev-parse HEAD 2>/dev/null || echo none)"
-    echo "branch:$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo detached)"
-    echo "stash:$(git rev-parse --quiet --verify refs/stash 2>/dev/null || echo none)"
-    echo "stashdepth:$(git rev-list --walk-reflogs --count refs/stash 2>/dev/null || echo 0)"
-    git status --porcelain --untracked-files=all --ignored -- ':(exclude).wgm' 2>/dev/null || true
-    git diff -- ':(exclude).wgm' 2>/dev/null || true
-    git diff --cached -- ':(exclude).wgm' 2>/dev/null || true
-  } | cksum
+    echo "head:$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo none)"
+    echo "branch:$(git -C "$REPO_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo detached)"
+    echo "stash:$(git -C "$REPO_ROOT" rev-parse --quiet --verify refs/stash 2>/dev/null || echo none)"
+    echo "stashdepth:$(git -C "$REPO_ROOT" rev-list --walk-reflogs --count refs/stash 2>/dev/null || echo 0)"
+    # Content hashes keep an in-place edit to an already-modified file visible; the name-status lines
+    # below keep the delta readable.
+    echo "unstaged-content:$(git -C "$REPO_ROOT" diff -- ':(exclude).wgm' 2>/dev/null | cksum)"
+    echo "staged-content:$(git -C "$REPO_ROOT" diff --cached -- ':(exclude).wgm' 2>/dev/null | cksum)"
+    git -C "$REPO_ROOT" status --porcelain --untracked-files=all --ignored -- ':(exclude).wgm' 2>/dev/null \
+      | LC_ALL=C sort | sed 's/^/status: /' || true
+    git -C "$REPO_ROOT" diff --name-status -- ':(exclude).wgm' 2>/dev/null \
+      | LC_ALL=C sort | sed 's/^/unstaged: /' || true
+    git -C "$REPO_ROOT" diff --cached --name-status -- ':(exclude).wgm' 2>/dev/null \
+      | LC_ALL=C sort | sed 's/^/staged: /' || true
+  } > "$out"
 }
-BASELINE="$(tree_snapshot)"
+
+BASELINE_FILE="${WORK}/state-baseline.txt"
+snapshot_state "$BASELINE_FILE"
+
+# Print a bounded, exact delta so the operator can see WHAT changed instead of being told THAT
+# something did. Bounded because a role that ran a build could otherwise dump thousands of lines.
+report_state_delta() {  # $1 = the attempt's snapshot file
+  local after="$1" delta lines
+  delta="$(diff -u "$BASELINE_FILE" "$after" 2>/dev/null | tail -n +3 || true)"
+  [[ -n "$delta" ]] || return 0
+  lines="$(printf '%s\n' "$delta" | wc -l | tr -d ' ')"
+  echo "  exact delta (baseline → this attempt):" >&2
+  printf '%s\n' "$delta" | head -n "$STATE_DELTA_LINES" | sed 's/^/    /' >&2
+  if [[ "$lines" -gt "$STATE_DELTA_LINES" ]]; then
+    echo "    … ${lines} delta line(s) total; showing the first ${STATE_DELTA_LINES}." >&2
+    echo "    full snapshots: ${BASELINE_FILE} and ${after} (re-run with --keep to retain them)" >&2
+  fi
+}
 
 # ----- invoke ---------------------------------------------------------------
 RUNNER=()
@@ -467,15 +523,23 @@ run_role() {
     WGM_AUDIT_ROLE="$role" WGM_AUDIT_REPORT_FILE="$report" WGM_AUDIT_SCOPE="$SCOPE" \
       invoke_agent "$prompt" "$capture" || rc=$?
 
-    # Checked FIRST, and against the run baseline: a role that edited the tree has broken the one
-    # property the dispatcher exists to hold, so its exit status no longer matters.
-    after="$(tree_snapshot)"
-    if [[ "$after" != "$BASELINE" ]]; then
-      echo "✗ ${role}: changed the repository (working tree, HEAD/branch, stash, or an ignored path)." >&2
-      echo "  Audit roles are READ-ONLY — the dispatcher writes the report." >&2
-      echo "  This is terminal: no retry and no re-baseline, because retrying against the mutated tree" >&2
-      echo "  would accept the damage as the new normal. The change is left in place — inspect it with" >&2
-      echo "  'git status --ignored', 'git log', and 'git stash list', then revert it yourself." >&2
+    # Checked FIRST, and against the run baseline: if the repository moved, the one property the
+    # dispatcher exists to hold is gone, so the role's exit status no longer matters.
+    after="${WORK}/state-${role}-${attempt}.txt"
+    snapshot_state "$after"
+    if ! cmp -s "$BASELINE_FILE" "$after"; then
+      # Deliberately NOT "the role edited the tree": a concurrent editor, watcher, formatter, or
+      # build in the same checkout produces an identical delta, and a guard that names a culprit it
+      # cannot identify teaches operators to distrust it. State the fact, show the evidence, name
+      # both possible origins, and stop either way — an audit whose tree moved underneath it is not
+      # a trustworthy audit regardless of who moved it.
+      echo "✗ repository state changed during ${role}; origin unknown (role or concurrent process)." >&2
+      report_state_delta "$after"
+      echo "  Audit roles are READ-ONLY — the dispatcher writes the report — but this tree is shared" >&2
+      echo "  with anything else running in it. Re-run with no other writer active to tell them apart." >&2
+      echo "  This is terminal: no retry and no re-baseline, because retrying against the changed" >&2
+      echo "  repository would accept it as the new normal. Nothing is reverted — inspect it with" >&2
+      echo "  'git status --ignored', 'git log', and 'git stash list'." >&2
       rm -f "$report"
       return 2
     fi
@@ -513,10 +577,18 @@ run_role() {
   done
 }
 
-abort_mutation() {  # $1 = role
+abort_mutation() {  # $1 = the role whose attempt observed the change
+  local role="$1"
   echo "" >&2
-  echo "✗ docs audit aborted: ${1} changed the repository." >&2
-  echo "  ${WRITER} was NOT run and no report was written to ${OUT_DIR}." >&2
+  echo "✗ docs audit aborted: repository state changed during ${role}; origin unknown." >&2
+  if [[ "$role" == "$WRITER" ]]; then
+    # The writer HAS run by this point. Saying it was not run would be a plain lie in the one message
+    # an operator reads when the audit fails at the last step.
+    echo "  ${WRITER} ran, but no consolidated report was written to ${OUT_DIR}: its output is" >&2
+    echo "  discarded because the repository it consolidated moved underneath it." >&2
+  else
+    echo "  ${WRITER} was NOT run and no report was written to ${OUT_DIR}." >&2
+  fi
   echo "audit: RED" >&2
   exit 1
 }

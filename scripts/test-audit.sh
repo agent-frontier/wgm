@@ -391,10 +391,10 @@ reset_runs
 #    split exists to prevent.
 FAKE_EDIT_ROLE=wgm-docs-senior run --scope "docs/" --slug readonly -- "${AGENT_ARGV[@]}"
 if [[ "$RC" -ne 0 ]] \
-   && grep -q "changed the repository" <<<"$OUT" \
+   && grep -q "origin unknown (role or concurrent process)" <<<"$OUT" \
    && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
    && [[ ! -d docs/audit ]]; then
-  pass "a role that edits the working tree fails the audit and blocks the writer"
+  pass "an edited working tree fails the audit and blocks the writer"
 else
   fail "a file-editing role was allowed to pass (rc=$RC): $OUT"
 fi
@@ -538,7 +538,7 @@ if [[ "$RC" -ne 0 ]] \
    && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
    && [[ -n "$(git status --porcelain README.md)" ]] \
    && [[ ! -d docs/audit ]]; then
-  pass "a tree mutation is terminal: one attempt, no retry, no writer, and the change stays visible"
+  pass "a tree change is terminal: one attempt, no retry, no writer, and the change stays visible"
 else
   fail "a mutation was retried or did not abort the run (rc=$RC, attempts=$edits): $OUT"
 fi
@@ -598,6 +598,54 @@ else
   fail "an ignored-path write was not detected (rc=$RC, attempts=$tries)"
 fi
 rm -rf build
+reset_runs
+
+# 15c-i) The message must be EVIDENCE, not an accusation. The dispatcher cannot distinguish a role's
+#        write from a concurrent editor, watcher, or build in the same checkout — they produce an
+#        identical delta — so it must report what changed and name both possible origins rather than
+#        blaming the role. A guard that names a culprit it cannot identify gets distrusted, then
+#        ignored. It must also show the exact delta: "something changed" is not actionable.
+FAKE_EDIT_ROLE=wgm-docs-junior run --scope "docs/" --slug evidence -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "repository state changed during wgm-docs-junior; origin unknown (role or concurrent process)" <<<"$OUT" \
+   && grep -q "exact delta (baseline" <<<"$OUT" \
+   && grep -qE '^[[:space:]]*\+(status|unstaged|unstaged-content):' <<<"$OUT" \
+   && grep -q "no other writer active" <<<"$OUT" \
+   && ! grep -qi "the role edited" <<<"$OUT"; then
+  pass "a state change reports the exact delta and names both possible origins, accusing neither"
+else
+  fail "the state-change report lacked the delta or asserted an origin it cannot know (rc=$RC): $OUT"
+fi
+git checkout -q -- README.md
+reset_runs
+
+# 15c-ii) The same neutrality and evidence for a change that never touches the working tree at all —
+#         here the delta is a moved HEAD, so the printed evidence must show it.
+FAKE_COMMIT_ROLE=wgm-docs-pm run --scope "docs/" --slug evidencehead -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "origin unknown" <<<"$OUT" \
+   && grep -qE '^[[:space:]]*\+head:' <<<"$OUT"; then
+  pass "a moved HEAD is shown in the delta, not just reported as 'something changed'"
+else
+  fail "a moved HEAD was not shown in the printed delta (rc=$RC): $OUT"
+fi
+git reset -q --hard "$SEED"
+reset_runs
+
+# 15c-iii) A change observed during the WRITER's turn must not claim the writer never ran — it did.
+#          This is the one message an operator reads when the audit dies at the last step, and
+#          "wgm-docs-writer was NOT run" there is simply false.
+FAKE_EDIT_ROLE=wgm-docs-writer run --scope "docs/" --slug wmutate -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && grep -q "wgm-docs-writer ran, but no consolidated report was written" <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer was NOT run" <<<"$OUT" \
+   && [[ ! -d docs/audit ]]; then
+  pass "a change during the writer's turn is reported honestly: it ran, and no report was filed"
+else
+  fail "the writer-turn diagnostic was wrong or a report was filed (rc=$RC): $OUT"
+fi
+git checkout -q -- README.md
 reset_runs
 
 # 15d) The dispatcher's OWN scratch under .wgm/ is not a role mutation — it is ignored by the guard
@@ -676,6 +724,25 @@ else
   fail "a concurrent audit was not refused (rc=$RC): $OUT"
 fi
 rm -rf .wgm/audit.lock
+reset_runs
+
+# 18b) The lock is keyed on the WORKTREE ROOT, not the current directory. Two audits launched from
+#      two subdirectories of one checkout are two audits of the same tree: keyed on $(pwd) they would
+#      take different locks, serialize on nothing, and then read each other's writes as repository
+#      changes. Holding the root lock must refuse a run started from a subdirectory.
+mkdir -p sub/dir .wgm/audit.lock
+printf 'pid=88888\n' > .wgm/audit.lock/owner
+run_in "$TMP/repo/sub/dir" --scope "docs/" --slug sublock -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 2 ]] \
+   && grep -q "already holds this tree's lock" <<<"$OUT" \
+   && grep -q "pid=88888" <<<"$OUT" \
+   && [[ ! -s "$FAKE_LOG" ]] \
+   && [[ -d .wgm/audit.lock ]]; then
+  pass "an audit started in a subdirectory serializes on the worktree root's lock"
+else
+  fail "a subdirectory run took its own lock instead of the tree's (rc=$RC): $OUT"
+fi
+rm -rf .wgm/audit.lock sub
 reset_runs
 
 # 18a) A completed run releases its own lock, so the next audit is not blocked by a ghost.
