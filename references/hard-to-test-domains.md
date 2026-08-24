@@ -145,6 +145,10 @@ browser, editor, or CLI can connect.
   no interop, no Windows PowerShell on a Windows mount), exit nonzero with the reason. A synthetic
   `wsl.exe`/`powershell.exe` shim on the guest filesystem is a test double for the harness's own
   failure paths — never field evidence.
+- **Make a simulated run un-mistakable.** A harness that can fake the environment must announce
+  it: print which detection seams were overridden, refuse to emit the success token, and exit with
+  a distinct nonzero status when any seam is set. Otherwise the transcript of a self-test is
+  indistinguishable from a verified result, and the "evidence" is whatever the double said.
 - **CI caveat.** GitHub-hosted Linux runners have no Windows interop and Windows runners have no WSL
   distro, so this check cannot be a hosted CI gate. Keep the portable half
   (`scripts/test-wsl-boundary-harness.sh`) in CI and run the real boundary check manually, or on a

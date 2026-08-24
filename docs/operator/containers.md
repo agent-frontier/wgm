@@ -99,7 +99,20 @@ succeed — a 200 on the index page alone is not a pass. A WebSocket result of `
 tolerated only when the Windows host has no `ClientWebSocket` type, and it is reported as
 unsupported, never as a pass. The loopback bind is *observational*: its failure over `wsl-ipv4` is
 the boundary itself, and a missing observation is reported as **UNKNOWN**, never as a confirmed
-boundary. On any other host the script exits **3** with the reason instead of pretending to pass.
+boundary. A probe that never answers is reported as a **timeout**, not as a non-Windows process.
+
+Exit codes: **0** green · **1** red · **2** usage · **3** unsupported host · **4** simulated.
+
+Every run opens with a `seams-overridden=` line. Only `seams-overridden=none` — a real distro, real
+interop, a Windows PowerShell the script found by itself — can print `GREEN` and count as evidence.
+If any `WGM_WSL_*` override is set, the run is labeled **SIMULATED (UNVERIFIED)** and exits **4**,
+even when every check passed.
+
+Two safety notes for the run itself: the second leg binds `0.0.0.0`, which publishes the disposable
+fixture on **all local interfaces (LAN-reachable)** for the few seconds that leg lasts — that bind is
+the configuration under test — and it serves only static test content on an ephemeral port before
+being torn down. The Windows probe also **disables the proxy for its own two requests**, so a system
+proxy cannot silently reroute a local boundary probe; it changes no machine or user setting.
 
 The portable half — `bash scripts/test-wsl-boundary-harness.sh` — runs anywhere (and in CI) and
 covers the harness's own accept/failure paths. Hosted CI cannot run the real boundary: Linux runners

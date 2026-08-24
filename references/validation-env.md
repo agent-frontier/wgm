@@ -45,7 +45,9 @@ running service is the only way to observe the behavior a scenario describes.
   a virtualization boundary — a **Windows process calling a service inside WSL**, a browser on the
   host calling a VM guest — loopback inside the guest is invisible to it: the guest's `127.0.0.1` is
   not the host's. Publish on all interfaces (or forward the port) and have the consumer use the
-  guest's routable address (for WSL, the distro's IPv4). **Verify it from the consumer's own OS**: a
+  guest's routable address (for WSL, the distro's IPv4) — noting that an all-interfaces bind is
+  **LAN-reachable while it runs**, so keep such a service disposable, short-lived, and free of real
+  data. **Verify it from the consumer's own OS**: a
   guest-side `curl` cannot observe that boundary at all, because it never crosses it. Run
   `bash scripts/test-wsl-windows-boundary.sh` on a Windows+WSL host to contrast both binds with a
   real Windows-origin probe (`[learn]` issue `agent-frontier/wgm#101`).

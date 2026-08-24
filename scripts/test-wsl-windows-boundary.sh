@@ -13,7 +13,10 @@
 #      path to a real Windows PowerShell. A synthetic wsl.exe / powershell.exe on the Linux
 #      filesystem is rejected — it is never treated as field evidence.
 #   2. Starts a disposable stdlib-only HTTP + WebSocket fixture (index page, generated client asset,
-#      /health, /ws echo) twice: once bound to WSL loopback, once bound to all interfaces.
+#      /health, /ws echo) twice: once bound to WSL loopback, once bound to 0.0.0.0 — which publishes
+#      it on ALL LOCAL INTERFACES (LAN-reachable) for the few seconds that leg runs, by design,
+#      since that bind is the configuration under test. Static test content only, ephemeral port,
+#      torn down immediately afterwards.
 #   3. Sanity-checks each bind from the Linux side, explicitly labeled `same-side` — never counted
 #      as Windows-origin evidence.
 #   4. Invokes scripts/test-wsl-reachability.ps1 as a Windows process against BOTH the Windows
@@ -48,10 +51,18 @@
 #   WGM_WSL_PWSH                explicit Windows PowerShell executable (default: auto-detect)
 #   WGM_WSL_IPV4                explicit WSL IPv4 address             (default: auto-detect)
 #
-# Exit 0 = green (a Windows-origin probe ran and every REQUIRED check above passed).
-# Exit 1 = red (a required probe failed, or a probe did not originate on Windows).
+# SEAMS AND EVIDENCE: the WGM_WSL_* variables above exist so the harness can drive failure paths on
+# any host. Setting ANY of them makes the run a SIMULATION: the script prints a stable
+# `seams-overridden=<comma-list>` line, and can then never print a bare `wsl-boundary: GREEN` nor
+# exit 0. Only a run with `seams-overridden=none` — a real WSL distro, real interop, a real Windows
+# PowerShell found on its own — can produce GREEN and count as field evidence for #101.
+#
+# Exit 0 = green (no seams overridden, a Windows-origin probe ran, every REQUIRED check passed).
+# Exit 1 = red (a required probe failed, timed out, or did not originate on Windows).
 # Exit 2 = usage error.
 # Exit 3 = unsupported host (not WSL, no Windows interop, or no usable Windows PowerShell).
+# Exit 4 = simulated / unverified: detection seams were overridden, so the checks that passed are
+#          harness coverage only and this run is NOT field evidence.
 
 set -uo pipefail
 
@@ -89,6 +100,23 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unexpected argument: $1" >&2; exit 2 ;;
   esac
 done
+
+# ---- 0. seam disclosure --------------------------------------------------------------------------
+# Announced up front and unconditionally, so every transcript states whether this run could possibly
+# be field evidence. A simulated run is still useful (it exercises this orchestrator); it is simply
+# never allowed to look like a verified boundary.
+SEAMS=()
+for seam in WGM_WSL_PROC_VERSION_FILE WGM_WSL_BINFMT_DIR WGM_WSL_WINDOWS_MOUNT_ROOT WGM_WSL_PWSH WGM_WSL_IPV4; do
+  [[ -n "${!seam:-}" ]] && SEAMS+=("$seam")
+done
+SIMULATED=0
+if [[ "${#SEAMS[@]}" -gt 0 ]]; then
+  SIMULATED=1
+  printf 'wsl-boundary: seams-overridden=%s\n' "$(IFS=,; printf '%s' "${SEAMS[*]}")"
+  note "SIMULATION MODE — detection seams are overridden, so this run is harness coverage and can never be field evidence for [learn] agent-frontier/wgm#101."
+else
+  printf 'wsl-boundary: seams-overridden=none\n'
+fi
 
 [[ -f "$PROBE_PS1" ]] || die_unsupported "missing Windows-origin probe: $PROBE_PS1"
 
@@ -313,7 +341,7 @@ stop_fixture() {
 # handled here, once, so every parse below sees clean LF text and no probe can hang the run.
 PWSH_TIMEOUT=()
 if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n1 | grep -qi 'coreutils'; then
-  PWSH_TIMEOUT=(timeout --preserve-status -k 5 "$((TIMEOUT * 3 + 15))")
+  PWSH_TIMEOUT=(timeout --preserve-status -k 5 "$((TIMEOUT * 3 + 5))")
 else
   note "note: GNU timeout not available — falling back to the probe's own cooperative bound (-TimeoutSec $TIMEOUT per network operation, applied to the page, the asset, and the WebSocket). Install coreutils for a hard wall-clock kill."
 fi
@@ -342,6 +370,10 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
                  -Url "$url" -AssetPath "assets/client.js" -TimeoutSec "$TIMEOUT")
   if [[ "$want_ws" -eq 1 ]]; then
     args+=(-WebSocketUrl "$ws_url")
+    # On a REQUIRED leg the WebSocket is part of the claim, so the probe itself must treat it as
+    # mandatory: -RequireWebSocket makes a failed upgrade exit 1, and reserves exit 3 for the one
+    # tolerable case (the Windows host has no ClientWebSocket type at all).
+    [[ "$required" -eq 1 ]] && args+=(-RequireWebSocket)
   fi
 
   out="$(run_pwsh "${args[@]}" 2>&1)"; rc=$?
@@ -358,6 +390,16 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
   else
     ws_outcome="not-requested"
     ws_detail=""
+  fi
+
+  # A killed probe produces no output, which would otherwise look exactly like "not a Windows
+  # process". Say what actually happened: 124 is GNU timeout's own status, 137/143 are the kill
+  # signals it forwards with --preserve-status.
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
+    fail "probe for $leg ($via) $url TIMED OUT (rc=$rc) — the Windows interop path did not answer within the harness bound. This is a timeout, NOT evidence that the process was non-Windows."
+    FAILED=1
+    RESULTS+=("$leg|via=$via|$url|origin=timeout|http=timeout|asset=timeout|ws=timeout|rc=$rc|required=$required")
+    return 1
   fi
 
   if [[ "$origin" != "Win32NT" ]]; then
@@ -379,13 +421,20 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
 
   # A WebSocket leg is allowed to come back `unsupported` ONLY when the client type is missing on
   # the Windows host and nothing else failed. Any other unsupported/fail is a real failure.
-  local ws_allowed=0
+  # `unsupported` is nonfatal in exactly one situation: the Windows host has no ClientWebSocket
+  # type AND every other check on this probe passed (probe exit 0, or 3 under -RequireWebSocket,
+  # which is the probe's dedicated "required WebSocket unsupported, everything else fine" status).
+  local ws_allowed=0 rc_allowed=0
+  [[ "$rc" -eq 0 ]] && rc_allowed=1
   if [[ "$want_ws" -eq 1 ]]; then
     case "$ws_outcome" in
       ok) ws_allowed=1 ;;
       unsupported)
-        if [[ "$rc" -eq 0 ]] && [[ "$ws_detail" == *ClientWebSocket-type-unavailable* ]]; then
+        if [[ "$ws_detail" == *ClientWebSocket-type-unavailable* ]] \
+           && [[ "$http_outcome" == "ok" && "$asset_outcome" == "ok" ]] \
+           && [[ "$rc" -eq 0 || "$rc" -eq 3 ]]; then
           ws_allowed=1
+          rc_allowed=1
           note "$(printf '%-19s' "$leg") ($via) websocket check UNSUPPORTED on this Windows host (no ClientWebSocket type) — reported, not counted as a pass"
         fi
         ;;
@@ -398,7 +447,7 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
     [[ "$http_outcome"  == "ok" ]] || problems+=("required page fetch failed: $url -> $http_outcome")
     [[ "$asset_outcome" == "ok" ]] || problems+=("required client-asset fetch failed: $asset_url -> $asset_outcome")
     [[ "$ws_allowed" -eq 1 ]]      || problems+=("required WebSocket leg failed: $ws_url -> $ws_outcome")
-    [[ "$rc" -eq 0 ]]              || problems+=("required probe exited $rc")
+    [[ "$rc_allowed" -eq 1 ]]      || problems+=("required probe exited $rc")
   fi
 
   RESULTS+=("$leg|via=$via|$url|origin=windows|http=$http_outcome|asset=$asset_outcome|ws=$ws_outcome|rc=$rc|required=$required")
@@ -469,7 +518,11 @@ run_leg() {  # $1 = leg label, $2 = bind address, $3 = wsl-ipv4 route required (
   stop_fixture
 }
 
-note "fixture: stdlib HTTP+WebSocket service, disposable, bound only to this machine's interfaces"
+# The second leg binds 0.0.0.0 on purpose: that is the configuration under test. Be aware that it
+# publishes the disposable fixture on ALL LOCAL INTERFACES, so it is reachable from the local network
+# for the few seconds the leg runs. The fixture serves only static test content on an ephemeral port
+# and is torn down (with the temp dir) before the script exits.
+note "fixture: stdlib HTTP+WebSocket service, disposable, ephemeral port; the second leg binds 0.0.0.0, which exposes it on ALL LOCAL INTERFACES (LAN-reachable) for the duration of that leg, then tears it down"
 run_leg "loopback-bind" "127.0.0.1" 0
 run_leg "all-interfaces-bind" "0.0.0.0" 1
 
@@ -481,10 +534,28 @@ for row in ${RESULTS[@]+"${RESULTS[@]}"}; do
 done
 echo
 
-if [[ "$WINDOWS_ORIGIN_SEEN" -eq 0 ]]; then
-  fail "no probe ran as a Windows process — nothing here is boundary evidence"
+finish() {  # single exit point: a seam-driven run can never end in a bare GREEN
+  if [[ "$SIMULATED" -eq 1 ]]; then
+    printf 'wsl-boundary: seams-overridden=%s\n' "$(IFS=,; printf '%s' "${SEAMS[*]}")"
+    if [[ "$FAILED" -eq 0 ]]; then
+      echo "wsl-boundary: SIMULATED (UNVERIFIED) — every check passed, but detection seams were overridden, so this run is harness coverage and NOT field evidence. [learn] agent-frontier/wgm#101 stays open until a run with seams-overridden=none on a real Windows+WSL host." >&2
+      exit 4
+    fi
+    echo "wsl-boundary: RED (SIMULATED / UNVERIFIED — seams overridden; not field evidence)" >&2
+    exit 1
+  fi
+  if [[ "$FAILED" -eq 0 ]]; then
+    echo "wsl-boundary: GREEN"
+    exit 0
+  fi
   echo "wsl-boundary: RED" >&2
   exit 1
+}
+
+if [[ "$WINDOWS_ORIGIN_SEEN" -eq 0 ]]; then
+  fail "no probe ran as a Windows process — nothing here is boundary evidence"
+  FAILED=1
+  finish
 fi
 
 LOOPBACK_WSLIP="$(field_for "loopback-bind|via=wsl-ipv4|" http)"
@@ -504,15 +575,14 @@ case "$LOOPBACK_WSLIP" in
   ok)
     note "note: the loopback bind was ALSO reachable at the WSL IPv4 address on this host — this distro is not using the NAT networking mode that produced [learn] #101 (mirrored networking, or a forwarder). The boundary caveat still applies to hosts that are." ;;
   fail)
-    note "boundary confirmed: a WSL-loopback bind is invisible to a Windows-origin consumer at the WSL IPv4 address ([learn] agent-frontier/wgm#101). Publish on all interfaces and consume at the WSL IPv4 address." ;;
+    if [[ "$SIMULATED" -eq 1 ]]; then
+      note "boundary reproduced in SIMULATION (seams overridden — NOT field evidence): a WSL-loopback bind was not reachable by the probe at the WSL IPv4 address."
+    else
+      note "boundary confirmed: a WSL-loopback bind is invisible to a Windows-origin consumer at the WSL IPv4 address ([learn] agent-frontier/wgm#101). Publish on all interfaces and consume at the WSL IPv4 address."
+    fi ;;
   *)
     fail "no usable observation for the loopback bind via wsl-ipv4 (http=$LOOPBACK_WSLIP) — the boundary is UNKNOWN on this host, not confirmed. Re-run once the probe can reach that endpoint."
     FAILED=1 ;;
 esac
 
-if [[ "$FAILED" -eq 0 ]]; then
-  echo "wsl-boundary: GREEN"
-  exit 0
-fi
-echo "wsl-boundary: RED" >&2
-exit 1
+finish

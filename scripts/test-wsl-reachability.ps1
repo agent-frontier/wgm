@@ -21,7 +21,19 @@
 #   result endpoint=<url> kind=<http|websocket> status=<code|none> outcome=<ok|fail|unsupported> detail=<text>
 #   probe-exit=<code>
 #
-# Exit 0 = every required check passed. Exit 1 = a required check failed. Exit 2 = bad input.
+# Proxy policy: both the HTTP request and the WebSocket client run with the proxy explicitly
+# DISABLED. A boundary probe targets a disposable service on the machine next door (WSL loopback or
+# the distro's IPv4); a system/WinHTTP proxy would silently reroute or reject that and the failure
+# would be misread as "WSL is unreachable". This is scoped to this probe process only — it changes
+# no machine, user, or PowerShell-session setting, and disables no security control beyond declining
+# a proxy for these two requests. Failure diagnostics name the proxy/route explicitly.
+#
+# Exit 0 = every required check passed.
+# Exit 1 = a required check failed.
+# Exit 2 = bad input.
+# Exit 3 = the required WebSocket check is UNSUPPORTED here (no ClientWebSocket type) while every
+#          other check passed — only reachable with -RequireWebSocket, so the caller can tell
+#          "cannot test" apart from "failed".
 
 [CmdletBinding()]
 param(
@@ -36,6 +48,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:failed = 0
+$script:wsUnsupported = $false
 
 # Every observation goes straight to the console stream, never the PowerShell pipeline: a function
 # that "writes" to the pipeline would have its text captured by its own caller as a return value,
@@ -107,6 +120,8 @@ function Invoke-HttpProbe {
     $req.ReadWriteTimeout = $TimeoutSec * 1000
     $req.AllowAutoRedirect = $false
     $req.UserAgent = 'wgm-wsl-reachability-probe'
+    # Scoped to this request object: never route a local boundary probe through a system proxy.
+    $req.Proxy = $null
     $resp = $req.GetResponse()
     try {
       $code = [int]$resp.StatusCode
@@ -127,7 +142,7 @@ function Invoke-HttpProbe {
     $wex = $_.Exception
     if ($null -ne $wex.Response) { $status = [int]$wex.Response.StatusCode }
     $reason = ($wex.Message -replace '\s+', ' ')
-    Write-Result $Target 'http' $status 'fail' ("webexception:{0}" -f $reason)
+    Write-Result $Target 'http' $status 'fail' ("webexception:{0} | proxy=disabled-for-this-probe; suspect route/bind/firewall between Windows and the guest (status={1})" -f $reason, $wex.Status)
     return $false
   } catch {
     $reason = ($_.Exception.Message -replace '\s+', ' ')
@@ -155,11 +170,15 @@ if ($null -ne $wsUri) {
   $clientType = 'System.Net.WebSockets.ClientWebSocket' -as [type]
   if ($null -eq $clientType) {
     Write-Result $wsTarget 'websocket' 'none' 'unsupported' 'ClientWebSocket-type-unavailable-on-this-host'
-    if ($RequireWebSocket) { $script:failed = 1 }
+    # Not a failure: "cannot test here" is reported as its own exit status (3) when the caller
+    # required the check, so a missing client type is never silently folded into a pass.
+    if ($RequireWebSocket) { $script:wsUnsupported = $true }
   } else {
     $ws = $null
     try {
       $ws = New-Object System.Net.WebSockets.ClientWebSocket
+      # Same scope as the HTTP leg: this client only, for this disposable local probe.
+      $ws.Options.Proxy = $null
       $cts = New-Object System.Threading.CancellationTokenSource ($TimeoutSec * 1000)
       $ws.ConnectAsync($wsUri, $cts.Token).GetAwaiter().GetResult() | Out-Null
 
@@ -180,7 +199,7 @@ if ($null -ne $wsUri) {
       }
     } catch {
       $reason = ($_.Exception.Message -replace '\s+', ' ')
-      Write-Result $wsTarget 'websocket' 'none' 'fail' ("exception:{0}" -f $reason)
+      Write-Result $wsTarget 'websocket' 'none' 'fail' ("exception:{0} | proxy=disabled-for-this-probe; suspect route/bind/firewall or a blocked HTTP upgrade between Windows and the guest" -f $reason)
       $script:failed = 1
     } finally {
       if ($null -ne $ws) { try { $ws.Dispose() } catch { } }
@@ -188,4 +207,6 @@ if ($null -ne $wsUri) {
   }
 }
 
-Exit-Probe $script:failed
+if ($script:failed -ne 0) { Exit-Probe 1 }
+if ($script:wsUnsupported) { Exit-Probe 3 }
+Exit-Probe 0
