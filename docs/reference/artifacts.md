@@ -46,7 +46,7 @@ be gitignored in yours.
 | `.wgm/deferred-work.md` | Review | Credible issues that pre-date the current diff, recorded rather than silently dropped. |
 | `.wgm/learning/MAP.md` | `teach-me` | The cited repository map: entry points, structure, conventions, invariants. **wgm's Analyze step reads it when present** — it is the whole-repo model a per-task read never builds. |
 | `.wgm/learning/` | `teach-me`, `quiz-me` | Tour progress and the quiz log. |
-| `.wgm/rugged/` | `rugged` | Each review's Context, Bottleneck decomposition, Field-test gaps, and Verdict. Read-only companion — never writes product code or docs. |
+| `.wgm/rugged/` | `rugged` or wgm's inline fallback | Each review's Context, Bottleneck decomposition, Field-test gaps, and Verdict. Read-only companion — never writes product code or docs. |
 | `.wgm/STOP` | You, or the agent | Stop sentinel. The loop ends after the current iteration. |
 
 **Note:** Agent-only files may compress aggressively — single-token keys serialized as TOON with an

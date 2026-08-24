@@ -12,8 +12,8 @@ that supports custom agents):
 |---|---|---|
 | `wgm-griller` | Grill | Interview to alignment — one question at a time with a recommended answer; self-answer from code; seed `specs/CONTEXT.md`. |
 | `wgm-implementer` | Implement | Advance one task to a green check — smallest vertical slice. |
-| `wgm-spec-reviewer` | Review (stage 1) | Diff vs spec/acceptance + constitution → PASS / CHANGES-REQUESTED. |
-| `wgm-quality-reviewer` | Review (stage 2) | Bugs + weak validation, high signal → PASS / CHANGES-REQUESTED. |
+| `wgm-spec-reviewer` | Review (stage 1) | Diff vs spec/acceptance + constitution, **and the recorded ruggedness verdict** → PASS / CHANGES-REQUESTED. |
+| `wgm-quality-reviewer` | Review (stage 2) | Bugs + weak validation, high signal, **and the recorded ruggedness verdict** → PASS / CHANGES-REQUESTED. |
 | `wgm-validator` | Validate | Holdout-scenario satisfaction 0–100 (stratified); the deterministic gate stays the hard gate. |
 | `wgm-diagnostician` | Stall recovery | wonder→reflect, model escalation, and harnesses for hard-to-test domains. |
 | `wgm-docs-junior` | Docs audit | Reviews docs for onboarding/clarity from a newcomer's seat — read-only. |
@@ -28,8 +28,12 @@ The swarm runs the lifecycle end to end — the sheepdog (orchestrator) dispatch
 ```mermaid
 flowchart LR
   G["wgm-griller<br/>Grill"] --> PL["Plan<br/>(orchestrator)"]
-  PL --> IM["wgm-implementer<br/>Implement"]
-  IM --> SR["wgm-spec-reviewer<br/>Review s1"]
+  PL --> RP["rugged plan<br/>Plan-exit gate"]
+  RP -->|"FRAGILE / UNKNOWN"| PL
+  RP -->|RUGGED| IM["wgm-implementer<br/>Implement"]
+  IM --> RV["rugged review<br/>(or inline rubric)"]
+  RV -->|"FRAGILE / UNKNOWN"| IM
+  RV -->|RUGGED| SR["wgm-spec-reviewer<br/>Review s1"]
   SR -->|PASS| QR["wgm-quality-reviewer<br/>Review s2"]
   QR -->|PASS + gate green| VA["wgm-validator<br/>Validate"]
   SR -->|CHANGES| IM
@@ -46,13 +50,39 @@ flowchart LR
   the files for this one task). The subagent does not read the whole repo or `scenarios/`.
 - **Review** → **two independent passes**: `wgm-spec-reviewer` first (did we build the right thing?),
   then `wgm-quality-reviewer` (is it correct, and does the check prove it?). Two sets of eyes catch
-  spec drift and quality bugs separately — one reviewer rationalizes its own misses.
+  spec drift and quality bugs separately — one reviewer rationalizes its own misses. **Neither may
+  emit PASS without the iteration's ruggedness verdict in hand** (below).
 - **Validate** → dispatch `wgm-validator` to judge holdout-scenario satisfaction once the gate is
   green. It is the only role that opens `scenarios/`, preserving the holdout.
 - **Stall** → dispatch `wgm-diagnostician` (wonder→reflect, escalation, harness building) when
   satisfaction is flat or a check keeps failing.
-- A task is recorded `done` only when the deterministic gate exits 0 **and** both reviewers PASS; the
-  slice's holdout satisfaction is judged by the validator against the stop-condition threshold.
+- A task is recorded `done` only when the deterministic gate exits 0 **and** both reviewers PASS
+  **and** the diff carries exactly one recorded ruggedness verdict of RUGGED; the slice's holdout
+  satisfaction is judged by the validator against the stop-condition threshold.
+
+## The ruggedness gate (and hosts with no subagents)
+The ruggedness gate is wgm protocol, not a subagent archetype: there is **no `wgm-rugged` file in
+`.github/agents/`**, because the check is owned by the `rugged` companion *skill* when it is
+discoverable and by the embedded inline rubric when it is not (`SKILL.md`, "The ruggedness gate").
+That is deliberate — it means the gate survives on hosts that cannot dispatch subagents at all.
+
+- **Reviewers check the verdict; they do not replace it.** Before `wgm-spec-reviewer` or
+  `wgm-quality-reviewer` emits PASS, it confirms the diff carries **exactly one** recorded verdict
+  and that it is **RUGGED**. A missing, hedged, or duplicated verdict is CHANGES-REQUESTED —
+  never a PASS with a reservation, because a reservation does not block and this does.
+- **FRAGILE / UNKNOWN are blocking, with different follow-ups.** FRAGILE → a remediation task in
+  `IMPLEMENTATION_PLAN.md`; UNKNOWN → a validation-signal task that creates the missing deterministic
+  field/stress evidence. Both keep the task out of `done`.
+- **Serial hosts run the identical rubric.** With no subagent mechanism, the single agent runs
+  `/rugged review` when the companion is discoverable, or the inline five-step rubric when it is
+  not, in sequence before its two review passes — the same five steps, one-verdict rule, and
+  blocking semantics. Independence is weaker in that arrangement, so name it: record that the
+  verdict was produced serially by the implementing agent, exactly as a fallback run records the
+  missing companion. Weaker independence is a recorded limitation, not a reason to skip the gate.
+- **Dispatch when the companion exists:** the orchestrator invokes `/rugged plan <scope>` at
+  Plan-exit and `/rugged review <scope>` on the diff at Review, then hands the resulting verdict —
+  not the whole review transcript — to the implementer for any prescribed follow-up and to both
+  reviewers as part of their curated brief.
 
 ## Why two stages
 A single reviewer conflates "builds the right thing" with "builds it correctly," and tends to bless

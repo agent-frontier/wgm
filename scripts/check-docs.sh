@@ -24,6 +24,7 @@
 #  12. Companion skills avoid `../../` links, which break in the installed sibling-skill layout.
 #  13. Tables marked `<!-- wgm: complete-table -->` contain no blank or placeholder cells.
 #  14. The shipped review, evidence, and executable-journey protocol contracts remain present.
+#  15. SKILL.md stays within the repository's documented ~500-line activation budget.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -77,6 +78,14 @@ REQUIRED=(
 for f in "${REQUIRED[@]}"; do
   [[ -f "$f" ]] || note "required doc is missing: $f"
 done
+
+# 15 — keep the always-loaded protocol within its documented activation budget.
+if [[ -f SKILL.md ]]; then
+  skill_lines="$(wc -l < SKILL.md)"
+  if (( skill_lines > 500 )); then
+    note "SKILL.md exceeds the 500-line activation budget (${skill_lines} lines)"
+  fi
+fi
 
 # Gather the Markdown files to lint (docs/ + README.md).
 mapfile -t MD < <(
@@ -252,6 +261,12 @@ PROTOCOL_FILES=(
   "references/docs-audit.md"
   "docs/style-guide.md"
   "docs/get-started/README.md"
+  "references/plugin-integration.md"
+  "SKILL.md"
+  "references/ralph-loop.md"
+  "assets/constitution.template.md"
+  "assets/spec.template.md"
+  "assets/IMPLEMENTATION_PLAN.template.md"
 )
 PROTOCOL_PHRASES=(
   "two independent reviewer passes"
@@ -268,7 +283,15 @@ PROTOCOL_PHRASES=(
   "wgm: complete-table"
   "Execute the journey once"
   "Status: proposed/unwired host integration"
+  "The ruggedness gate (every track, never skipped)"
+  "The ruggedness gate in the loop"
+  "Ruggedness gate (non-negotiable)"
+  "Ruggedness (rugged gate)"
+  "Ruggedness gate (required — every track)"
 )
+if (( ${#PROTOCOL_FILES[@]} != ${#PROTOCOL_PHRASES[@]} )); then
+  note "protocol contract file/phrase arrays are misaligned (${#PROTOCOL_FILES[@]} files, ${#PROTOCOL_PHRASES[@]} phrases)"
+else
 for i in "${!PROTOCOL_FILES[@]}"; do
   file="${ROOT}/${PROTOCOL_FILES[$i]}"
   phrase="${PROTOCOL_PHRASES[$i]}"
@@ -278,6 +301,7 @@ for i in "${!PROTOCOL_FILES[@]}"; do
     note "protocol contract is missing from $file: $phrase"
   fi
 done
+fi
 if (( FAIL == 0 )); then
   ok "review/evidence/executability protocol contracts are present"
 fi

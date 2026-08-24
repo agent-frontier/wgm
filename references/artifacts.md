@@ -72,6 +72,9 @@ One spec per coherent slice of work. Source from `assets/spec.template.md`. Must
   - *Unwanted:* "If [undesired condition], then the [system] shall [response]."
 - **Assumptions & out-of-scope** — recommended assumptions made during grilling, and explicit
   non-goals for this pass.
+- **Ruggedness** — the actual operators and actual environment this slice must survive, which of
+  *intrinsic design constraint* / *user capacity* / *operational stress* carries most of the risk,
+  and the recorded Plan-exit verdict for the slice (`SKILL.md`, "The ruggedness gate").
 
 Let the format flex per project, but keep these sections present.
 
@@ -134,6 +137,12 @@ Rules:
 - **Optional machine-readable sidecar:** if a build wants tooling-friendly task state, mirror the
   statuses in `assets/sprint-status.template.yaml` — but `IMPLEMENTATION_PLAN.md` stays the
   authoritative shared-state file.
+- **Records the ruggedness gate.** The plan carries a short *Ruggedness gate* block — the Plan-exit
+  verdict (RUGGED / FRAGILE / UNKNOWN), its date and scope, whether `/rugged` or the embedded inline
+  rubric produced it, and the remediation (FRAGILE) or validation-signal (UNKNOWN) task it spawned.
+  A verdict that lives only in a transcript is lost at the next context rotation, so an unrecorded
+  one counts as absent — and an absent verdict is a gate FAIL, never a pass (`SKILL.md`, "The
+  ruggedness gate"; `assets/IMPLEMENTATION_PLAN.template.md`).
 
 ## `AGENTS.md` — lean operational guide
 How to build, run, and validate this project, plus durable codebase patterns. Source from
@@ -157,6 +166,30 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
   budget and trimming lessons you later need, `references/memory-patterns.md` documents two
   **optional** named alternatives (Beads-style structured records, compaction-surviving layered
   memory) — the flat log above stays the default for everything else.
+
+## `.wgm/rugged/*` — the ruggedness-gate record
+Where the `rugged` companion writes each review's Context, Bottleneck decomposition, Field-test gaps,
+and Verdict. wgm's own **ruggedness gate** (`SKILL.md`) reads and writes this artifact set at
+Plan-exit and at each Loop Review, so a fresh context can see what was already judged instead of
+re-deriving it.
+
+- **Written by the companion, mirrored by wgm.** `/rugged plan` / `/rugged review` write here
+  directly (`companions/rugged/SKILL.md` owns the format). wgm additionally copies the one-line
+  outcome — verdict · date · scope · producer · spawned task — into `IMPLEMENTATION_PLAN.md`, which
+  stays the authoritative shared state the loop reloads.
+- **Fallback runs are recorded here too.** When the companion is not discoverable, wgm runs the
+  embedded five-step rubric inline and records the verdict **plus the missing capability** ("rugged
+  companion unavailable — embedded rubric run inline"). An absent companion is a recorded fallback,
+  never a silent pass; a run with no verdict recorded anywhere is treated as a FAIL.
+- **Exactly one verdict per run.** RUGGED passes; **FRAGILE** blocks and requires a remediation task;
+  **UNKNOWN** blocks and requires a validation-signal task that creates the missing deterministic
+  field/stress evidence. Two verdicts or a hedged one is a FAIL.
+- **Plan-exit vs Review evidence.** A Plan-exit record judges *plan readiness* — every load-bearing
+  claim mapped to an exact runnable field/stress/recovery check (command · origin/environment ·
+  expected observation · failure + recovery criterion). Implementation field evidence belongs to the
+  Review/stress record, not to the Plan-exit one.
+- **Placement:** always under `.wgm/` — like `.wgm/memories.md` it is per-build working state, not a
+  shared deliverable. Read-only about product code: `rugged` never edits code or docs.
 
 ## `.github/wgm-hive.yml` — the hive consent/config file
 The one-time, committed, team-wide decision that gates the Hive Growth Loop's automatic upstream
@@ -279,6 +312,9 @@ spec-driven equivalent of "unit tests for the plan." Verify:
 - **Coverage both ways:** every requirement maps to at least one task, and every task traces back to
   a spec requirement (no orphan work).
 - **Demo path is scenario-backed:** the spec's demo path has a tier-1 holdout scenario.
+- **Ruggedness gate recorded:** exactly one verdict for this plan, RUGGED, with its producer
+  (`/rugged plan` or the inline fallback) named — and any FRAGILE/UNKNOWN follow-up task present in
+  the plan (`SKILL.md`, "The ruggedness gate").
 - **No ambiguity** in acceptance criteria that a backpressure command or the judge couldn't settle.
 
 Fix or explicitly record each finding before scoring readiness. `/wgm analyze` runs this check when a

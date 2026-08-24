@@ -29,8 +29,10 @@ per run (see `evaluating-skills.mdx`'s "Spawning runs"). Until then, both fixtur
 maintainer or a future automated judge; only their *shape* is checked mechanically today.
 
 ## What's in `evals/evals.json`
-Five cases against wgm's own `SKILL.md`, following the upstream schema (`skill_name`, `evals[]` of
-`id` / `prompt` / `expected_output` / optional `files` / `assertions`):
+Eleven cases against wgm's own `SKILL.md`, following the upstream schema (`skill_name`, `evals[]` of
+`id` / `prompt` / `expected_output` / optional `files` / `assertions`).
+
+The five lifecycle cases:
 1. A full-lifecycle greenfield build — proves Triage → Grill → Plan → Loop actually happens, with a
    `Gate check:` block and a validation command run before any task is marked done.
 2. A `/wgm plan:`-scoped request — proves it hard-stops at Plan-exit, no Loop iteration runs.
@@ -38,6 +40,20 @@ Five cases against wgm's own `SKILL.md`, following the upstream schema (`skill_n
 4. The mode-vs-request disambiguation case (mirrors `trigger-eval.md` row 5) — proves `/wgm build
    the auth module` gets full-lifecycle treatment, not single-task `build` mode.
 5. A Quick-track obvious fix — proves ceremony actually scales down (no scenarios, no Preflight).
+
+The six ruggedness-gate cases (`SKILL.md`, "The ruggedness gate"), one per distinction the gate has
+to make — a mandatory gate with no fixture coverage decays into a suggestion, so
+`scripts/test-check-evals.sh` asserts all six ids stay present and that each verdict is asserted on:
+6. A Plan-exit with a **RUGGED** readiness verdict — proves the gate passes on plan-readiness
+   evidence (an exact runnable check design), not on field evidence from unwritten code.
+7. A **FRAGILE** verdict — proves it blocks Plan-exit and records a remediation task.
+8. An **UNKNOWN** verdict — proves it blocks and records a validation-signal task, never a soft pass.
+9. The Quick track's **inline** rubric — proves the invariant survives when the companion isn't
+   invoked.
+10. A **missing companion** — proves the embedded rubric runs and the missing capability is recorded
+    instead of the absence counting as a pass.
+11. A requested **bypass** — proves the gate is protocol, not a recommendation that a hurried
+    operator can wave off.
 
 ## Running an eval by hand
 Per `evaluating-skills.mdx`'s pattern: run the prompt twice — once with wgm loaded, once without (or
@@ -47,7 +63,9 @@ Compare token/time cost against the baseline; a change that improves pass rate b
 a different trade-off than one that's both better and cheaper.
 
 ## Automated grading protocol
-`bash scripts/check-evals.sh` is schema-only (always-on, free, part of `make validate`/CI).
+`bash scripts/check-evals.sh` is schema-only (always-on, free, part of `make validate`/CI), and
+`bash scripts/test-check-evals.sh` proves that gate fails closed — plus pins the six ruggedness-gate
+cases in place, the one content assertion the schema check cannot make.
 **`scripts/grade-evals.sh`** is the real, opt-in mechanization of the protocol below — it costs real
 agent/API calls, so it is never wired into CI; run it by hand before landing a `SKILL.md`/
 `references/*` change that might affect behavior quality. Design note: it grades a candidate

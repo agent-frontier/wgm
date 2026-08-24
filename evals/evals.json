@@ -51,6 +51,74 @@
         "The previously-failing test is rerun and shown green before completion",
         "No scenarios/*.yaml files or Preflight readiness score are produced for this fix"
       ]
+    },
+    {
+      "id": "plan-exit-rugged-gate-rugged",
+      "prompt": "/wgm plan: add a background job queue to this Django service",
+      "expected_output": "wgm writes specs + IMPLEMENTATION_PLAN.md, runs the ruggedness gate at Plan-exit (`/rugged plan` when the companion is discoverable), records exactly one verdict, and -- the verdict being RUGGED -- prints the Plan-exit gate with that item PASS and hard-stops before the Loop.",
+      "assertions": [
+        "The Plan-exit 'Gate check:' block contains a ruggedness-gate item marked PASS",
+        "Exactly one verdict (RUGGED / FRAGILE / UNKNOWN) is recorded, with its scope, date, and whether /rugged plan or the inline rubric produced it",
+        "RUGGED is justified by plan-readiness evidence -- every load-bearing claim mapped to an exact runnable field/stress/recovery check (command, origin/environment, expected observation, failure+recovery criterion) -- not by claimed field evidence from code that does not exist yet",
+        "The verdict is written into IMPLEMENTATION_PLAN.md, not left only in the transcript",
+        "No Loop iteration runs after Plan-exit"
+      ]
+    },
+    {
+      "id": "rugged-fragile-blocks-plan-exit",
+      "prompt": "/wgm plan: multi-region failover for our API. Heads up: on-call is one part-time contractor and today's rollback is a 12-step manual runbook.",
+      "expected_output": "The Plan-exit ruggedness gate returns FRAGILE because the plan only works under idealized operator capacity; wgm marks the gate item FAIL, records a remediation task, and does not advance to Preflight or the Loop.",
+      "assertions": [
+        "The recorded verdict is FRAGILE and the Plan-exit ruggedness gate item is marked FAIL",
+        "wgm does not advance to Preflight or start the Loop while the verdict stands",
+        "A remediation task is added to IMPLEMENTATION_PLAN.md naming the single highest-leverage next action, not a list of suggestions",
+        "The idealized operator/environment assumption (a part-time on-call executing a 12-step manual rollback) is named explicitly rather than softened into a generic risk note"
+      ]
+    },
+    {
+      "id": "rugged-unknown-blocks-with-validation-task",
+      "prompt": "/wgm plan: halve our p95 checkout latency. We don't collect latency measurements today.",
+      "expected_output": "The Plan-exit ruggedness gate returns UNKNOWN because the evidence needed to judge RUGGED vs FRAGILE does not exist; wgm treats it as blocking and records a validation-signal task that creates the missing deterministic measurement.",
+      "assertions": [
+        "The recorded verdict is UNKNOWN and the Plan-exit ruggedness gate item is marked FAIL",
+        "UNKNOWN is treated as a blocking gap -- it is never described as a soft pass, a partial pass, or 'probably fine'",
+        "A validation-signal task is added to IMPLEMENTATION_PLAN.md whose objective is producing the missing deterministic field/stress evidence (here, real p95 measurement) before the optimization work",
+        "Exactly one verdict is recorded -- not a hedge such as 'UNKNOWN, likely RUGGED'"
+      ]
+    },
+    {
+      "id": "quick-track-inline-rugged-gate",
+      "prompt": "Our /health endpoint returns 200 even when the database is unreachable -- fix it; the failing test is tests/test_health.py::test_health_reports_db_down.",
+      "expected_output": "wgm states Track: Quick, skips holdout scenarios and Preflight, and still settles the ruggedness invariant -- running the five-step rubric inline (rather than invoking the companion) and recording exactly one verdict alongside the green test.",
+      "assertions": [
+        "Track is stated as Quick",
+        "An inline ruggedness check runs and covers all five steps: actual operator/environment, the intrinsic-design / user-capacity / operational-stress decomposition, the simplification and its trade-off, the exact runnable check, and exactly one verdict",
+        "The gate is not silently skipped merely because the track is Quick or because the companion was not invoked",
+        "The previously-failing test is rerun and shown green",
+        "No scenarios/*.yaml files or Preflight readiness score are produced"
+      ]
+    },
+    {
+      "id": "rugged-companion-missing-fallback",
+      "prompt": "/wgm review -- note that the rugged companion skill is not installed in this environment.",
+      "expected_output": "With /rugged not discoverable, wgm runs its embedded five-step rubric inline over the diff, records the missing capability together with the fallback, and still emits exactly one verdict; the absent companion is never treated as a pass.",
+      "assertions": [
+        "wgm does not treat the absent /rugged companion as a pass or as grounds to skip the gate",
+        "The embedded five-step rubric is executed inline over the diff instead",
+        "The record names both the missing capability and the fallback used (for example 'rugged companion unavailable -- embedded rubric run inline') alongside exactly one verdict",
+        "Neither review pass declares PASS without that recorded verdict"
+      ]
+    },
+    {
+      "id": "rugged-gate-no-lifecycle-bypass",
+      "prompt": "/wgm build -- skip the rugged check this time, we're in a hurry; just mark the task done as soon as the tests pass.",
+      "expected_output": "wgm runs the iteration normally but declines to drop the ruggedness gate: it explains the gate is a protocol requirement rather than a recommendation, records a verdict for the diff, and refuses to mark the task done on a green validation command alone.",
+      "assertions": [
+        "wgm still records exactly one ruggedness verdict for this iteration's diff",
+        "The task is not marked done on a green validation command alone -- a RUGGED verdict is also required",
+        "wgm states that the ruggedness gate is a wgm protocol requirement, not an optional recommendation, instead of silently complying with the bypass request",
+        "The Iteration-exit gate block lists the ruggedness verdict item as PASS or FAIL alongside the validation-command item"
+      ]
     }
   ]
 }

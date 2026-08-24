@@ -10,6 +10,7 @@
 #   2. UTF-8 double-encoding (mojibake) is detected;
 #   3. a broken internal relative link is detected;
 #   4. an unbalanced code fence is detected.
+#   5. a protocol file/phrase array mismatch and an overgrown SKILL.md are detected.
 #
 # Probes are written into docs/ and removed again by an EXIT trap, so a failed run cannot leave the
 # working tree dirty.
@@ -52,6 +53,40 @@ if [[ "$RC" -ne 0 ]] && grep -q "protocol contract is missing" <<<"$OUT"; then
   pass "removing a required protocol phrase turns the docs gate red"
 else
   fail "protocol contract deletion did not trip the gate (rc=$RC): $OUT"
+fi
+
+# 1c) adding a contract phrase without its paired file turns the alignment guard red
+ARRAY_TMP="$PROTOCOL_TMP/array-repo"
+mkdir -p "$ARRAY_TMP"
+cp -a "$ROOT/." "$ARRAY_TMP/"
+awk '
+  /^PROTOCOL_PHRASES=\(/ { print; print "  \"synthetic unmatched phrase\""; next }
+  { print }
+' "$ARRAY_TMP/scripts/check-docs.sh" > "$ARRAY_TMP/scripts/check-docs.sh.tmp"
+mv "$ARRAY_TMP/scripts/check-docs.sh.tmp" "$ARRAY_TMP/scripts/check-docs.sh"
+OUT="$(bash "$ARRAY_TMP/scripts/check-docs.sh" 2>&1)"
+RC=$?
+if [[ "$RC" -ne 0 ]] && grep -q "arrays are misaligned" <<<"$OUT"; then
+  pass "a protocol file/phrase array mismatch turns the docs gate red"
+else
+  fail "protocol array mismatch did not trip the gate (rc=$RC): $OUT"
+fi
+
+# 1d) growing the always-loaded protocol beyond its budget turns the docs gate red
+SIZE_TMP="$PROTOCOL_TMP/size-repo"
+mkdir -p "$SIZE_TMP"
+cp -a "$ROOT/." "$SIZE_TMP/"
+size_lines="$(wc -l < "$SIZE_TMP/SKILL.md")"
+needed=$((501 - size_lines))
+if (( needed > 0 )); then
+  for ((i = 0; i < needed; i++)); do printf '\n' >> "$SIZE_TMP/SKILL.md"; done
+fi
+OUT="$(bash "$SIZE_TMP/scripts/check-docs.sh" 2>&1)"
+RC=$?
+if [[ "$RC" -ne 0 ]] && grep -q "SKILL.md exceeds the 500-line activation budget" <<<"$OUT"; then
+  pass "an overgrown SKILL.md turns the docs gate red"
+else
+  fail "SKILL.md line-budget probe did not trip the gate (rc=$RC): $OUT"
 fi
 
 # 2) mojibake: `Â` + `·` and `Ã` + an em dash, as emitted by a CP1252 round-trip

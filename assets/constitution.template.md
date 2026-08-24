@@ -10,6 +10,23 @@
 3. **Security & privacy** — <secrets handling, authz model, input validation, data we never log>.
 4. **UX & consistency** — <house style, accessibility, copy tone, design system to follow>.
 5. **Performance** — <budgets that matter, e.g. p95 latency, bundle size, memory ceiling>.
+6. **Ruggedness** — <the bar for holding up in the field: named actual operators and environment,
+   few moving parts, visible rather than silent degradation, atomic and recoverable changes>.
+
+## Ruggedness gate (non-negotiable)
+Every plan and every reviewed diff carries **exactly one** ruggedness verdict — produced by
+`/rugged plan` / `/rugged review` when the companion is discoverable, or by wgm's embedded five-step
+rubric run inline (recording the missing capability) when it is not. An absent verdict is a gate
+FAIL, never a pass, on every track including Quick.
+
+| Verdict | Effect | Required recovery |
+|---|---|---|
+| **RUGGED** | passes the gate | none — record the verdict and continue |
+| **FRAGILE** | blocks | a remediation task in `IMPLEMENTATION_PLAN.md`, fixed before the gate re-runs |
+| **UNKNOWN** | blocks | a validation-signal task that creates the missing deterministic field/stress evidence |
+
+Plan-exit judges plan readiness (an exact runnable field/stress/recovery check *design*); Review
+judges real implementation evidence. See `SKILL.md`, "The ruggedness gate".
 
 ## Non-negotiables
 - <A hard constraint that must never be violated, e.g. "no PII in logs", "never break the public API">.

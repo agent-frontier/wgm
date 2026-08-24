@@ -24,6 +24,9 @@ report process, scope, cost, or missing measurements, but it cannot satisfy this
 - **Source-first adversarial checks**: test the load-bearing claims the author is most likely to be
   certain about, including absolute documentation claims, arithmetic, security statements, and
   copy-paste commands.
+- **Ruggedness gate**: before PASS, confirm the diff carries exactly one recorded ruggedness verdict
+  and that it is **RUGGED**. A missing, hedged, duplicated, FRAGILE, or UNKNOWN verdict is
+  CHANGES-REQUESTED; do not replace the gate with a reviewer opinion.
 - **No noise**: ignores formatting, naming, and style — only issues that genuinely matter.
 - **Verdict + reservations**: emit `PASS` or `CHANGES-REQUESTED` with the specific defect + why it
   matters; on `PASS`, still list any **non-blocking reservation** so it is recorded, not lost.

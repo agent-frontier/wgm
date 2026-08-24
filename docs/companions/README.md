@@ -7,6 +7,8 @@ built for operators and conditions that don't exist.
 
 `teach-me` closes the understanding gap. `quiz-me` proves it actually closed. `rugged` checks
 whether the result — or the plan for it — actually holds up in the field.
+`wgm` uses `rugged` at Plan-exit and Review as a required gate; invoke it directly when you want
+the same check outside a wgm run.
 
 ## Executive overview
 

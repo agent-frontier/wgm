@@ -21,6 +21,11 @@ scenario files while coding.
 - **Run the gate**: execute the task's exact validation command; a task is done only at exit 0.
 - **Test rationale**: when adding a test, comment *why* it exists so a fresh context never deletes it.
 - **Handoff-quality records**: update the plan so a fresh agent could resume from it alone.
+- **Ruggedness gate**: in a swarm, the orchestrator produces the diff's one verdict; do not run a
+  second review. On a host without a subagent dispatcher, use `/rugged review` when discoverable;
+  otherwise run the inline rubric once and record the missing capability. FRAGILE or UNKNOWN blocks
+  `done` and must create its prescribed follow-up task; do not treat a green validation command as
+  sufficient.
 
 ### Knowledge Base
 Follows the wgm protocol (`SKILL.md`), `references/ralph-loop.md`, the active `specs/*`,

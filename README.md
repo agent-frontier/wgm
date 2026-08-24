@@ -98,7 +98,7 @@ Invoke as a slash command with an optional **mode** and a request:
 | `/wgm analyze only` | Explore code + requirements and report; no implementation |
 | `/wgm plan: add OAuth login` | Write specs + `IMPLEMENTATION_PLAN.md`, then stop |
 | `/wgm build` | Continue the build loop from the existing plan |
-| `/wgm review` | Review the current diff against acceptance criteria |
+| `/wgm review` | Review the current diff against acceptance criteria and end with a recorded ruggedness verdict; RUGGED passes, FRAGILE/UNKNOWN block |
 
 **Modes:** `grill`, `analyze`, `plan`, `build` (alias `loop`), `review`.
 `grill`, `analyze`, `plan`, and `review` are single-phase entry points and always stop at their
@@ -142,8 +142,9 @@ something:
   second is just a gap.
 
 `rugged` is a different kind of companion: it never edits anything, and it judges robustness, not
-comprehension. See [Companion skills](docs/companions/README.md) for its full lifecycle and the
-development-practice metaphor its name comes from.
+comprehension. wgm invokes it at Plan-exit and Review as a required gate, with an inline fallback
+when the companion is unavailable. See [Companion skills](docs/companions/README.md) for its full
+lifecycle and the development-practice metaphor its name comes from.
 
 Artifacts land in `.wgm/learning/` (teach-me/quiz-me) and `.wgm/rugged/` (rugged), so a later
 session resumes instead of re-surveying. None of the three modify your code — except `teach-me`'s

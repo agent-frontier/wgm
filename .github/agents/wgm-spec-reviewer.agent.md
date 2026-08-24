@@ -29,6 +29,9 @@ self-review is available, treat it as process-only context, not as evidence of c
 - **Scope guard**: the diff stays within the task's stated files/areas — flag scope creep.
 - **Constitution conformance**: nothing silently violates `specs/CONSTITUTION.md`; deviations are recorded.
 - **Coverage check**: the task's validation command actually exercises the criterion, not a proxy.
+- **Ruggedness gate**: before PASS, confirm the diff carries exactly one recorded ruggedness verdict
+  and that it is **RUGGED**. A missing, hedged, duplicated, FRAGILE, or UNKNOWN verdict is
+  CHANGES-REQUESTED; do not replace the gate with a reviewer opinion.
 - **Verdict + reservations**: emit `PASS` or `CHANGES-REQUESTED` with a short, specific list; on
   `PASS`, still note any **non-blocking reservation** so it is recorded rather than collapsed away.
 

@@ -103,7 +103,8 @@ flowchart LR
 1. **Analyze** — read the plan, the relevant spec, and only the files this task needs.
 2. **Implement** — the smallest change that completes the task.
 3. **Validate** — run the task's own validation command. **Exit 0 or it is not done.**
-4. **Review** — check the diff for scope creep, and verify claims against the code.
+4. **Review** — run the ruggedness gate, check the diff for scope creep, and verify claims against
+   the code.
 5. **Record** — update the plan so a fresh agent could continue from the file alone.
 
 The iteration ends with its own gate:
@@ -116,10 +117,12 @@ Gate check:
   Diff reviewed for scope creep ......... PASS
   Plan updated .......................... PASS
   Exactly one task advanced ............. PASS
+  Ruggedness verdict is RUGGED .......... PASS
 ```
 
-**Note:** A task is marked `done` **only** if its validation command exited 0. Otherwise it becomes
-`blocked` with a note, or stays `pending`. There is no third option and no partial credit.
+**Note:** A task is marked `done` **only** if its validation command exited 0 and its recorded
+ruggedness verdict is RUGGED. Otherwise it becomes `blocked` with a note, or stays `pending`.
+There is no third option and no partial credit.
 
 ## Step 5: Watch what happens when a check fails
 

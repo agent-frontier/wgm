@@ -9,10 +9,15 @@
 #   3. an unexpected top-level key fails — including one containing punctuation;
 #   4. an unexpected per-case key fails — including one containing a digit;
 #   5. a missing required field still fails;
-#   6. assertions must actually be an array.
+#   6. assertions must actually be an array;
+#   7. the ruggedness-gate lifecycle cases stay in wgm's own fixture, one per distinction.
 #
 # (3) and (4) are the [learn] issue #86 class: an identifier-shaped regex would skip exactly those
 # keys, so the gate must read the key set structurally instead.
+#
+# (7) exists because the ruggedness gate is a wgm protocol requirement (SKILL.md, "The ruggedness
+# gate"), and a protocol requirement with no fixture coverage silently decays into a suggestion: the
+# schema gate alone would happily pass a fixture from which every rugged case had been deleted.
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -93,6 +98,52 @@ if [[ "$RC" -ne 0 ]] && grep -q "'assertions' must be a non-empty array" <<<"$OU
   pass "a non-array assertions value is rejected"
 else
   fail "a non-array assertions value was not rejected (rc=$RC): $OUT"
+fi
+
+# 7) the ruggedness-gate lifecycle cases stay in wgm's own fixture — one case per distinction the
+# gate has to make. The schema gate cannot see this: a fixture with every rugged case deleted is
+# still schema-valid, which would let a mandatory protocol gate (SKILL.md, "The ruggedness gate")
+# decay into an untested suggestion. Each id below covers a distinct behavior: a RUGGED Plan-exit,
+# FRAGILE blocking with a remediation task, UNKNOWN blocking with a validation-signal task, the
+# Quick-track inline rubric, the missing-companion fallback, and refusal of a lifecycle bypass.
+RUGGED_CASE_IDS=(
+  plan-exit-rugged-gate-rugged
+  rugged-fragile-blocks-plan-exit
+  rugged-unknown-blocks-with-validation-task
+  quick-track-inline-rugged-gate
+  rugged-companion-missing-fallback
+  rugged-gate-no-lifecycle-bypass
+)
+missing_cases=()
+for id in "${RUGGED_CASE_IDS[@]}"; do
+  jq -e --arg id "$id" 'any(.evals[]; .id == $id)' "$FIXTURE" >/dev/null 2>&1 \
+    || missing_cases+=("$id")
+done
+if (( ${#missing_cases[@]} == 0 )); then
+  pass "the ruggedness-gate lifecycle cases are all present in the shipped fixture"
+else
+  fail "the shipped fixture is missing ruggedness-gate case(s): ${missing_cases[*]}"
+fi
+
+# 7b) the cases that define each verdict must assert their specific behavior themselves, so a
+# generic enumeration in another assertion cannot keep a blocking behavior test green after it is
+# hollowed out.
+declare -A RUGGED_CASE_ASSERTIONS=(
+  [plan-exit-rugged-gate-rugged]="RUGGED is justified by plan-readiness evidence"
+  [rugged-fragile-blocks-plan-exit]="The recorded verdict is FRAGILE and the Plan-exit ruggedness gate item is marked FAIL"
+  [rugged-unknown-blocks-with-validation-task]="The recorded verdict is UNKNOWN and the Plan-exit ruggedness gate item is marked FAIL"
+)
+missing_verdicts=()
+for id in "${!RUGGED_CASE_ASSERTIONS[@]}"; do
+  assertion="${RUGGED_CASE_ASSERTIONS[$id]}"
+  jq -e --arg id "$id" --arg assertion "$assertion" \
+    'any(.evals[] | select(.id == $id) | .assertions[]; contains($assertion))' "$FIXTURE" >/dev/null 2>&1 \
+    || missing_verdicts+=("$id")
+done
+if (( ${#missing_verdicts[@]} == 0 )); then
+  pass "Plan-exit RUGGED/FRAGILE/UNKNOWN cases each assert their own verdict behavior"
+else
+  fail "ruggedness case(s) lack their own behavior assertion: ${missing_verdicts[*]}"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

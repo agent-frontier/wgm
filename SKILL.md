@@ -50,7 +50,7 @@ implement / prototype something from rough intent.
 | `/wgm analyze only` | Explore code + requirements — or, with a plan present, run the cross-artifact consistency check; report findings; do not implement |
 | `/wgm plan: <request>` | Write specs + `IMPLEMENTATION_PLAN.md`; stop at Plan-exit |
 | `/wgm build` | Run the build loop from the existing plan (`build only` = one iteration) |
-| `/wgm review` | Review current diff against acceptance criteria; no new code |
+| `/wgm review` | Review current diff against acceptance criteria; no new code; ends with a recorded ruggedness verdict |
 
 ## Use this when
 - Building or implementing a feature/app/prototype from rough or ambiguous intent.
@@ -75,9 +75,11 @@ proves the learning landed (one question at a time, graded against the code, sco
 
 **[rugged](companions/rugged/SKILL.md)** — the third companion skill, a read-only reviewer that
 stress-tests a request, spec, plan, diff, or system against its *actual* operators and environment,
-ending in one unhedged verdict (RUGGED, FRAGILE, or UNKNOWN). It is not wired into any wgm phase
-gate; an operator invokes it directly when they want a second opinion on whether a design holds up
-or is over-built for conditions that don't exist (`companions/rugged/SKILL.md`).
+ending in one unhedged verdict (RUGGED, FRAGILE, or UNKNOWN). **wgm's ruggedness gate uses `/rugged`
+whenever it is discoverable and embeds the same rubric as an inline fallback when it is not** — see
+"The ruggedness gate" below, which runs at Plan-exit and at the Loop's Review step on every track. An
+operator may also invoke it directly, outside any gate, for a second opinion on whether a design
+holds up or is over-built for conditions that don't exist (`companions/rugged/SKILL.md`).
 
 **sofaking** — Stack Overflow for Agents knowledge integration. When installed, a compatible host
 adapter may invoke sofaking at:
@@ -101,6 +103,62 @@ script for its own `evals/evals.json` — is `scripts/grade-evals.sh`
 ## Gates (enforcement)
 The lifecycle is a state machine. At each phase end, **print a `Gate check:` block listing every gate item as PASS or FAIL.** If any item is FAIL, do **not** advance — ask one question, fix the artifact, or stop with a recorded blocker. Gates are not advisory.
 
+## The ruggedness gate (every track, never skipped)
+Deterministic checks prove a change *works*; they cannot prove it **holds up for the operators and
+environment that will actually run it**. wgm settles that question twice — at **Plan-exit** and at
+the Loop's **Review** step — and it is a protocol requirement on every track, not a recommendation.
+A missing or hedged ruggedness verdict is a gate FAIL, exactly like a missing validation command.
+
+**How it runs.** Prefer the companion: `/rugged plan <scope>` at Plan-exit, `/rugged review <scope>`
+(or `/rugged stress <scope>` when only the field evidence is in question) at Review. **If the
+companion is not discoverable** — not installed, or the host cannot invoke it — run the embedded
+rubric below inline yourself and record the fallback explicitly ("rugged companion unavailable —
+embedded rubric run inline"). An absent `/rugged` is a **recorded missing capability plus a
+fallback, never an automatic pass**.
+
+**Embedded rubric — the fallback, and the Quick track's normal form.** Five steps, one line each:
+1. **Actual operator & environment** — who really runs and maintains this, at what load, with which
+   dependency failure modes, at 3am during an incident. If it is unstated and unrecoverable, say so
+   and record the gap; never invent a plausible operator.
+2. **Bottleneck decomposition** — split the expected failure into *intrinsic design constraint* ·
+   *user capacity* · *operational stress*, and name which bucket carries most of the risk.
+3. **Simplify** — which moving part comes out, or is replaced by one that degrades visibly instead
+   of silently, and the trade-off accepted for it.
+4. **Exact check** — the runnable command/probe, its origin/environment, the expected observation,
+   and the failure/recovery criterion. "It should work" is not a check.
+5. **Exactly one verdict** — RUGGED, FRAGILE, or UNKNOWN. Two verdicts, a hedge, or no verdict is
+   itself a FAIL.
+
+**Verdict semantics** — identical whether the companion or the inline rubric produced them:
+
+| Verdict | Gate | Required follow-up |
+|---|---|---|
+| **RUGGED** | PASS | none — record the verdict and continue |
+| **FRAGILE** | **BLOCKS** | record a **remediation task** in `IMPLEMENTATION_PLAN.md` (the one highest-leverage next action), fix it, then re-run the gate |
+| **UNKNOWN** | **BLOCKS** | record a **validation-signal task** that creates the missing deterministic field/stress evidence. UNKNOWN is never "probably fine" |
+
+When Plan-exit is blocked, revise the plan with the named remediation or validation-signal task and
+re-run `/rugged plan`; the evidence itself is owed at that task's Review verdict, not before the
+Loop can start.
+
+**Plan-exit judges the plan, not an implementation that doesn't exist yet.** Use `/rugged plan`'s
+plan-readiness semantics: every load-bearing claim maps to an *exact runnable* field/stress/recovery
+check (command · origin/environment · expected observation · failure + recovery criterion). Do
+**not** demand real field evidence from unwritten code — that is Review/stress's job. A demonstrated
+idealized operator or environment is **FRAGILE**; without one, a missing exact check design is
+**UNKNOWN**; only an assumption-free plan with an exact check design is **RUGGED**.
+
+**Track shape.** **Standard/Full** record a `/rugged plan` result at Plan-exit and a `/rugged review`
+result at Review. **Quick** runs the same five-step rubric **inline** in its short plan and its
+review — it may skip *invoking the companion*; it may never skip the *invariant*.
+
+**Record it** where a fresh context will find it: the verdict, its date, the scope, whether the
+companion or the inline fallback produced it, and any task it spawned all go into
+`IMPLEMENTATION_PLAN.md` (plus `.wgm/rugged/` for both companion and inline fallback runs) —
+`references/artifacts.md`.
+When a blocked gate is rerun, replace the prior verdict for that scope with the new current verdict;
+retain superseded verdicts only as dated history, never as a second current verdict.
+
 ## Phase 0 — Triage (always first)
 1. Parse the mode; confirm this skill applies (else say so and stop).
 2. **Check consent — before anything else.** Look for `.github/wgm-hive.yml`
@@ -120,8 +178,8 @@ The lifecycle is a state machine. At each phase end, **print a `Gate check:` blo
 
    | Track | When | Ceremony |
    |---|---|---|
-   | **Quick** | Bug fix or small 1–5 file change with an obvious check, and completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions) | Grill only what's unclear · short plan · inline deterministic validation · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
-   | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged; the docs-audit swarm runs once, at Ship/Handoff |
+   | **Quick** | Bug fix or small 1–5 file change with an obvious check, and completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions) | Grill only what's unclear · short plan · inline deterministic validation · **inline** ruggedness rubric (the invariant is never skipped) · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
+   | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged, including the `/rugged plan` + `/rugged review` ruggedness gate; the docs-audit swarm runs once, at Ship/Handoff |
    | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation · a Plan-exit **baseline** docs-audit pass |
 5. Decide loop mode — **prefer Ralph-full whenever it is practically invocable**:
    - **Ralph-full (preferred default)**: genuinely fresh context per iteration is the purer, stronger
@@ -216,6 +274,13 @@ runs once a plan exists (`references/artifacts.md`).
       requirement lacks a task and no task lacks a spec.
 - [ ] **No placeholders:** no task carries a `to-be-decided` / `implement-later` / `fill-in` marker;
       every task names exact files/areas and a runnable validation command.
+- [ ] **Ruggedness gate (all tracks):** a `/rugged plan` result for this plan/specs exists — or, when
+      the companion is not discoverable, the embedded rubric was run inline and that fallback is
+      recorded — carrying **exactly one** verdict, and that verdict is **RUGGED**. **FRAGILE** →
+      record the remediation task and stay FAIL; **UNKNOWN** → record the validation-signal task and
+      stay FAIL. Judge *plan readiness* (an exact runnable field/stress/recovery check design), not
+      field evidence from code that doesn't exist yet. **Quick** runs the same rubric inline rather
+      than invoking the companion; it never skips it (see "The ruggedness gate").
 - [ ] **Full track only:** a baseline docs-audit pass has run over the specs/`AGENTS.md`/README as
       they stand before any code is written (`references/docs-audit.md`).
 
@@ -274,6 +339,11 @@ stop condition fires. **One task per iteration.** Each iteration:
    by a swarm lane — is an *unverified assertion*. For each acceptance bullet, check the artifact:
    does the named file exist, does the claimed symbol/constant/branch actually appear, does the named
    command run? Grep, don't trust plausible prose (`references/subagents.md`, "Worktree swarm").
+   **Ruggedness verdict — required, every Review:** run `/rugged review` (or `/rugged stress`) over
+   this diff when the companion is discoverable, otherwise run the embedded rubric inline and record
+   the fallback. Neither reviewer may declare PASS without that verdict in hand: **FRAGILE** blocks
+   `done` and spawns a remediation task, **UNKNOWN** blocks `done` and spawns a validation-signal
+   task, and an absent `/rugged` is never a pass (see "The ruggedness gate").
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone. Once that
    validation command exits 0, commit the iteration with a Conventional Commits message (`type:
@@ -306,8 +376,10 @@ bloated, stop and hand off through the plan (Phase 4) rather than grinding (`ref
 
 **Iteration-exit gate** (print PASS/FAIL for each): implementation done · the task's exact
 validation command was run and **exited 0** · result recorded · diff reviewed for scope creep +
-acceptance · plan updated · exactly one task advanced. A task may be marked `done` **only if its
-validation command exited 0**; otherwise set it `blocked` (with a note) or leave it `pending`.
+acceptance · **exactly one ruggedness verdict recorded for this diff, and it is RUGGED** · plan
+updated · exactly one task advanced. A task may be marked `done` **only if its validation command
+exited 0** and its ruggedness verdict is RUGGED; otherwise set it `blocked` (with a note) or leave
+it `pending`, with the remediation (FRAGILE) or validation-signal (UNKNOWN) task recorded.
 
 **Stop conditions:** all must-have tasks `done` (including the demo-validation task) **and overall
 satisfaction ≥ threshold (default 95)**; or a stall persists after wonder/reflect + escalation (~3

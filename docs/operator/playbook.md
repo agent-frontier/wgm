@@ -74,9 +74,9 @@ flowchart TD
 | Gate | What PASS means | What to do on FAIL |
 |---|---|---|
 | Grill-exit | Goal, success criteria, and constraints are known or explicitly assumed | Answer the open question, or say "proceed with defaults" |
-| Plan-exit | Plan/specs/scenarios exist, every task has a validation command, no placeholders, constitution conformance | Point wgm at the specific missing piece; don't let it skip ahead |
+| Plan-exit | Plan/specs/scenarios exist, every task has a validation command, no placeholders, constitution conformance, and exactly one recorded **RUGGED** verdict | Point wgm at the specific missing piece; for FRAGILE/UNKNOWN revise the plan with its one remediation or validation-signal task and re-run `/rugged plan` |
 | Preflight | Readiness score ≥ 80 (Standard/Full) | Ask wgm which dimension is weakest (goal clarity, scenario coverage, scope edges) and fix that one first |
-| Iteration-exit | Validation command ran and exited 0; plan updated; exactly one task advanced | Do not accept the task as `done` — send it back |
+| Iteration-exit | Validation command ran and exited 0; plan updated; exactly one task advanced; the diff has exactly one recorded **RUGGED** verdict | Do not accept the task as `done` — send it back for the missing or blocking ruggedness result |
 | Ship/Handoff | Demo path green, satisfaction ≥ threshold, **docs-audit report exists** (Standard/Full) | Ask wgm to dispatch the docs-audit swarm before you accept the handoff |
 
 > **Why Triage/consent isn't a row above:** the `.github/wgm-hive.yml` consent check (Triage step 2,

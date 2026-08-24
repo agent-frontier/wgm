@@ -37,9 +37,9 @@ stateDiagram-v2
 |---|---|---|
 | **Triage** | Parse mode; **check `.github/wgm-hive.yml` consent — if absent, ask that one-time question before anything else**; classify the work into a Quick/Standard/Full track (default Standard; detail in [`SKILL.md`](../../SKILL.md)); choose Ralph-lite (same session) or Ralph-full (fresh context per iteration via `loop.sh`); set root vs `.wgm/`; discover optional host plugins as metadata only | Working dir decided; track chosen |
 | **Grill** | Interview to alignment, one question at a time; seed the `CONTEXT.md` glossary | Goal, success criteria, constraints known or assumed |
-| **Plan** | Write the constitution, optional `CONTEXT.md` glossary, specs (EARS-phrased acceptance), scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario |
+| **Plan** | Write the constitution, optional `CONTEXT.md` glossary, specs (EARS-phrased acceptance), scenarios + `IMPLEMENTATION_PLAN.md`; run the consistency check and the `/rugged plan` gate | Conforms to the constitution; cross-artifact consistency; no placeholders; every task has validation + acceptance; demo path covered by a tier-1 scenario; exactly one recorded RUGGED verdict |
 | **Preflight** | Score readiness 0–100 | Readiness ≥ 80 |
-| **Loop** | One task per iteration (Analyze → Implement → Validate → two-stage review with dissent → Record); rotate context when it fills | Validation exited 0; satisfaction judged; plan updated |
+| **Loop** | One task per iteration (Analyze → Implement → Validate → ruggedness gate → two-stage review with dissent → Record); rotate context when it fills | Validation exited 0; exactly one recorded RUGGED verdict; satisfaction judged; plan updated |
 | **Ship** | Summarize, leave repo resumable; **audit the docs** through a host-dispatched mandatory paper trail (Standard/Full — [`references/docs-audit.md`](../../references/docs-audit.md)); **harvest** a durable, always-anonymized lesson through the runner hook and report it automatically if `.github/wgm-hive.yml` consents | Demo path green; threshold met; docs-audit report committed or host limitation recorded |
 
 Details per phase live in the references: [grilling](../../references/grilling.md),

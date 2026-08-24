@@ -30,6 +30,20 @@ Phrase each criterion in **EARS** (see `references/artifacts.md`) — e.g. "When
 - **Holdout rule:** authored here, but the Implement step must NOT read them — only Validate/Review
   judges against them. Tier them 1–3 for stratified validation. See `references/scenarios.md`.
 
+## Ruggedness (rugged gate)
+Who and what this slice must actually survive — filled at Plan, re-checked at Review.
+
+- **Actual operators:** <who really runs/maintains this: skill level, staffing, on-call, turnover>
+- **Actual environment:** <load, latency, dependency failure modes, what 3am during an incident looks like>
+- **Dominant risk bucket:** <intrinsic design constraint | user capacity | operational stress — and why>
+- **Simplification accepted:** <the moving part removed, or made to degrade visibly, and its trade-off>
+- **Exact field/stress/recovery check:** <runnable command/probe · origin/environment · expected observation · failure + recovery criterion>
+- **Plan-exit verdict:** <RUGGED | FRAGILE | UNKNOWN> — <yyyy-mm-dd> · produced by <`/rugged plan` | inline rubric (companion unavailable)>
+
+Exactly one verdict. RUGGED passes. FRAGILE blocks and needs a remediation task; UNKNOWN blocks and
+needs a validation-signal task that creates the missing evidence. An absent verdict is a gate FAIL,
+never a pass. See `SKILL.md`, "The ruggedness gate".
+
 ## Assumptions
 - <Recommended assumption made during grilling, to be confirmed if it proves wrong>
 

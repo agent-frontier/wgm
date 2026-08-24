@@ -58,7 +58,8 @@ loop, with progress living on disk (not the model's context) between passes
    tier can regress output.
 2. **Implement** — smallest change that completes one task; prefer a working vertical slice.
 3. **Validate** — run the task's backpressure command. Green or it isn't done.
-4. **Review** — diff check: scope creep, acceptance met, signal actually proves the task.
+4. **Review** — diff check: scope creep, acceptance met, signal actually proves the task. Record
+   the iteration's **ruggedness verdict** (below) — no verdict, no `done`.
 5. **Record** — update the plan: status, results, follow-ups. Once the task's validation
    command exits 0, commit that iteration with a Conventional Commits message (`type: imperative
    description`, ≤72 chars; `fix` / `feat` / `refactor` / `docs` / `test` / `chore` / `build` /
@@ -150,6 +151,29 @@ loop, with progress living on disk (not the model's context) between passes
   build iteration must keep green — a backpressure floor independent of each task's own check.
   `loop.sh` executes them after the agent returns and also injects the list into the prompt
   (`--gates FILE` to override).
+
+## The ruggedness gate in the loop
+Backpressure proves the change *works*; the ruggedness gate asks whether it **holds up for the
+operators and environment that actually run it**. It is part of the loop's Review step on every
+track, not an optional extra (`SKILL.md`, "The ruggedness gate"; `references/artifacts.md`,
+`.wgm/rugged/*`).
+
+- **Every Review records exactly one verdict.** Run `/rugged review` (or `/rugged stress` when only
+  the field evidence is in question) over the iteration's diff. **RUGGED** passes; **FRAGILE** blocks
+  the task and adds a remediation task; **UNKNOWN** blocks the task and adds a validation-signal task
+  that creates the missing deterministic field/stress evidence. UNKNOWN is a blocking gap, never a
+  soft pass.
+- **No companion, no bypass.** If `/rugged` is not discoverable, run the five-step rubric inline —
+  actual operator/environment · intrinsic-design / user-capacity / operational-stress decomposition ·
+  simplification · the exact runnable check with its expected observation and recovery criterion ·
+  one verdict — and record both the verdict and the missing capability. An absent companion is a
+  recorded fallback, not a pass, and a serial single-agent host runs the identical rubric
+  (`references/subagents.md`).
+- **Review evidence is real, Plan-exit evidence is a design.** In the loop the implementation exists,
+  so a promised future check is not evidence: execute or inspect the actual field/stress result. The
+  weaker plan-readiness standard (an exact runnable check *design*) belongs to Plan-exit only.
+- **It is not a second deterministic gate.** The task's own validation command still has to exit 0;
+  the verdict sits beside it, and `done` needs both.
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent recurring loop failures:
