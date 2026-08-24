@@ -56,12 +56,21 @@ SCEN_SUM="$(cksum scenarios/holdout.yaml)"
 git add -A && git commit -qm seed
 SEED="$(git rev-parse HEAD)"
 
-mkdir -p build
+mkdir -p build notes
 printf 'ORIGINAL\n' > build/cache.bin
 printf 'SECRET=original\n' > .env
-restore_ignored() {  # put the pre-existing ignored files back after a case overwrites them
+# Untracked but NOT ignored, and created after the seed commit so it stays that way. git reports it
+# as `?? notes/scratch.txt` before AND after an overwrite — the path never changes — so this is the
+# file that proves a path-list guard is not enough for untracked content either.
+printf 'ORIGINAL-SCRATCH\n' > notes/scratch.txt
+restore_side_files() {  # put the pre-existing ignored/untracked fixtures back between cases
+  # Self-healing on purpose: the role-commit case runs `git add -A`, which sweeps the untracked
+  # fixture into its commit, and the `git reset --hard` that undoes that commit then deletes the
+  # file. A fixture that quietly stays missing would make the untracked-overwrite case vacuous.
+  mkdir -p build notes
   printf 'ORIGINAL\n' > build/cache.bin
   printf 'SECRET=original\n' > .env
+  printf 'ORIGINAL-SCRATCH\n' > notes/scratch.txt
   rm -f build/new-artifact.txt
 }
 
@@ -78,7 +87,8 @@ restore_ignored() {  # put the pre-existing ignored files back after a case over
 #   FAKE_SLEEP_ROLE  this role sleeps FAKE_SLEEP_SECS seconds (for the timeout bound)
 #   FAKE_COMMIT_ROLE / FAKE_STASH_ROLE / FAKE_IGNORED_ROLE — three mutations that leave
 #                    `git status` clean: commit it, stash it, or overwrite an existing
-#                    ignored file. FAKE_IGNORED_NEW_ROLE creates a new ignored file.
+#                    ignored file. FAKE_IGNORED_NEW_ROLE creates a new ignored file, and
+#                    FAKE_UNTRACKED_ROLE appends to an existing untracked non-ignored one.
 #   FAKE_FLAKY_ROLE  this role fails its FIRST attempt only, then succeeds (for the retry path)
 #   FAKE_STDIN       read the prompt from stdin instead of "$1"
 # The writer emits the five markers the consolidation contract requires; FAKE_THIN_WRITER makes it
@@ -107,6 +117,11 @@ if [[ "${FAKE_IGNORED_ROLE:-}" == "$role" ]]; then
   # Overwrite an ignored file that ALREADY existed: the path list is identical before and after.
   printf 'OVERWRITTEN by %s\n' "$role" > build/cache.bin
   printf 'SECRET=exfiltrated-by-%s\n' "$role" > .env
+fi
+if [[ "${FAKE_UNTRACKED_ROLE:-}" == "$role" ]]; then
+  # Append to an untracked, non-ignored file that already existed: `?? notes/scratch.txt` before,
+  # `?? notes/scratch.txt` after.
+  printf 'APPENDED by %s\n' "$role" >> notes/scratch.txt
 fi
 if [[ "${FAKE_IGNORED_NEW_ROLE:-}" == "$role" ]]; then
   mkdir -p build
@@ -192,9 +207,10 @@ run_in() {  # same as run(), but from another working directory
   set -e
 }
 
-reset_runs() {  # drop reports + working dirs between tests
+reset_runs() {  # drop reports + working dirs between tests, and restore the side-file fixtures
   rm -rf docs/audit .wgm
   git checkout -q -- README.md docs/README.md 2>/dev/null || true
+  restore_side_files
 }
 
 count_role() {  # how many times a role was invoked in the last run
@@ -608,13 +624,13 @@ if [[ "$RC" -ne 0 ]] \
    && ! grep -q "attempt 2/" <<<"$OUT" \
    && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
    && [[ -f build/new-artifact.txt ]] \
-   && [[ -z "$(git status --porcelain)" ]] \
+   && ! git status --porcelain --untracked-files=all | grep -q 'build/new-artifact.txt' \
    && [[ ! -d docs/audit ]]; then
   pass "a role that creates a gitignored path is caught even though git status stays clean"
 else
   fail "an ignored-path creation was not detected (rc=$RC, attempts=$tries)"
 fi
-restore_ignored
+restore_side_files
 reset_runs
 
 # 15c-0) The harder half, and the one a path-list guard gets wrong: OVERWRITING an ignored file that
@@ -632,13 +648,35 @@ if [[ "$RC" -ne 0 ]] \
    && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
    && grep -q "OVERWRITTEN by wgm-docs-senior" build/cache.bin \
    && grep -q "exfiltrated-by-wgm-docs-senior" .env \
-   && [[ -z "$(git status --porcelain)" ]] \
+   && ! git status --porcelain --untracked-files=all | grep -qE 'build/cache\.bin|^.. \.env$' \
    && [[ ! -d docs/audit ]]; then
   pass "overwriting an existing ignored file (.env, build cache) is caught by content, terminally"
 else
   fail "an ignored-file overwrite was not detected (rc=$RC, attempts=$tries): $OUT"
 fi
-restore_ignored
+restore_side_files
+reset_runs
+
+# 15c-0b) The same hole, one step to the left: a file that is UNTRACKED but not ignored. git reports
+#         `?? notes/scratch.txt` before the overwrite and `?? notes/scratch.txt` after, so the status
+#         line is identical and only the content fingerprint moves. Not-yet-added scratch files,
+#         drafts, and freshly generated output all live here.
+FAKE_UNTRACKED_ROLE=wgm-docs-principal run --scope "docs/" --slug untrackedoverwrite --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-principal)"
+if [[ "$RC" -ne 0 ]] \
+   && [[ "$tries" -eq 1 ]] \
+   && ! grep -q "attempt 2/" <<<"$OUT" \
+   && grep -q "origin unknown" <<<"$OUT" \
+   && grep -qE '^[[:space:]]*\+untracked: .*notes/scratch\.txt' <<<"$OUT" \
+   && ! grep -qE '^[[:space:]]*[-+]status: \?\? notes/scratch\.txt' <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && grep -q "APPENDED by wgm-docs-principal" notes/scratch.txt \
+   && [[ ! -d docs/audit ]]; then
+  pass "overwriting an existing untracked non-ignored file is caught by content, not by its ?? line"
+else
+  fail "an untracked-file overwrite was not detected (rc=$RC, attempts=$tries): $OUT"
+fi
+restore_side_files
 reset_runs
 
 # 15c-i) The message must be EVIDENCE, not an accusation. The dispatcher cannot distinguish a role's

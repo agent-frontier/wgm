@@ -54,8 +54,9 @@
 #   * Every role is read-only, and that is CHECKED against one run baseline after every attempt —
 #     covering HEAD and branch (a role that COMMITS leaves a clean tree), the stash ref and depth (a
 #     role that STASHES leaves a clean tree), every tracked, untracked, and IGNORED path outside
-#     .wgm/ — ignored files by CONTENT, so overwriting an existing .env or build artifact counts —
-#     and a content hash of the staged and unstaged diffs. Any change fails the run
+#     .wgm/ — ignored AND untracked files by CONTENT, so overwriting an existing .env, build
+#     artifact, or not-yet-added scratch file counts — and a content hash of the staged and unstaged
+#     diffs. Any change fails the run
 #     TERMINALLY — no retry, no re-baseline, nothing reverted — and the exact delta is printed.
 #     The message says the repository changed DURING a role and that the origin is unknown; it does
 #     not accuse the role, because a concurrent editor, watcher, or build in the same checkout
@@ -377,9 +378,10 @@ WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
 #   * it stashes    — the edit moves into refs/stash and the tree goes clean again;
 #   * it writes an ignored path — the edit was never in `git status` to begin with.
 # So the snapshot covers where the repository IS (HEAD, branch), where work can be HIDDEN (the stash
-# ref and its depth), every path state including ignored ones, a CONTENT fingerprint of every ignored
-# regular file (a path list alone sees an ignored file appear or vanish, never an overwrite of one
-# that was already there), and a content hash of the staged and unstaged diffs. Only `.wgm/` is
+# ref and its depth), every path state including ignored ones, a CONTENT fingerprint of every regular
+# file git knows only by name — ignored AND untracked-but-not-ignored (a path list alone sees such a
+# file appear or vanish, never an overwrite of one that was already there), and a content hash of the
+# staged and unstaged diffs. Only `.wgm/` is
 # excluded — that is the dispatcher's own scratch, which it is entitled to write. Every git command
 # is anchored at the worktree root, so the exclusion means the root `.wgm/` no matter which
 # subdirectory the audit was launched from.
@@ -393,12 +395,42 @@ WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
 # Known limitations, stated rather than papered over:
 #   * a role that changes something and reverts it EXACTLY within its own turn is invisible: this
 #     compares two states, and closing that needs continuous filesystem observation;
-#   * an UNTRACKED (not ignored) file is covered by its status line only, so its creation and deletion
-#     are seen but a rewrite in place is not — git already reports it as `??` either way;
-#   * the ignored-tree content scan runs on every attempt, so a repository with a large vendored or
-#     build directory pays a full walk plus a hash of every ignored file per role attempt. That is
-#     the price of seeing ignored writes, and it is not waived by a size cap — a cap is exactly the
-#     hole an agent writing into node_modules/ or .venv/ would fall through.
+#   * the content scan runs on every attempt over BOTH the ignored and the untracked-not-ignored
+#     sets, so a repository with a large vendored, build, or not-yet-added tree pays a full walk plus
+#     a hash of every such file per role attempt — five roles, five passes. That is the price of
+#     seeing writes git does not track by content, and it is not waived by a size cap: a cap is
+#     exactly the hole an agent writing into node_modules/, .venv/, or a scratch directory would
+#     fall through.
+# Content fingerprints for the files git tracks only by NAME. `git ls-files --others` enumerates them
+# one path at a time (`--ignored` selects the ignored set, its absence the untracked-not-ignored set),
+# and each regular file contributes a cksum line.
+#
+# Unsafe paths are never followed: a symlink is recorded by its TARGET, and a FIFO, socket, or device
+# node by name only. An ignored symlink pointing at /dev/zero or an unread FIFO would otherwise hang
+# the snapshot on every attempt — a denial of service wearing a safety check's clothes. Hashing runs
+# in batched xargs calls rather than one process per file.
+fingerprint_others() {  # $1 = label, $2 = scratch list path, $3.. = extra git ls-files flags
+  local label="$1" list="$2"
+  shift 2
+  (
+    cd "$REPO_ROOT" || exit 0
+    : > "$list"
+    while IFS= read -r -d '' f; do
+      if [[ -L "$f" ]]; then
+        printf '%s-symlink: %s -> %s\n' "$label" "$f" "$(readlink "$f" 2>/dev/null || echo '?')"
+      elif [[ -f "$f" ]]; then
+        printf '%s\0' "$f" >> "$list"
+      else
+        printf '%s-special: %s\n' "$label" "$f"
+      fi
+    done < <(git ls-files -z --others --exclude-standard "$@" -- ':(exclude).wgm' 2>/dev/null)
+    if [[ -s "$list" ]]; then
+      xargs -0 cksum < "$list" 2>/dev/null | sed "s/^/${label}: /" || true
+    fi
+    rm -f "$list"
+  ) | LC_ALL=C sort || true
+}
+
 snapshot_state() {  # $1 = file to write the snapshot into
   local out="$1"
   if [[ "$GIT_GUARD" -ne 1 ]]; then
@@ -420,35 +452,13 @@ snapshot_state() {  # $1 = file to write the snapshot into
       | LC_ALL=C sort | sed 's/^/unstaged: /' || true
     git -C "$REPO_ROOT" diff --cached --name-status -- ':(exclude).wgm' 2>/dev/null \
       | LC_ALL=C sort | sed 's/^/staged: /' || true
-    # Ignored files are fingerprinted by CONTENT, not merely by existence. `git status --ignored`
-    # reports that an ignored path is there, so it sees creation and deletion and nothing else — and
-    # overwriting an existing .env, .envrc, or cached build artifact is a write like any other. Every
-    # ignored regular file outside .wgm/ therefore contributes a cksum line.
-    #
-    # Symlinks are recorded by their TARGET and never followed, and non-regular files (FIFOs, device
-    # nodes, sockets) are recorded by name only: an ignored symlink pointing at /dev/zero or a FIFO
-    # would otherwise hang the snapshot on every attempt. Hashing happens in batched `xargs` calls
-    # rather than one process per file, but this still walks the whole ignored tree on every attempt,
-    # which on a repository with a large vendored or build directory is the dominant cost of the
-    # guard.
-    (
-      cd "$REPO_ROOT" || exit 0
-      ignored_list="${out}.ignored-paths"
-      : > "$ignored_list"
-      while IFS= read -r -d '' f; do
-        if [[ -L "$f" ]]; then
-          printf 'ignored-symlink: %s -> %s\n' "$f" "$(readlink "$f" 2>/dev/null || echo '?')"
-        elif [[ -f "$f" ]]; then
-          printf '%s\0' "$f" >> "$ignored_list"
-        else
-          printf 'ignored-special: %s\n' "$f"
-        fi
-      done < <(git ls-files -z --others --ignored --exclude-standard -- ':(exclude).wgm' 2>/dev/null)
-      if [[ -s "$ignored_list" ]]; then
-        xargs -0 cksum < "$ignored_list" 2>/dev/null | sed 's/^/ignored: /' || true
-      fi
-      rm -f "$ignored_list"
-    ) | LC_ALL=C sort || true
+    # Files git is not tracking the CONTENT of — ignored ones, and untracked-but-not-ignored ones —
+    # are fingerprinted by content, not merely listed. `git status` reports that such a path exists
+    # (`!!` or `??`); it reports exactly the same thing after the file is overwritten, because the
+    # path did not change. Overwriting an existing .env, .envrc, cached build artifact, or a
+    # not-yet-added scratch file is a write like any other, and only a content fingerprint sees it.
+    fingerprint_others ignored   "${out}.ignored-paths"   --ignored
+    fingerprint_others untracked "${out}.untracked-paths"
   } > "$out"
 }
 

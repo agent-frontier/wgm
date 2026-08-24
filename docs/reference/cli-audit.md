@@ -102,6 +102,7 @@ change a repository all leave `git status` spotless. The baseline therefore cove
 | The stash ref and its depth | A role that **stashes** its edit — the tree goes clean and the work hides in `refs/stash`. |
 | Tracked, untracked, **and ignored** paths outside `.wgm/` | A role that creates or deletes a **gitignored** path, which never appears in a default `git status` at all. |
 | A **content fingerprint of every ignored regular file** outside `.wgm/` | A role that *overwrites* an ignored file that already existed — `.env`, `.envrc`, a cached build artifact. The path list is identical before and after, so only the content betrays it. |
+| A **content fingerprint of every untracked, non-ignored regular file** outside `.wgm/` | The same hole one step to the left: a not-yet-added scratch file, draft, or generated output that git reports as `??` before the overwrite and `??` after. |
 | A content hash of the staged and unstaged diffs | An in-place edit to a file that was already modified, where the status line does not change. |
 
 Symlinks are recorded by their **target and never followed**, and FIFOs, sockets, and device nodes
@@ -124,12 +125,14 @@ available for inspection.
 
 - A change made and then reverted *exactly* within one role's turn is invisible: this compares two
   states, and closing it needs continuous filesystem observation, which this script does not do.
-- A content-only rewrite of an **untracked** (not ignored) file leaves its `??` status line identical,
-  so its creation and deletion are caught but an in-place rewrite is not.
-- The ignored-tree scan walks **and hashes** every ignored file on each role attempt. On a repository
-  with a large `node_modules/`, `.venv/`, or build directory this is the guard's dominant cost —
-  five roles means five passes. There is deliberately no size cap or skip threshold: a cap is exactly
-  the hole an agent writing into an ignored directory would fall through.
+- The content scan walks **and hashes** both the ignored and the untracked-not-ignored sets on each
+  role attempt. On a repository with a large `node_modules/`, `.venv/`, build, or not-yet-added tree
+  this is the guard's dominant cost — five roles means five passes. There is deliberately no size cap
+  or skip threshold: a cap is exactly the hole an agent writing into such a directory would fall
+  through.
+- Files git *does* track by content are covered by `HEAD` and the diff hashes, so together with the
+  two fingerprint passes a regular file outside `.wgm/` cannot be rewritten in place without moving
+  the snapshot. The remaining hole is timing, not coverage: see the exact-revert case above.
 
 ## The report contract
 

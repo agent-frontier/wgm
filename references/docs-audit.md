@@ -217,19 +217,19 @@ What the dispatcher enforces rather than merely requests:
   The baseline is not "is the tree dirty?": an agent that **commits**, **stashes**, or writes a
   **gitignored** path leaves a spotless `git status`, so the snapshot also covers HEAD and branch,
   the stash ref and its depth, ignored paths outside `.wgm/`, and a content hash of the staged and
-  unstaged diffs. Ignored files are fingerprinted by **content**, not merely listed: a path list sees
-  an ignored file appear or vanish but never an *overwrite* of one already there — and `.env`,
-  `.envrc`, and cached build artifacts are all ignored, all present, and all worth overwriting. That
-  scan hashes the whole ignored tree on every attempt, with no size cap, because a cap is the hole an
-  agent writing into `node_modules/` would fall through. Symlinks are recorded by target and never
+  unstaged diffs. Every file git knows only by **name** — ignored *and* untracked-but-not-ignored — is
+  fingerprinted by **content**, not merely listed: a path list sees such a file appear or vanish but
+  never an *overwrite* of one already there, and `.env`, `.envrc`, cached build artifacts, and
+  not-yet-added scratch files are all present, all unlisted-by-content, and all worth overwriting.
+  That scan hashes both sets on every attempt, with no size cap, because a cap is the hole an agent
+  writing into `node_modules/` would fall through. Symlinks are recorded by target and never
   followed.
 - **Evidence, not accusation.** The dispatcher cannot tell a role's write from a concurrent editor,
   watcher, or build in the same checkout — they produce the same delta. So it reports
   `repository state changed during <role>; origin unknown (role or concurrent process)`, prints the
-  exact bounded delta between the two snapshots, and stops. It never claims the role did it. Two
-  holes stay named rather than pretended away: a change made and reverted *exactly* within one turn
-  is invisible to a before/after comparison, and a content-only rewrite of an *untracked* (not
-  ignored) file leaves its `??` status line unchanged.
+  exact bounded delta between the two snapshots, and stops. It never claims the role did it. One
+  hole stays named rather than pretended away: a change made and reverted *exactly* within one turn
+  is invisible to a before/after comparison, whatever it touched.
 - **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
   may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
   repeating a decision does not improve it.
