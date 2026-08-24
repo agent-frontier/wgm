@@ -11,7 +11,7 @@
 #
 # Static checks (mapping + doc sync):
 #   A1  the manifest is valid JSON with the keys the installers and docs rely on, including the
-#       ownership marker token.
+#       ownership marker token, its required terminal position, and its per-host scope.
 #   A2  manifest roles and `.github/agents/*.agent.md` are a 1:1 set — no role invented or dropped.
 #   A3  every role has a Claude adapter whose slug name is valid and DISTINCT from the Copilot name,
 #       and whose description matches the canonical source.
@@ -37,6 +37,11 @@
 #   B14 a source with a role removed prunes only the marked stale file.
 #   B15 lost, partial, and interrupted receipts stay safe, and normal installs leave no temp files.
 #   B16 --force is the only way to take over a foreign name collision, and it stamps what it takes.
+#   B17 a foreign file that merely quotes the marker token in prose is never adopted or removed.
+#   B18 a shared/symlinked Copilot+Claude directory: neither host prunes, deletes, or claims the
+#       other's adapters, and a copied marker naming the wrong host proves nothing.
+#   B19 the marker must be terminal and must name this file's canonical source; CRLF and trailing
+#       blank lines around a genuine marker are still tolerated.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (failures listed). Exit 2 = jq missing.
 
@@ -81,7 +86,11 @@ if jq -e '
       (.manifest_version | type == "string")
   and (.receipt_file | type == "string")
   and (.ownership.marker_token == "wgm-role-agent-adapter")
+  and (.ownership.marker_form | test("LAST non-blank line"))
+  and (.ownership.marker_position | test("^terminal"))
+  and (.ownership.marker_host_scope | test("^per host"))
   and (.ownership.rule | test("never inferred from a matching file name"))
+  and (.ownership.rule | test("never from the token appearing somewhere in the file"))
   and (.canonical.source_dir == ".github/agents")
   and (.canonical.file_suffix == ".agent.md")
   and (.hosts | type == "array" and length >= 3)
@@ -228,9 +237,10 @@ h="$WORK/b6"; adir="$h/.copilot/agents"; mkdir -p "$adir"
 printf -- '---\nname: My Own Agent\ndescription: not wgm\n---\nkeep me\n' > "$adir/my-team.agent.md"
 printf -- '---\nname: Someone Elses Validator\ndescription: not wgm\n---\nkeep me too\n' > "$adir/wgm-validator.agent.md"
 out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot 2>&1)"
-# Then edit a file wgm DOES own, keeping its marker, and re-run: the marker is what makes that file
-# refreshable. The foreign collision must also stay out of the receipt — wgm never claims it.
-printf 'local edit that will be overwritten\n' >> "$adir/wgm-implementer.agent.md"
+# Then edit a file wgm DOES own, keeping its marker in the terminal position, and re-run: the marker
+# is what makes that file refreshable. The foreign collision must also stay out of the receipt — wgm
+# never claims it.
+sed -i '$i local edit that will be overwritten' "$adir/wgm-implementer.agent.md"
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
 if [[ "$(head -c "$(wc -c < "$CANON_DIR/wgm-implementer.agent.md")" "$adir/wgm-implementer.agent.md")" \
       == "$(cat "$CANON_DIR/wgm-implementer.agent.md")" ]] \
@@ -407,6 +417,104 @@ if [[ "$forced_ok" -eq 1 ]] \
   ok "B16 --force replaces a foreign name collision, stamps and records the replacement, and uninstall takes it back out"
 else
   bad "B16 --force takeover or its later removal did not behave in $adir"
+fi
+
+# ---- B17: quoting the marker token is not ownership ------------------------
+# The token is a public string: it appears in wgm's own docs, and any agent file may quote it. Only
+# a marker in the terminal position, naming this host and this file's canonical source, is proof.
+h="$WORK/b17"; adir="$h/.copilot/agents"; mkdir -p "$adir"
+{
+  printf -- '---\nname: Our House Style\ndescription: documents how we handle wgm\n---\n'
+  printf 'We do not install wgm adapters here. For reference, wgm stamps its own files with a\n'
+  printf '%s comment that looks like this:\n\n' "$MARKER"
+  printf '<!-- %s host=copilot source=.github/agents/wgm-validator.agent.md version=1 -->\n\n' "$MARKER"
+  printf 'This file is ours, hand-written, and ends with this sentence.\n'
+} > "$adir/wgm-validator.agent.md"
+b17_before="$(cksum < "$adir/wgm-validator.agent.md")"
+out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot 2>&1)"
+b17_after="$(cksum < "$adir/wgm-validator.agent.md")"
+b17_listed=0; grep -qxF 'wgm-validator.agent.md' "$adir/.wgm-adapters" && b17_listed=1
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
+if [[ "$b17_before" == "$b17_after" ]] \
+   && [[ "$(cksum < "$adir/wgm-validator.agent.md")" == "$b17_before" ]] \
+   && [[ "$b17_listed" -eq 0 ]] \
+   && contains "$out" "exists and is not wgm's" \
+   && [[ "$(count_files "$adir" '*.agent.md')" -eq 1 ]]; then
+  ok "B17 a foreign file that quotes the marker token in prose is neither adopted, rewritten, claimed, nor removed"
+else
+  bad "B17 prose containing the ownership token was treated as ownership in $adir"
+fi
+
+# ---- B18: a shared or symlinked agent directory keeps its hosts apart ------
+# ~/.copilot/agents and ~/.claude/agents are not guaranteed to be different directories: operators
+# symlink them together, and Claude's `*.md` glob also matches Copilot's `*.agent.md` files. A path
+# may only ever be processed by its own host's marker, so neither install nor uninstall may reach
+# across — and a marker copied from the other host proves nothing at all.
+h="$WORK/b18"; shared="$WORK/b18-shared/agents"; mkdir -p "$shared" "$h/.copilot" "$h/.claude"
+ln -s "$shared" "$h/.copilot/agents"
+ln -s "$shared" "$h/.claude/agents"
+printf -- '---\nname: Ours\ndescription: not wgm\n---\nbody\n<!-- %s host=claude source=adapters/claude/agents/wgm-hermes.md version=1 -->\n' \
+  "$MARKER" > "$shared/wgm-hermes.agent.md"
+b18_foreign="$(cksum < "$shared/wgm-hermes.agent.md")"
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client claude >/dev/null 2>&1
+# Copilot installs last, so the single shared receipt is Copilot's index. Claude must neither read
+# it (its entries name files Claude does not own) nor delete it (it is Copilot's record).
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
+claude_files() { find "$1" -maxdepth 1 -name '*.md' ! -name '*.agent.md' 2>/dev/null | wc -l | tr -d ' '; }
+b18_cop_installed="$(count_files "$shared" '*.agent.md')"
+b18_cla_installed="$(claude_files "$shared")"
+out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client claude --uninstall 2>&1)"
+b18_cop_after="$(count_files "$shared" '*.agent.md')"
+b18_cla_after="$(claude_files "$shared")"
+b18_receipt_kept=0
+[[ -f "$shared/.wgm-adapters" ]] && grep -q 'host=copilot' "$shared/.wgm-adapters" && b18_receipt_kept=1
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
+if [[ "$b18_cop_installed" -eq "$(count_files "$CANON_DIR" '*.agent.md')" ]] \
+   && [[ "$b18_cla_installed" -eq "$(count_files "$CLAUDE_DIR" '*.md')" ]] \
+   && [[ "$b18_cop_after" -eq "$b18_cop_installed" && "$b18_cla_after" -eq 0 ]] \
+   && [[ "$b18_receipt_kept" -eq 1 ]] \
+   && contains "$out" "leaving another host's adapter receipt in place" \
+   && [[ ! -e "$shared/.wgm-adapters" ]] \
+   && [[ "$(count_files "$shared" '*.agent.md')" -eq 1 && "$(claude_files "$shared")" -eq 0 ]] \
+   && [[ -f "$shared/wgm-hermes.agent.md" ]] \
+   && [[ "$(cksum < "$shared/wgm-hermes.agent.md")" == "$b18_foreign" ]] \
+   && [[ -d "$shared" ]]; then
+  ok "B18 a shared Copilot/Claude directory: each host removes only its own marked files and its own receipt, and a copied wrong-host marker is never claimed"
+else
+  bad "B18 cross-host confusion in the shared agent dir $shared (copilot $b18_cop_installed->$b18_cop_after, claude $b18_cla_installed->$b18_cla_after)"
+fi
+
+# ---- B19: the marker must be terminal and must name this file --------------
+# A marker buried above the operator's own trailing text is not a claim on that text, and a marker
+# copied from another role names a source this file is not. Meanwhile a genuine adapter that a
+# Windows tool rewrote with CRLF endings and trailing blank lines is still, unmistakably, wgm's.
+h="$WORK/b19"; adir="$h/.copilot/agents"; mkdir -p "$adir"
+fake_marker() { printf '<!-- %s host=copilot source=%s version=1 — installed by wgm. -->' "$MARKER" "$1"; }
+{ printf -- '---\nname: Ours A\ndescription: not wgm\n---\nbody\n'
+  fake_marker '.github/agents/wgm-validator.agent.md'
+  printf '\nour own trailing note, added after the comment\n'; } > "$adir/wgm-validator.agent.md"
+{ printf -- '---\nname: Ours B\ndescription: not wgm\n---\nbody\n'
+  fake_marker '.github/agents/wgm-implementer.agent.md'
+  printf '\n'; } > "$adir/wgm-hermes.agent.md"
+b19_a="$(cksum < "$adir/wgm-validator.agent.md")"
+b19_b="$(cksum < "$adir/wgm-hermes.agent.md")"
+out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot 2>&1)"
+b19_listed=0
+grep -qxF 'wgm-validator.agent.md' "$adir/.wgm-adapters" && b19_listed=1
+grep -qxF 'wgm-hermes.agent.md' "$adir/.wgm-adapters" && b19_listed=1
+# A real adapter, mangled into CRLF with blank lines after the marker, must survive as wgm's own.
+sed 's/$/\r/' "$adir/wgm-griller.agent.md" > "$adir/.crlf" && printf '\r\n\r\n' >> "$adir/.crlf" \
+  && mv "$adir/.crlf" "$adir/wgm-griller.agent.md"
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
+if [[ "$b19_listed" -eq 0 ]] \
+   && contains "$out" "exists and is not wgm's" \
+   && [[ "$(cksum < "$adir/wgm-validator.agent.md")" == "$b19_a" ]] \
+   && [[ "$(cksum < "$adir/wgm-hermes.agent.md")" == "$b19_b" ]] \
+   && [[ ! -e "$adir/wgm-griller.agent.md" ]] \
+   && [[ "$(count_files "$adir" '*.agent.md')" -eq 2 ]]; then
+  ok "B19 a non-terminal or wrong-source marker is not ownership, while a CRLF-mangled genuine marker still is"
+else
+  bad "B19 marker position/source validation misbehaved in $adir"
 fi
 
 echo ""

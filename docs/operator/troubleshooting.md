@@ -121,7 +121,7 @@ and reinstalls in one step.
 | | |
 |---|---|
 | **Symptom** | One or more role files were skipped during install. |
-| **Cause** | A file of that name already exists in the agent directory and does not carry wgm's `wgm-role-agent-adapter` marker — usually one of your own agents that shares a wgm role name, or a wgm file whose marker you deleted. wgm never overwrites a file it cannot prove it wrote. |
+| **Cause** | A file of that name already exists in the agent directory and does not end with wgm's `wgm-role-agent-adapter` marker for *this* host and file — usually one of your own agents that shares a wgm role name, a wgm file whose marker you deleted or pushed out of last place by appending text, or a marker copied from another host or role. wgm never overwrites a file it cannot prove it wrote. |
 | **Resolution** | Rename your file, or pass `--force` / `-Force` to replace it deliberately. |
 
 ### Uninstall left wgm role files behind
@@ -129,7 +129,7 @@ and reinstalls in one step.
 | | |
 |---|---|
 | **Symptom** | After `--uninstall`, `wgm-*.agent.md` or `wgm-*.md` files remain in an agent directory, and the installer said "no wgm adapter receipt entries or marked adapter files". |
-| **Cause** | Those files carry no `wgm-role-agent-adapter` marker, so wgm has no evidence it wrote them — they were placed there by hand, copied from elsewhere, or had the marker edited out. Removal is by marker, not by name. |
+| **Cause** | Those files do not end with this host's `wgm-role-agent-adapter` marker, so wgm has no evidence it wrote them — they were placed there by hand, copied from elsewhere (including from the other host's directory), had the marker edited out, or gained text below it. Removal is by marker, not by name. |
 | **Resolution** | Remove them by hand, or re-run the installer once with `--force` (which rewrites and stamps them) and then uninstall. |
 
 ## Running the loop

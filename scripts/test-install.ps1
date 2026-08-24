@@ -12,8 +12,9 @@
 #   F  companion skills install as siblings with matching names, uninstall cleanly, and honor
 #      -NoCompanions.
 #   G  role-agent adapters land in ~/.copilot/agents and ~/.claude/agents, carry the ownership
-#      marker, refresh only what wgm stamped, uninstall by marker (including a CRLF receipt), and
-#      honor -NoAgents.
+#      marker, refresh only what wgm stamped, uninstall by marker (including a CRLF receipt), never
+#      adopt prose that merely quotes the token or a file marked for the other host, and honor
+#      -NoAgents.
 #   H  -Dir installs the skill alone: a bare path names no host, so no agent dir is guessed.
 #
 # Exit 0 = green, 1 = red.
@@ -205,8 +206,12 @@ esac
     $env:HOME = $sandboxG2
     $env:USERPROFILE = $sandboxG2
     $outG = (& pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot 2>&1 | Out-String)
-    # Then edit a file wgm DOES own, keeping its marker: the marker is what makes it refreshable.
-    Add-Content -Path (Join-Path $copilotG2 'wgm-implementer.agent.md') -Value 'local edit that will be overwritten'
+    # Then edit a file wgm DOES own, keeping its marker in the terminal position: that marker is
+    # what makes it refreshable, so the edit goes into the body, above the comment.
+    $implG2 = Join-Path $copilotG2 'wgm-implementer.agent.md'
+    $linesG2 = @(Get-Content -LiteralPath $implG2)
+    $editedG2 = $linesG2[0..($linesG2.Count - 2)] + 'local edit that will be overwritten' + $linesG2[-1]
+    Set-Content -LiteralPath $implG2 -Value $editedG2
     & pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot *> $null
     $canonImpl = Get-Content -Raw (Join-Path $root '.github/agents/wgm-implementer.agent.md')
     $installedImpl = Get-Content -Raw (Join-Path $copilotG2 'wgm-implementer.agent.md')
@@ -267,6 +272,39 @@ esac
       -not (Test-Path $receiptG5)
     if ($g5) { Ok 'G5 a CRLF receipt with no trailing newline uninstalls exactly wgm stamped files' }
     else { Bad 'G5 CRLF receipt handling removed the wrong set' }
+
+    # Ownership is structural: the marker must be the file's last non-blank line, name THIS host, and
+    # name the canonical source for THIS basename. Two hazards are pinned here at once - a foreign
+    # file that merely quotes the token in prose, and a Copilot-marked file sitting in the Claude
+    # directory, which is what a shared or symlinked agent dir looks like from Claude's side (its
+    # *.md filter also matches *.agent.md).
+    $sandboxG6 = Join-Path $work 'homeG6'
+    $claudeG6 = Join-Path $sandboxG6 '.claude/agents'
+    New-Item -ItemType Directory -Force -Path $claudeG6 | Out-Null
+    $env:HOME = $sandboxG6
+    $env:USERPROFILE = $sandboxG6
+    $proseG6 = Join-Path $claudeG6 'wgm-validator.md'
+    Set-Content -LiteralPath $proseG6 -Value @(
+      '---', 'name: our-validator', 'description: ours, not wgm', '---',
+      "For reference, wgm stamps its files with a $marker comment like:",
+      "<!-- $marker host=claude source=adapters/claude/agents/wgm-validator.md version=1 -->",
+      'This file is ours and ends with this sentence.')
+    $proseBeforeG6 = (Get-Content -Raw -LiteralPath $proseG6)
+    $outG6 = (& pwsh -NoProfile -File $installPs -NoWsl -User -Client all 2>&1 | Out-String)
+    $copilotG6 = Join-Path $sandboxG6 '.copilot/agents'
+    Copy-Item -LiteralPath (Join-Path $copilotG6 'wgm-implementer.agent.md') `
+      -Destination (Join-Path $claudeG6 'wgm-implementer.agent.md') -Force
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client claude -Uninstall *> $null
+    $g6 =
+      ($outG6 -match "exists and is not wgm's") -and
+      (Test-Path (Join-Path $claudeG6 'wgm-implementer.agent.md')) -and
+      (Test-Path $proseG6) -and
+      ((Get-Content -Raw -LiteralPath $proseG6) -eq $proseBeforeG6) -and
+      (@(Get-ChildItem -LiteralPath $claudeG6 -Filter '*.md' -File |
+          Where-Object { -not $_.Name.EndsWith('.agent.md') }).Count -eq 1) -and
+      (Test-Path $claudeG6 -PathType Container)
+    if ($g6) { Ok 'G6 prose quoting the token is never adopted, and a Copilot-marked file in the Claude dir is never removed by Claude' }
+    else { Bad 'G6 cross-host or prose-quoted marker handling claimed a file it did not write' }
   }
   finally {
     $env:HOME = $savedHome

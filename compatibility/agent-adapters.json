@@ -4,8 +4,10 @@
   "receipt_file": ".wgm-adapters",
   "ownership": {
     "marker_token": "wgm-role-agent-adapter",
-    "marker_form": "An HTML comment appended to every adapter file the installer writes: `<!-- wgm-role-agent-adapter host=<id> source=<canonical path> version=<manifest_version> ... -->`. Matched as a substring, so CRLF line endings cannot hide it.",
-    "rule": "Ownership is proved by the marker, never inferred from a matching file name. Files without the marker are never refreshed, pruned, or deleted, and are never listed in the receipt; only --force / -Force may replace one, and it stamps and records what it replaced. The receipt is an atomically written index of the last install (basenames only, host suffix enforced, CRLF tolerated) that narrows where wgm looks; the marker is what authorises a delete, so a lost or partial receipt costs recovery, not safety."
+    "marker_form": "An HTML comment that is the LAST non-blank line of every adapter file the installer writes: `<!-- wgm-role-agent-adapter host=<id> source=<canonical path> version=<manifest_version> ... -->`. A trailing CR and trailing blank lines are tolerated, so a CRLF rewrite cannot hide it.",
+    "marker_position": "terminal: the marker must be the file's last non-blank line. A file that quotes the token in prose, or buries a marker above its own trailing text, is not wgm's and is never refreshed, pruned, or deleted.",
+    "marker_host_scope": "per host: a file belongs to wgm only for the host named in `host=`, and only when `source=` is the canonical path for that exact basename. Claude never claims a `.agent.md` file, so a shared or symlinked Copilot/Claude agent directory can never be cross-refreshed, cross-pruned, or cross-deleted.",
+    "rule": "Ownership is proved by the marker's position, host, and canonical source \u2014 never inferred from a matching file name, and never from the token appearing somewhere in the file. Files that fail that test are never refreshed, pruned, or deleted, and are never listed in the receipt; only --force / -Force may replace one, and it stamps and records what it replaced with this host's marker. The receipt is an atomically written, host-stamped index of the last install (basenames only, host name rules enforced, CRLF tolerated) that narrows where wgm looks; the marker is what authorises a delete, so a lost, partial, or other-host receipt costs recovery, not safety."
   },
   "canonical": {
     "source_dir": ".github/agents",

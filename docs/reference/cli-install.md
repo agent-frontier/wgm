@@ -93,24 +93,40 @@ Opt out entirely with `--no-agents` / `-NoAgents`.
 
 A host agent directory is shared property — your own agents live there too, and one of them may
 already carry a wgm role name. So a matching name is never treated as proof of ownership. Every file
-wgm writes ends with a marker comment:
+wgm writes *ends* with a marker comment:
 
 ```html
 <!-- wgm-role-agent-adapter host=copilot source=.github/agents/wgm-implementer.agent.md version=1 … -->
 ```
 
-- Only a file carrying that marker is refreshed, pruned, or removed. Delete the comment and wgm
-  disowns the file for good.
+That proof is structural, not a text search. A file is wgm's, for one host, only when all of this
+holds:
+
+- the marker is the file's **last non-blank line** (a trailing `\r` and trailing blank lines are
+  tolerated, so a CRLF rewrite changes nothing);
+- `host=` names **that** host — Copilot never claims a Claude file and Claude never claims a
+  `.agent.md` file, so sharing or symlinking `~/.copilot/agents` and `~/.claude/agents` still cannot
+  cross-refresh, cross-prune, or cross-delete;
+- `source=` is the canonical path for **that exact basename**, with a non-empty `version=`.
+
+Everything else follows from that:
+
+- Only a file that passes the test is refreshed, pruned, or removed. Delete the comment — or append
+  your own text below it — and wgm disowns the file for good.
+- Quoting the token proves nothing. A file that merely mentions `wgm-role-agent-adapter`, or carries
+  a marker copied from another host or another role, is somebody else's file.
 - A file wgm did not write is skipped, and the installer says `exists and is not wgm's` — including
   a file that merely shares one of wgm's role names. It is never listed in the receipt. Pass
-  `--force` / `-Force` to replace it deliberately; the replacement is then stamped and recorded.
+  `--force` / `-Force` to replace it deliberately; the replacement is then stamped with this host's
+  marker and recorded.
 - `--uninstall` removes marked files only, and never the directory itself. Unrelated agents survive,
   and so does a wgm-named file whose marker you removed.
-- Re-running from a source that dropped a role prunes that role's file, again only when the marker
-  is still there.
-- The per-directory `.wgm-adapters` receipt is an index of the last install, written temp-then-rename
-  so it is never half a list, and parsed leniently (CRLF tolerated, basenames only, host suffix
-  enforced). It narrows where wgm looks; the marker is what authorises a delete. A receipt lost to an
+- Re-running from a source that dropped a role prunes that role's file, again only when this host's
+  marker is still in place.
+- The per-directory `.wgm-adapters` receipt is a host-stamped index of the last install, written
+  temp-then-rename so it is never half a list, and parsed leniently (CRLF tolerated, basenames only,
+  this host's name rules enforced). A receipt written for the other host is ignored, and left alone.
+  It narrows where wgm looks; the marker is what authorises a delete. A receipt lost to an
   interrupted install therefore costs nothing: uninstall still finds wgm's own files by their marker,
   and still cannot touch yours.
 - Running a project install from inside wgm's own checkout is refused for the Copilot target,

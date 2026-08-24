@@ -44,9 +44,10 @@
   (compatibility\agent-adapters.json). When a host client is selected they are installed where that
   host actually scans: copilot user -> ~\.copilot\agents, project -> .github\agents; claude user ->
   ~\.claude\agents, project -> .claude\agents. The generic `.agents` client gets none, because the
-  Agent Skills standard defines skills, not subagents. Every adapter wgm writes carries a
-  wgm-role-agent-adapter marker comment, and only files carrying it are ever refreshed, pruned, or
-  removed; the per-directory .wgm-adapters receipt is an atomically written index, not the proof.
+  Agent Skills standard defines skills, not subagents. Every adapter wgm writes ENDS with a
+  wgm-role-agent-adapter marker comment naming that host and canonical source, and only a file whose
+  last non-blank line is this host's marker is ever refreshed, pruned, or removed; the per-directory
+  .wgm-adapters receipt is an atomically written, host-stamped index, not the proof.
 
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
@@ -408,15 +409,26 @@ function Uninstall-One {
 # ----- role-agent adapters --------------------------------------------------
 # Each host scans a flat directory of agent files that it does NOT own exclusively: your own agents
 # live there too, and one of them may already carry a wgm role name. Name resemblance is therefore
-# never evidence of ownership. wgm proves ownership instead: every file it writes ends with a marker
+# never evidence of ownership. wgm proves ownership instead: every file it writes ENDS with a marker
 # comment carrying the token below plus the host, the canonical source file, and the adapter version.
-# Only a file carrying that token is refreshed, pruned, or removed - nothing else in the directory is
-# moved, rewritten, or deleted, and the directory itself is never removed.
+#
+# That proof is structural, not a substring search. A file is wgm's, for this host, only when its
+# basename is one of this host's adapter names (Claude never claims a .agent.md file), its last
+# non-blank line (trailing CR/whitespace stripped) IS the marker comment, that marker's host= is this
+# host, its source= is the canonical path for that basename, and its version= is non-empty. Anything
+# else - prose quoting the token, a marker buried mid-file, another host's marker copied in, a marker
+# naming a different role - is somebody else's file. Nothing else in the directory is moved,
+# rewritten, or deleted, and the directory itself is never removed.
+#
+# The host scoping matters because agent directories get shared: ~/.copilot/agents may be a symlink
+# to ~/.claude/agents, and Claude's *.md filter also matches Copilot's *.agent.md files. A Claude
+# marker must never read as Copilot ownership, so every check is asked about one specific host.
 #
 # The per-directory .wgm-adapters receipt is an index of what the last install wrote, written
-# temp-then-rename so it is never half a list. It narrows what wgm looks at; the marker is what
-# authorises a delete. A missing or partial receipt therefore loses no safety and creates no false
-# claim: wgm can still recover its own files by their marker, and still cannot touch yours.
+# temp-then-rename so it is never half a list, and stamped with the host it describes. It narrows
+# what wgm looks at; the marker is what authorises a delete. A missing, partial, or foreign-host
+# receipt therefore loses no safety and creates no false claim: wgm can still recover its own files
+# by their marker, and still cannot touch yours.
 $adapterReceipt = '.wgm-adapters'
 $adapterMarker = 'wgm-role-agent-adapter'
 $adapterTmpPrefix = '.wgm-adapter.tmp.'
@@ -449,23 +461,52 @@ function Get-AdapterFilter {
   if ($HostId -eq 'copilot') { return '*.agent.md' } else { return '*.md' }
 }
 
-function Get-AdapterSuffix {
-  param([string]$HostId)
-  if ($HostId -eq 'copilot') { return '.agent.md' } else { return '.md' }
-}
-
 function Get-AdapterCanonicalPath {
   param([string]$HostId, [string]$Name)
   if ($HostId -eq 'copilot') { return ".github/agents/$Name" } else { return "adapters/claude/agents/$Name" }
 }
 
-function Test-AdapterMarker {
-  # True when the file carries wgm's ownership token. A plain substring test, so CRLF endings or a
-  # host that rewrote the file's newlines cannot hide it.
+function Test-AdapterNameForHost {
+  # True when the basename is one of this host's adapter file names. Claude's suffix (.md) is a
+  # superset of Copilot's (.agent.md), so Claude must explicitly disclaim Copilot's names: in a
+  # shared or symlinked agent directory that difference is the whole cross-host boundary.
+  param([string]$HostId, [string]$Name)
+  if ($HostId -eq 'copilot') { return $Name.EndsWith('.agent.md') }
+  if ($HostId -eq 'claude') { return ($Name.EndsWith('.md') -and -not $Name.EndsWith('.agent.md')) }
+  return $false
+}
+
+function Get-AdapterMarkerLine {
+  # The file's last non-blank line, with trailing CR/whitespace stripped, so a host that rewrote the
+  # newlines or left blank lines after the marker still reads correctly.
   param([string]$Path)
+  $last = $null
+  foreach ($line in (Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue)) {
+    if ($null -eq $line) { continue }
+    $trimmed = $line.TrimEnd("`r", ' ', "`t")
+    if ($trimmed) { $last = $trimmed }
+  }
+  return $last
+}
+
+function Test-AdapterOwned {
+  # True when the file is an adapter wgm wrote FOR THIS HOST - the only condition under which wgm may
+  # refresh, prune, or delete it. Position and fields are both required, so a foreign file that
+  # quotes the token in prose, buries a marker mid-file, carries another host's marker, or names a
+  # different canonical source is never adopted.
+  param([string]$Path, [string]$HostId)
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
-  $raw = Get-Content -Raw -LiteralPath $Path -ErrorAction SilentlyContinue
-  return ($null -ne $raw -and $raw.Contains($adapterMarker))
+  $name = Split-Path -Leaf $Path
+  if (-not (Test-AdapterNameForHost -HostId $HostId -Name $name)) { return $false }
+  $rel = Get-AdapterCanonicalPath -HostId $HostId -Name $name
+  if (-not $rel) { return $false }
+  $line = Get-AdapterMarkerLine -Path $Path
+  if (-not $line) { return $false }
+  $prefix = "<!-- $adapterMarker host=$HostId source=$rel version="
+  if (-not $line.StartsWith($prefix)) { return $false }
+  if (-not $line.EndsWith('-->')) { return $false }
+  $version = ($line.Substring($prefix.Length) -split '\s', 2)[0]
+  return [bool]$version
 }
 
 function Write-AdapterFile {
@@ -491,6 +532,9 @@ function Write-AdapterFile {
 
 function Write-AdapterReceipt {
   # Same-directory temp + rename, so a later uninstall reads the old complete list or the new one.
+  # The header names the host the list describes; when Copilot and Claude share (or symlink) one
+  # directory the most recent install owns the index, and the other host simply falls back to finding
+  # its files by their markers - an index is a convenience, never the authority to delete.
   param([string]$Dir, [string]$HostId, [string[]]$Names)
   $tmp = Join-Path $Dir ("$adapterReceipt.tmp.$PID")
   $lines = @(
@@ -508,21 +552,43 @@ function Write-AdapterReceipt {
   }
 }
 
+function Get-AdapterReceiptHost {
+  # The host id recorded in the receipt header, if it declares one. Both installers write host=<id>
+  # into the leading comment block, so a receipt always says who it describes.
+  param([string]$Dir)
+  $receiptPath = Join-Path $Dir $adapterReceipt
+  if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) { return $null }
+  foreach ($line in (Get-Content -LiteralPath $receiptPath -ErrorAction SilentlyContinue)) {
+    if ($null -eq $line) { continue }
+    $entry = $line.TrimEnd("`r")
+    if (-not $entry.StartsWith('#')) { continue }
+    if ($entry -match 'host=([^\s]+)') { return $Matches[1] }
+  }
+  return $null
+}
+
+function Test-AdapterReceiptHost {
+  param([string]$Dir, [string]$HostId)
+  return ((Get-AdapterReceiptHost -Dir $Dir) -eq $HostId)
+}
+
 function Get-AdapterReceiptEntries {
   # Validated basenames from the receipt. Tolerates CRLF; rejects comments, blank lines, anything
   # with a path separator, dotfiles (so '..' can never appear), and names that are not this host's
-  # adapter files. A hand-edited or half-written receipt can only ever name fewer files.
+  # adapter files. A receipt that names another host - the case when an agent directory is shared or
+  # symlinked between Copilot and Claude - indexes files this host does not own, so it is ignored
+  # entirely. A hand-edited, half-written, or foreign receipt can only ever name fewer files.
   param([string]$Dir, [string]$HostId)
   $receiptPath = Join-Path $Dir $adapterReceipt
   if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) { return @() }
-  $suffix = Get-AdapterSuffix -HostId $HostId
+  if (-not (Test-AdapterReceiptHost -Dir $Dir -HostId $HostId)) { return @() }
   $out = [System.Collections.Generic.List[string]]::new()
   foreach ($line in (Get-Content -LiteralPath $receiptPath)) {
     if ($null -eq $line) { continue }
     $entry = $line.Trim("`r", ' ', "`t")
     if (-not $entry) { continue }
     if ($entry.StartsWith('#') -or $entry.StartsWith('.') -or $entry -match '[\\/]') { continue }
-    if (-not $entry.EndsWith($suffix)) { continue }
+    if (-not (Test-AdapterNameForHost -HostId $HostId -Name $entry)) { continue }
     $out.Add($entry)
   }
   return $out.ToArray()
@@ -556,14 +622,16 @@ function Install-Agents {
   $wrote = 0
   $pruned = 0
   foreach ($file in (Get-ChildItem -LiteralPath $src -Filter (Get-AdapterFilter -HostId $HostId) -File | Sort-Object Name)) {
+    if (-not (Test-AdapterNameForHost -HostId $HostId -Name $file.Name)) { continue }
     $dest = Join-Path $Dir $file.Name
     if (Test-Path -LiteralPath $dest -PathType Container) {
       Write-Host "    a directory occupies that name - skipping: $dest"
       continue
     }
-    if ((Test-Path -LiteralPath $dest) -and -not (Test-AdapterMarker -Path $dest)) {
-      # No marker means wgm did not write this file, whatever it is called. A prior receipt entry
-      # does not override that: the file on disk is somebody else's now.
+    if ((Test-Path -LiteralPath $dest) -and -not (Test-AdapterOwned -Path $dest -HostId $HostId)) {
+      # No marker of this host's in the terminal position means wgm did not write this file for this
+      # host, whatever it is called and whatever it quotes. A prior receipt entry does not override
+      # that: the file on disk is somebody else's now.
       if (-not $Force) {
         Write-Host "    exists and is not wgm's - skipping (use -Force to replace): $dest"
         continue
@@ -579,13 +647,14 @@ function Install-Agents {
     $wrote++
   }
   # Prune roles this source no longer ships. Only a file the last receipt named AND that still
-  # carries wgm's marker qualifies: a name that reappeared as somebody else's agent survives.
+  # carries this host's marker in the terminal position qualifies: a name that reappeared as somebody
+  # else's agent, or a file marked for the other host in a shared directory, survives.
   foreach ($stale in $prior) {
     if ($written -contains $stale) { continue }
     $stalePath = Join-Path $Dir $stale
     if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) { continue }
-    if (-not (Test-AdapterMarker -Path $stalePath)) {
-      Write-Host "    no longer wgm's (marker gone) - leaving: $stalePath"
+    if (-not (Test-AdapterOwned -Path $stalePath -HostId $HostId)) {
+      Write-Host "    not wgm's for $HostId any more (marker gone, moved, or another host's) - leaving: $stalePath"
       continue
     }
     if ($DryRun) { Write-Host "    would remove (role no longer shipped): $stalePath"; continue }
@@ -599,8 +668,9 @@ function Install-Agents {
 }
 
 function Uninstall-Agents {
-  # Removes only files that carry wgm's ownership marker: the receipt says where to look, the marker
-  # decides. The directory itself is never removed.
+  # Removes only files this host's marker proves wgm wrote: the receipt says where to look, the
+  # marker decides. The directory itself is never removed, and a receipt belonging to the other host
+  # (a shared or symlinked agent dir) is neither read nor deleted.
   param([string]$HostId, [string]$Dir)
   if ($Dir -notmatch '[\\/]agents$') {
     Write-Warning "  refusing to touch unexpected agent dir: $Dir"
@@ -611,19 +681,21 @@ function Uninstall-Agents {
     return
   }
   $receiptPath = Join-Path $Dir $adapterReceipt
+  $mineReceipt = Test-AdapterReceiptHost -Dir $Dir -HostId $HostId
   $candidates = [System.Collections.Generic.List[string]]::new()
   foreach ($entry in (Get-AdapterReceiptEntries -Dir $Dir -HostId $HostId)) {
     if (-not $candidates.Contains($entry)) { $candidates.Add($entry) }
   }
   # An install interrupted between the copy and the receipt write leaves stamped files and no list.
-  # Scanning for wgm's own marker recovers exactly those, and can never select somebody else's file.
+  # Scanning for this host's own marker recovers exactly those, and can never select somebody else's
+  # file - including the other host's adapters, which Claude's wider *.md filter also sweeps up.
   foreach ($file in (Get-ChildItem -LiteralPath $Dir -Filter (Get-AdapterFilter -HostId $HostId) -File -ErrorAction SilentlyContinue)) {
-    if (-not (Test-AdapterMarker -Path $file.FullName)) { continue }
+    if (-not (Test-AdapterOwned -Path $file.FullName -HostId $HostId)) { continue }
     if (-not $candidates.Contains($file.Name)) { $candidates.Add($file.Name) }
   }
   if ($candidates.Count -eq 0) {
     Write-Host "  no wgm adapter receipt entries or marked adapter files, leaving untouched: $Dir"
-    if ((Test-Path -LiteralPath $receiptPath) -and -not $DryRun) {
+    if ((Test-Path -LiteralPath $receiptPath) -and $mineReceipt -and -not $DryRun) {
       Remove-Item -LiteralPath $receiptPath -Force
       Write-Host "  removed the empty $HostId adapter receipt: $receiptPath"
     }
@@ -634,8 +706,8 @@ function Uninstall-Agents {
   foreach ($base in $candidates) {
     $dest = Join-Path $Dir $base
     if (-not (Test-Path -LiteralPath $dest -PathType Leaf)) { continue }
-    if (-not (Test-AdapterMarker -Path $dest)) {
-      Write-Host "    listed but not wgm's (no marker) - leaving: $dest"
+    if (-not (Test-AdapterOwned -Path $dest -HostId $HostId)) {
+      Write-Host "    listed but not wgm's for $HostId (no terminal $HostId marker) - leaving: $dest"
       $kept++
       continue
     }
@@ -644,10 +716,17 @@ function Uninstall-Agents {
     $removed++
   }
   if ($DryRun) {
-    if (Test-Path -LiteralPath $receiptPath) { Write-Host "  would remove the $HostId adapter receipt: $receiptPath" }
+    if ((Test-Path -LiteralPath $receiptPath) -and $mineReceipt) { Write-Host "  would remove the $HostId adapter receipt: $receiptPath" }
     return
   }
-  if (Test-Path -LiteralPath $receiptPath) { Remove-Item -LiteralPath $receiptPath -Force }
+  # Only this host's own index is cleaned up. In a shared directory the other host's receipt is its
+  # record of its own files, and removing it would strand them.
+  if ($mineReceipt) {
+    if (Test-Path -LiteralPath $receiptPath) { Remove-Item -LiteralPath $receiptPath -Force }
+  }
+  elseif (Test-Path -LiteralPath $receiptPath) {
+    Write-Host "  leaving another host's adapter receipt in place: $receiptPath"
+  }
   if ($kept -gt 0) { Write-Host "  removed $removed $HostId adapter file(s) from: $Dir ($kept left in place - not wgm's any more)" }
   else { Write-Host "  removed $removed $HostId adapter file(s) from: $Dir" }
 }

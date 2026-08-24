@@ -53,11 +53,14 @@
 #   claude   user -> ~/.claude/agents/      project -> .claude/agents/
 # The generic `.agents` client gets NO adapters: the Agent Skills standard defines skills, not
 # subagents, so wgm falls back to scripts/audit.sh and inline sequential review passes there.
-# Ownership is proven, never inferred: every adapter wgm writes carries a `wgm-role-agent-adapter`
-# marker comment naming the host, the canonical source file, and the adapter version, and only files
-# carrying that marker are ever refreshed, pruned, or removed. A file that merely shares a wgm role
-# name is left alone and never claimed in the receipt. The per-directory `.wgm-adapters` receipt is a
-# convenience index (written atomically), not the proof.
+# Ownership is proven, never inferred: every adapter wgm writes ends with a `wgm-role-agent-adapter`
+# marker comment naming the host, the canonical source file, and the adapter version. Ownership is
+# structural, not textual — the marker must be the file's LAST non-blank line (CRLF tolerated), and
+# its `host=` and `source=` must be exactly this host and the canonical path for that basename. A
+# file that merely quotes the token in prose, carries another host's marker, or names another role's
+# source is somebody else's file: it is never refreshed, pruned, removed, or listed in the receipt.
+# A path is only ever processed by its own host. The per-directory `.wgm-adapters` receipt is a
+# convenience index (written atomically, host-stamped), not the proof.
 #
 # Supported OS: Linux, macOS, and WSL. On native Windows PowerShell, use scripts/install.ps1.
 
@@ -480,15 +483,27 @@ uninstall_one() {
 # ----- role-agent adapters --------------------------------------------------
 # Each host scans a flat directory of agent files that it does NOT own exclusively: your own agents
 # live there too, and one of them may already carry a wgm role name. Name resemblance is therefore
-# never evidence of ownership. wgm proves ownership instead: every file it writes ends with a marker
+# never evidence of ownership. wgm proves ownership instead: every file it writes ENDS with a marker
 # comment carrying the token below plus the host, the canonical source file, and the adapter version.
-# Only a file carrying that token is refreshed, pruned, or removed — nothing else in the directory is
+#
+# That proof is structural, not a substring search. A file is wgm's, for this host, only when:
+#   * its basename is one of this host's adapter names (Claude never claims a `.agent.md` file), and
+#   * its last non-blank line (trailing CR/whitespace stripped) IS the marker comment, and
+#   * that marker's `host=` is this host, and its `source=` is the canonical path for that basename,
+#     and it carries a non-empty `version=`.
+# Anything else — prose that quotes the token, a marker buried mid-file, another host's marker copied
+# in, a marker naming a different role — is somebody else's file. Nothing else in the directory is
 # moved, rewritten, or deleted, and the directory itself is never removed.
 #
+# The host scoping matters because agent directories get shared: `~/.copilot/agents` may be a symlink
+# to `~/.claude/agents`, and Claude's `*.md` glob also matches Copilot's `*.agent.md` files. A Claude
+# marker must never read as Copilot ownership, so every check is asked about one specific host.
+#
 # The per-directory `.wgm-adapters` receipt is an index of what the last install wrote, written
-# temp-then-rename so it is never half a list. It narrows what wgm looks at; the marker is what
-# authorises a delete. A missing or partial receipt therefore loses no safety and creates no false
-# claim: wgm can still recover its own files by their marker, and still cannot touch yours.
+# temp-then-rename so it is never half a list, and stamped with the host it describes. It narrows
+# what wgm looks at; the marker is what authorises a delete. A missing, partial, or foreign-host
+# receipt therefore loses no safety and creates no false claim: wgm can still recover its own files
+# by their marker, and still cannot touch yours.
 ADAPTER_RECEIPT=".wgm-adapters"
 ADAPTER_MARKER="wgm-role-agent-adapter"   # ownership token; only ever written into files wgm creates
 ADAPTER_TMP_PREFIX=".wgm-adapter.tmp."
@@ -521,11 +536,42 @@ adapter_canonical_rel() {  # $1 = host id, $2 = basename — the source path rec
   esac
 }
 
-adapter_has_marker() {
-  # True when file $1 carries wgm's ownership token. A plain substring match: CRLF line endings, a
-  # host that rewrote the file's newlines, or extra text around the comment cannot hide it.
+adapter_name_for_host() {
+  # True when basename $2 is one of host $1's adapter file names. Claude's suffix (`.md`) is a
+  # superset of Copilot's (`.agent.md`), so Claude must explicitly disclaim Copilot's names: in a
+  # shared or symlinked agent directory that difference is the whole cross-host boundary.
+  case "$1" in
+    copilot) [[ "$2" == *".agent.md" ]] ;;
+    claude)  [[ "$2" == *".md" && "$2" != *".agent.md" ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+adapter_marker_line() {
+  # The last non-blank line of file $1, with a trailing CR and trailing blanks stripped. A host that
+  # rewrote the file's newlines, or left blank lines after the marker, still reads correctly.
   [[ -f "$1" ]] || return 1
-  grep -qF -- "$ADAPTER_MARKER" "$1" 2>/dev/null
+  awk '{ sub(/\r$/, ""); sub(/[[:space:]]+$/, ""); if ($0 ~ /[^[:space:]]/) last = $0 }
+       END { if (last != "") print last }' "$1" 2>/dev/null
+}
+
+adapter_is_owned() {
+  # True when file $1 is an adapter wgm wrote for host $2 — the only condition under which wgm may
+  # refresh, prune, or delete it. Position and fields are both required, so a foreign file that
+  # quotes the token in prose, buries a marker mid-file, carries another host's marker, or names a
+  # different canonical source is never adopted.
+  local file="$1" host="$2" base rel line ver
+  [[ -f "$file" ]] || return 1
+  base="$(basename "$file")"
+  adapter_name_for_host "$host" "$base" || return 1
+  rel="$(adapter_canonical_rel "$host" "$base")"
+  [[ -n "$rel" ]] || return 1
+  line="$(adapter_marker_line "$file")" || return 1
+  [[ "$line" == "<!-- $ADAPTER_MARKER host=$host source=$rel version="* ]] || return 1
+  [[ "$line" == *"-->" ]] || return 1
+  ver="${line#*version=}"
+  ver="${ver%%[[:space:]]*}"
+  [[ -n "$ver" ]]
 }
 
 adapter_stamp_into() {
@@ -546,6 +592,9 @@ adapter_stamp_into() {
 adapter_write_receipt() {
   # $1 = dir, $2 = host, remaining args = basenames. Same-directory temp + rename, so a reader (or a
   # later uninstall) sees the old complete list or the new complete list and never a truncated one.
+  # The header names the host the list describes; when Copilot and Claude share (or symlink) one
+  # directory the most recent install owns the index, and the other host simply falls back to finding
+  # its files by their markers — an index is a convenience, never the authority to delete.
   local dir="$1" host="$2" tmp base
   shift 2
   tmp="$dir/$ADAPTER_RECEIPT.tmp.$$"
@@ -559,20 +608,48 @@ adapter_write_receipt() {
   mv -f "$tmp" "$dir/$ADAPTER_RECEIPT" || { rm -f "$tmp"; return 1; }
 }
 
+adapter_receipt_host() {
+  # The host id recorded in the receipt header of directory $1, if it declares one. Both installers
+  # write `host=<id>` into the leading comment block, so a receipt always says who it describes.
+  local dir="$1" line v
+  [[ -f "$dir/$ADAPTER_RECEIPT" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    case "$line" in \#*) ;; *) continue ;; esac
+    case "$line" in *host=*) ;; *) continue ;; esac
+    v="${line#*host=}"
+    v="${v%%[[:space:]]*}"
+    [[ -n "$v" ]] || continue
+    printf '%s\n' "$v"
+    return 0
+  done < "$dir/$ADAPTER_RECEIPT"
+  return 1
+}
+
+adapter_receipt_is_host() {  # $1 = dir, $2 = host id — true when the receipt describes this host
+  local rhost
+  rhost="$(adapter_receipt_host "$1" 2>/dev/null)" || return 1
+  [[ "$rhost" == "$2" ]]
+}
+
 adapter_receipt_entries() {
-  # $1 = dir, $2 = host file suffix. Echoes the receipt's validated basenames, one per line.
+  # $1 = dir, $2 = host id. Echoes the receipt's validated basenames, one per line.
   # Tolerates CRLF and a final line with no newline; rejects comments, blank lines, anything with a
   # path separator, dotfiles (so `..` can never appear), and any name that is not one of this host's
-  # adapter files. A hand-edited or half-written receipt can therefore only ever name fewer files.
-  local dir="$1" suffix="$2" line
+  # adapter files. A receipt that names another host — the case when an agent directory is shared or
+  # symlinked between Copilot and Claude — indexes files this host does not own, so it is ignored
+  # entirely. A hand-edited, half-written, or foreign receipt can therefore only ever name fewer
+  # files; it can never widen what gets deleted.
+  local dir="$1" host="$2" line
   [[ -f "$dir/$ADAPTER_RECEIPT" ]] || return 0
+  adapter_receipt_is_host "$dir" "$host" || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
     line="${line%"${line##*[![:space:]]}"}"
     [[ -n "$line" ]] || continue
     case "$line" in \#*|.*|*/*|*\\*) continue ;; esac
-    [[ "$line" == *"$suffix" ]] || continue
+    adapter_name_for_host "$host" "$line" || continue
     printf '%s\n' "$line"
   done < "$dir/$ADAPTER_RECEIPT"
 }
@@ -597,7 +674,7 @@ install_agents_into() {
   suffix="$(adapter_glob_suffix "$host")"
   say "  role agents ($host): $dir"
   [[ "$DRY_RUN" -eq 1 ]] || mkdir -p "$dir"
-  prior="$(adapter_receipt_entries "$dir" "$suffix")"
+  prior="$(adapter_receipt_entries "$dir" "$host")"
   # Clear wgm's own leftovers from an interrupted earlier run. The prefix is wgm's, so this can only
   # ever remove a temp file wgm itself created.
   [[ "$DRY_RUN" -eq 1 ]] || rm -f "$dir/$ADAPTER_TMP_PREFIX"* 2>/dev/null || true
@@ -605,15 +682,17 @@ install_agents_into() {
   for file in "$src_dir"/*"$suffix"; do
     [[ -f "$file" ]] || continue
     base="$(basename "$file")"
+    adapter_name_for_host "$host" "$base" || continue
     dest="$dir/$base"
     rel="$(adapter_canonical_rel "$host" "$base")"
     if [[ -d "$dest" ]]; then
       say "    a directory occupies that name — skipping: $dest"
       continue
     fi
-    if [[ -e "$dest" ]] && ! adapter_has_marker "$dest"; then
-      # No marker means wgm did not write this file, whatever it is called. A prior receipt entry
-      # does not override that: the file on disk is somebody else's now.
+    if [[ -e "$dest" ]] && ! adapter_is_owned "$dest" "$host"; then
+      # No marker of this host's in the terminal position means wgm did not write this file for this
+      # host, whatever it is called and whatever it quotes. A prior receipt entry does not override
+      # that: the file on disk is somebody else's now.
       if [[ "$FORCE" -eq 0 ]]; then
         say "    exists and is not wgm's — skipping (use --force to replace): $dest"
         continue
@@ -629,7 +708,8 @@ install_agents_into() {
     wrote=$((wrote + 1))
   done
   # Prune roles this source no longer ships. Only a file the last receipt named AND that still
-  # carries wgm's marker qualifies: a name that reappeared as somebody else's agent survives.
+  # carries this host's marker in the terminal position qualifies: a name that reappeared as somebody
+  # else's agent, or a file marked for the other host in a shared directory, survives.
   local stale keep
   while IFS= read -r stale; do
     [[ -n "$stale" ]] || continue
@@ -637,8 +717,8 @@ install_agents_into() {
     for base in ${written[@]+"${written[@]}"}; do [[ "$base" == "$stale" ]] && keep=1; done
     [[ "$keep" -eq 0 ]] || continue
     [[ -f "$dir/$stale" ]] || continue
-    if ! adapter_has_marker "$dir/$stale"; then
-      say "    no longer wgm's (marker gone) — leaving: $dir/$stale"
+    if ! adapter_is_owned "$dir/$stale" "$host"; then
+      say "    not wgm's for $host any more (marker gone, moved, or another host's) — leaving: $dir/$stale"
       continue
     fi
     if [[ "$DRY_RUN" -eq 1 ]]; then say "    would remove (role no longer shipped): $dir/$stale"; continue; fi
@@ -657,8 +737,10 @@ install_agents_into() {
 }
 
 uninstall_agents_from() {
-  # $1 = host id, $2 = target dir. Removes only files that carry wgm's ownership marker: the receipt
-  # says where to look, the marker decides. The directory itself is never removed.
+  # $1 = host id, $2 = target dir. Removes only files this host's marker proves wgm wrote: the
+  # receipt says where to look, the marker decides. The directory itself is never removed, and a
+  # receipt belonging to the other host (a shared or symlinked agent dir) is neither read nor
+  # deleted.
   local host="$1" dir="$2" suffix receipt base dest candidates f removed=0 kept=0
   case "$dir" in
     */agents) ;;
@@ -670,18 +752,21 @@ uninstall_agents_from() {
   fi
   suffix="$(adapter_glob_suffix "$host")"
   receipt="$dir/$ADAPTER_RECEIPT"
-  candidates="$(adapter_receipt_entries "$dir" "$suffix")"
+  local mine_receipt=0
+  adapter_receipt_is_host "$dir" "$host" && mine_receipt=1
+  candidates="$(adapter_receipt_entries "$dir" "$host")"
   # An install interrupted between the copy and the receipt write leaves stamped files and no list.
-  # Scanning for wgm's own marker recovers exactly those, and can never select somebody else's file.
+  # Scanning for this host's own marker recovers exactly those, and can never select somebody else's
+  # file — including the other host's adapters, which Claude's wider `*.md` glob also sweeps up.
   for f in "$dir"/*"$suffix"; do
     [[ -f "$f" ]] || continue
-    adapter_has_marker "$f" || continue
+    adapter_is_owned "$f" "$host" || continue
     candidates+="$(printf '\n%s' "$(basename "$f")")"
   done
   candidates="$(printf '%s\n' "$candidates" | grep -v '^[[:space:]]*$' | sort -u || true)"
   if [[ -z "$candidates" ]]; then
     say "  no wgm adapter receipt entries or marked adapter files, leaving untouched: $dir"
-    if [[ -f "$receipt" && "$DRY_RUN" -eq 0 ]]; then
+    if [[ -f "$receipt" && "$mine_receipt" -eq 1 && "$DRY_RUN" -eq 0 ]]; then
       rm -f "$receipt"
       say "  removed the empty $host adapter receipt: $receipt"
     fi
@@ -691,8 +776,8 @@ uninstall_agents_from() {
     [[ -n "$base" ]] || continue
     dest="$dir/$base"
     [[ -f "$dest" ]] || continue
-    if ! adapter_has_marker "$dest"; then
-      say "    listed but not wgm's (no marker) — leaving: $dest"
+    if ! adapter_is_owned "$dest" "$host"; then
+      say "    listed but not wgm's for $host (no terminal $host marker) — leaving: $dest"
       kept=$((kept + 1))
       continue
     fi
@@ -701,10 +786,16 @@ uninstall_agents_from() {
     removed=$((removed + 1))
   done <<< "$candidates"
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    if [[ -f "$receipt" ]]; then say "  would remove the $host adapter receipt: $receipt"; fi
+    if [[ -f "$receipt" && "$mine_receipt" -eq 1 ]]; then say "  would remove the $host adapter receipt: $receipt"; fi
     return 0
   fi
-  rm -f "$receipt"
+  # Only this host's own index is cleaned up. In a shared directory the other host's receipt is its
+  # record of its own files, and removing it would strand them.
+  if [[ "$mine_receipt" -eq 1 ]]; then
+    rm -f "$receipt"
+  elif [[ -f "$receipt" ]]; then
+    say "  leaving another host's adapter receipt in place: $receipt"
+  fi
   if [[ "$kept" -gt 0 ]]; then
     say "  removed $removed $host adapter file(s) from: $dir ($kept left in place — not wgm's any more)"
   else
