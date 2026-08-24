@@ -12,9 +12,10 @@
 #   F  companion skills install as siblings with matching names, uninstall cleanly, and honor
 #      -NoCompanions.
 #   G  role-agent adapters land in ~/.copilot/agents and ~/.claude/agents, carry the ownership
-#      marker, refresh only what wgm stamped, uninstall by marker (including a CRLF receipt), never
-#      adopt prose that merely quotes the token or a file marked for the other host, and honor
-#      -NoAgents.
+#      marker, refresh only what wgm stamped, uninstall by marker (including a CRLF receipt, and
+#      including walking past a receipt-listed file whose marker was removed), never adopt prose
+#      that merely quotes the token or a file marked for the other host, never stale-prune from a
+#      source that ships no roles at all, and honor -NoAgents.
 #   H  -Dir installs the skill alone: a bare path names no host, so no agent dir is guessed.
 #
 # Exit 0 = green, 1 = red.
@@ -305,6 +306,63 @@ esac
       (Test-Path $claudeG6 -PathType Container)
     if ($g6) { Ok 'G6 prose quoting the token is never adopted, and a Copilot-marked file in the Claude dir is never removed by Claude' }
     else { Bad 'G6 cross-host or prose-quoted marker handling claimed a file it did not write' }
+
+    # The receipt is an index; the marker is the authority. Take a file wgm genuinely installed and
+    # genuinely listed, remove ONLY its terminal marker - the operator's way of saying "this one is
+    # mine now" - and uninstall must walk past it while still taking every file it did stamp.
+    # Delete the ownership guard in Uninstall-Agents and this check goes red on the survivor.
+    $sandboxG7 = Join-Path $work 'homeG7'
+    $copilotG7 = Join-Path $sandboxG7 '.copilot/agents'
+    New-Item -ItemType Directory -Force -Path $copilotG7 | Out-Null
+    $env:HOME = $sandboxG7
+    $env:USERPROFILE = $sandboxG7
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot *> $null
+    $receiptG7 = @(Get-Content -LiteralPath (Join-Path $copilotG7 '.wgm-adapters'))
+    $disownedG7 = Join-Path $copilotG7 'wgm-validator.agent.md'
+    Set-Content -LiteralPath $disownedG7 -Value @(
+      @(Get-Content -LiteralPath $disownedG7) | Where-Object { -not $_.Contains($marker) })
+    $disownedBeforeG7 = (Get-Content -Raw -LiteralPath $disownedG7)
+    $outG7 = (& pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot -Uninstall 2>&1 | Out-String)
+    $g7 =
+      ($receiptG7 -contains 'wgm-validator.agent.md') -and
+      ($receiptG7 -contains 'wgm-implementer.agent.md') -and
+      (Test-Path -LiteralPath $disownedG7) -and
+      ((Get-Content -Raw -LiteralPath $disownedG7) -eq $disownedBeforeG7) -and
+      (-not (Test-Path -LiteralPath (Join-Path $copilotG7 'wgm-implementer.agent.md'))) -and
+      (@(Get-ChildItem -LiteralPath $copilotG7 -Filter '*.agent.md' -File).Count -eq 1) -and
+      (-not (Test-Path -LiteralPath (Join-Path $copilotG7 '.wgm-adapters'))) -and
+      ($outG7 -match "listed but not wgm's")
+    if ($g7) { Ok 'G7 uninstall skips a receipt-listed file whose marker was removed, and still removes every file it did stamp' }
+    else { Bad 'G7 uninstall deleted a disowned file, or failed to remove the ones it stamped' }
+
+    # A truncated download, an interrupted extract, or a bad ref leaves the canonical directory
+    # present and empty. That is an incomplete source, not a source that retired every role, so an
+    # install from it must refuse to stale-prune the adapters already on disk - and say why.
+    $sandboxG8 = Join-Path $work 'homeG8'
+    $copilotG8 = Join-Path $sandboxG8 '.copilot/agents'
+    New-Item -ItemType Directory -Force -Path $copilotG8 | Out-Null
+    $env:HOME = $sandboxG8
+    $env:USERPROFILE = $sandboxG8
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot *> $null
+    $installedG8 = @(Get-ChildItem -LiteralPath $copilotG8 -Filter '*.agent.md' -File).Count
+    $receiptG8 = (Get-Content -Raw -LiteralPath (Join-Path $copilotG8 '.wgm-adapters'))
+    $srcG8 = Join-Path $work 'srcG8'
+    New-Item -ItemType Directory -Force -Path $srcG8 | Out-Null
+    Get-ChildItem -LiteralPath $root -Force | Where-Object { $_.Name -ne '.git' } |
+      ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $srcG8 -Recurse -Force }
+    $canonG8 = Join-Path $srcG8 '.github/agents'
+    Get-ChildItem -LiteralPath $canonG8 -Filter '*.agent.md' -File | Remove-Item -Force
+    $outG8 = (& pwsh -NoProfile -File (Join-Path $srcG8 'scripts/install.ps1') `
+        -NoWsl -User -Client copilot 2>&1 | Out-String)
+    $g8 =
+      (Test-Path -LiteralPath $canonG8 -PathType Container) -and
+      ($installedG8 -eq (Get-ChildItem -LiteralPath (Join-Path $root '.github/agents') -Filter '*.agent.md' -File).Count) -and
+      (@(Get-ChildItem -LiteralPath $copilotG8 -Filter '*.agent.md' -File).Count -eq $installedG8) -and
+      ((Get-Content -Raw -LiteralPath (Join-Path $copilotG8 'wgm-implementer.agent.md')).Contains($marker)) -and
+      ((Get-Content -Raw -LiteralPath (Join-Path $copilotG8 '.wgm-adapters')) -eq $receiptG8) -and
+      ($outG8 -match 'installing and pruning nothing')
+    if ($g8) { Ok 'G8 a source whose canonical dir ships no roles installs and prunes nothing, leaving every marked adapter in place' }
+    else { Bad 'G8 an empty role source pruned or rewrote installed adapters' }
   }
   finally {
     $env:HOME = $savedHome

@@ -47,7 +47,8 @@
   Agent Skills standard defines skills, not subagents. Every adapter wgm writes ENDS with a
   wgm-role-agent-adapter marker comment naming that host and canonical source, and only a file whose
   last non-blank line is this host's marker is ever refreshed, pruned, or removed; the per-directory
-  .wgm-adapters receipt is an atomically written, host-stamped index, not the proof.
+  .wgm-adapters receipt is an atomically written, host-stamped index, not the proof. A source that
+  ships no roles at all is read as incomplete, so it installs nothing and prunes nothing.
 
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
@@ -432,6 +433,7 @@ function Uninstall-One {
 $adapterReceipt = '.wgm-adapters'
 $adapterMarker = 'wgm-role-agent-adapter'
 $adapterTmpPrefix = '.wgm-adapter.tmp.'
+$adapterReceiptTmpPrefix = '.wgm-adapters.tmp.'   # note the plural: NOT matched by the prefix above
 $script:adapterVersion = $null
 
 function Get-AdapterVersion {
@@ -536,7 +538,7 @@ function Write-AdapterReceipt {
   # directory the most recent install owns the index, and the other host simply falls back to finding
   # its files by their markers - an index is a convenience, never the authority to delete.
   param([string]$Dir, [string]$HostId, [string[]]$Names)
-  $tmp = Join-Path $Dir ("$adapterReceipt.tmp.$PID")
+  $tmp = Join-Path $Dir ("$adapterReceiptTmpPrefix$PID")
   $lines = @(
     "# wgm role-agent adapters - host=$HostId version=$(Get-AdapterVersion). One basename per line, this directory only.",
     '# This list is an index, not a claim: wgm removes a listed file only while it still carries',
@@ -549,6 +551,18 @@ function Write-AdapterReceipt {
   catch {
     if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     Write-Warning "  failed to write the $HostId adapter receipt in: $Dir"
+  }
+}
+
+function Clear-AdapterTempFile {
+  # Remove wgm's own interrupted-write leftovers from the directory: adapter temps AND receipt temps.
+  # Both prefixes are wgm's own, carry a pid, and are only ever created by these installers, so this
+  # can never select a file wgm did not write. Nothing else in the directory is considered.
+  param([string]$Dir)
+  if (-not (Test-Path -LiteralPath $Dir -PathType Container)) { return }
+  foreach ($prefix in @($adapterTmpPrefix, $adapterReceiptTmpPrefix)) {
+    Get-ChildItem -LiteralPath $Dir -Filter "$prefix*" -Force -File -ErrorAction SilentlyContinue |
+      ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
   }
 }
 
@@ -609,20 +623,30 @@ function Install-Agents {
     Write-Host "  already the canonical source, skipping: $Dir"
     return
   }
+  # A source directory that exists but ships no role files for this host is not evidence that wgm
+  # retired every role: a truncated download, an interrupted bootstrap extract, or a bad ref all look
+  # exactly like that. Installing nothing is right; pruning everything already installed is not, so
+  # this returns before the receipt is read and before anything is written or removed. An explicit
+  # -Uninstall, and a source that genuinely dropped one role, both still behave as before.
+  $srcFiles = @(Get-ChildItem -LiteralPath $src -Filter (Get-AdapterFilter -HostId $HostId) -File -ErrorAction SilentlyContinue |
+      Where-Object { Test-AdapterNameForHost -HostId $HostId -Name $_.Name } | Sort-Object Name)
+  if ($srcFiles.Count -eq 0) {
+    Write-Host "  no $HostId role files in this source ($src) - installing and pruning nothing: $Dir"
+    Write-Host "    a source with zero roles is treated as incomplete, not as a source that retired them all."
+    return
+  }
   Write-Host "  role agents ($HostId): $Dir"
   if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
   $prior = @(Get-AdapterReceiptEntries -Dir $Dir -HostId $HostId)
   if (-not $DryRun) {
-    # Clear wgm's own leftovers from an interrupted earlier run. The prefix is wgm's, so this can
-    # only ever remove a temp file wgm itself created.
-    Get-ChildItem -LiteralPath $Dir -Filter "$adapterTmpPrefix*" -Force -File -ErrorAction SilentlyContinue |
-      ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+    # Clear wgm's own leftovers from an interrupted earlier run. Both prefixes are wgm's, so this
+    # can only ever remove a temp file wgm itself created.
+    Clear-AdapterTempFile -Dir $Dir
   }
   $written = [System.Collections.Generic.List[string]]::new()
   $wrote = 0
   $pruned = 0
-  foreach ($file in (Get-ChildItem -LiteralPath $src -Filter (Get-AdapterFilter -HostId $HostId) -File | Sort-Object Name)) {
-    if (-not (Test-AdapterNameForHost -HostId $HostId -Name $file.Name)) { continue }
+  foreach ($file in $srcFiles) {
     $dest = Join-Path $Dir $file.Name
     if (Test-Path -LiteralPath $dest -PathType Container) {
       Write-Host "    a directory occupies that name - skipping: $dest"
@@ -681,6 +705,8 @@ function Uninstall-Agents {
     return
   }
   $receiptPath = Join-Path $Dir $adapterReceipt
+  # An uninstall should not leave wgm's own interrupted-write leftovers behind either.
+  if (-not $DryRun) { Clear-AdapterTempFile -Dir $Dir }
   $mineReceipt = Test-AdapterReceiptHost -Dir $Dir -HostId $HostId
   $candidates = [System.Collections.Generic.List[string]]::new()
   foreach ($entry in (Get-AdapterReceiptEntries -Dir $Dir -HostId $HostId)) {

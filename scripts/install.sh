@@ -60,7 +60,9 @@
 # file that merely quotes the token in prose, carries another host's marker, or names another role's
 # source is somebody else's file: it is never refreshed, pruned, removed, or listed in the receipt.
 # A path is only ever processed by its own host. The per-directory `.wgm-adapters` receipt is a
-# convenience index (written atomically, host-stamped), not the proof.
+# convenience index (written atomically, host-stamped), not the proof. A source directory that ships
+# no roles at all is read as incomplete (truncated download, bad ref), so it installs nothing and
+# prunes nothing; only an explicit uninstall removes a whole set.
 #
 # Supported OS: Linux, macOS, and WSL. On native Windows PowerShell, use scripts/install.ps1.
 
@@ -507,6 +509,7 @@ uninstall_one() {
 ADAPTER_RECEIPT=".wgm-adapters"
 ADAPTER_MARKER="wgm-role-agent-adapter"   # ownership token; only ever written into files wgm creates
 ADAPTER_TMP_PREFIX=".wgm-adapter.tmp."
+ADAPTER_RECEIPT_TMP_PREFIX=".wgm-adapters.tmp."   # note the plural: NOT matched by the prefix above
 ADAPTER_VERSION=""
 
 adapter_version() {
@@ -597,7 +600,7 @@ adapter_write_receipt() {
   # its files by their markers — an index is a convenience, never the authority to delete.
   local dir="$1" host="$2" tmp base
   shift 2
-  tmp="$dir/$ADAPTER_RECEIPT.tmp.$$"
+  tmp="$dir/$ADAPTER_RECEIPT_TMP_PREFIX$$"
   {
     printf '# wgm role-agent adapters — host=%s version=%s. One basename per line, this directory only.\n' \
       "$host" "$ADAPTER_VERSION"
@@ -606,6 +609,17 @@ adapter_write_receipt() {
     for base in "$@"; do printf '%s\n' "$base"; done
   } > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
   mv -f "$tmp" "$dir/$ADAPTER_RECEIPT" || { rm -f "$tmp"; return 1; }
+}
+
+adapter_sweep_temp() {
+  # Remove wgm's own interrupted-write leftovers from directory $1: adapter temps AND receipt temps.
+  # Both prefixes are wgm's own, carry a pid, and are only ever created by these installers, so this
+  # can never select a file wgm did not write. Nothing else in the directory is considered.
+  local dir="$1"
+  [[ -d "$dir" ]] || return 0
+  rm -f "$dir/$ADAPTER_TMP_PREFIX"* 2>/dev/null || true
+  rm -f "$dir/$ADAPTER_RECEIPT_TMP_PREFIX"* 2>/dev/null || true
+  return 0
 }
 
 adapter_receipt_host() {
@@ -657,8 +671,10 @@ adapter_receipt_entries() {
 install_agents_into() {
   # $1 = host id, $2 = target dir. Copies that host's role files, stamping each one, and records what
   # it wrote. Files it does not own are skipped; roles this source no longer ships are pruned, but
-  # only when the file on disk still carries wgm's marker.
+  # only when the file on disk still carries wgm's marker — and only when this source ships at least
+  # one role for this host, because a source with none is incomplete, not emptied on purpose.
   local host="$1" dir="$2" src_dir suffix file base dest rel prior wrote=0 pruned=0
+  local src_files=()
   src_dir="$(adapter_source_dir "$host")"
   if [[ -z "$src_dir" || ! -d "$src_dir" ]]; then
     say "  no $host role adapters in this source, skipping: $dir"
@@ -672,14 +688,29 @@ install_agents_into() {
   fi
   [[ -n "$ADAPTER_VERSION" ]] || ADAPTER_VERSION="$(adapter_version)"
   suffix="$(adapter_glob_suffix "$host")"
+  # A source directory that exists but ships no role files for this host is not evidence that wgm
+  # retired every role: a truncated download, an interrupted bootstrap extract, or a bad --ref all
+  # look exactly like that. Installing nothing is right; pruning everything already installed is not,
+  # so this returns before the receipt is read and before anything is written or removed. An
+  # explicit --uninstall, and a source that genuinely dropped one role, both still behave as before.
+  for file in "$src_dir"/*"$suffix"; do
+    [[ -f "$file" ]] || continue
+    adapter_name_for_host "$host" "$(basename "$file")" || continue
+    src_files+=("$file")
+  done
+  if [[ "${#src_files[@]}" -eq 0 ]]; then
+    say "  no $host role files in this source ($src_dir) — installing and pruning nothing: $dir"
+    say "    a source with zero roles is treated as incomplete, not as a source that retired them all."
+    return 0
+  fi
   say "  role agents ($host): $dir"
   [[ "$DRY_RUN" -eq 1 ]] || mkdir -p "$dir"
   prior="$(adapter_receipt_entries "$dir" "$host")"
-  # Clear wgm's own leftovers from an interrupted earlier run. The prefix is wgm's, so this can only
-  # ever remove a temp file wgm itself created.
-  [[ "$DRY_RUN" -eq 1 ]] || rm -f "$dir/$ADAPTER_TMP_PREFIX"* 2>/dev/null || true
+  # Clear wgm's own leftovers from an interrupted earlier run. Both prefixes are wgm's, so this can
+  # only ever remove a temp file wgm itself created.
+  [[ "$DRY_RUN" -eq 1 ]] || adapter_sweep_temp "$dir"
   local written=()
-  for file in "$src_dir"/*"$suffix"; do
+  for file in "${src_files[@]}"; do
     [[ -f "$file" ]] || continue
     base="$(basename "$file")"
     adapter_name_for_host "$host" "$base" || continue
@@ -752,6 +783,8 @@ uninstall_agents_from() {
   fi
   suffix="$(adapter_glob_suffix "$host")"
   receipt="$dir/$ADAPTER_RECEIPT"
+  # An uninstall should not leave wgm's own interrupted-write leftovers behind either.
+  [[ "$DRY_RUN" -eq 1 ]] || adapter_sweep_temp "$dir"
   local mine_receipt=0
   adapter_receipt_is_host "$dir" "$host" && mine_receipt=1
   candidates="$(adapter_receipt_entries "$dir" "$host")"

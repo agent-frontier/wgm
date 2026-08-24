@@ -35,13 +35,17 @@
 #   B12 a tracked project file that shares a wgm role name is not modified, claimed, or removed.
 #   B13 a CRLF receipt with no final newline uninstalls exactly wgm's files.
 #   B14 a source with a role removed prunes only the marked stale file.
-#   B15 lost, partial, and interrupted receipts stay safe, and normal installs leave no temp files.
+#   B15 lost, partial, and interrupted receipts stay safe; install and uninstall sweep wgm's own
+#       adapter and receipt temp files, and a normal install leaves none behind.
 #   B16 --force is the only way to take over a foreign name collision, and it stamps what it takes.
 #   B17 a foreign file that merely quotes the marker token in prose is never adopted or removed.
 #   B18 a shared/symlinked Copilot+Claude directory: neither host prunes, deletes, or claims the
 #       other's adapters, and a copied marker naming the wrong host proves nothing.
 #   B19 the marker must be terminal and must name this file's canonical source; CRLF and trailing
 #       blank lines around a genuine marker are still tolerated.
+#   B20 uninstall walks past a receipt-listed file whose marker was removed, and still takes the
+#       files it did stamp: the receipt indexes, the marker authorises.
+#   B21 a source whose canonical dir exists but ships no role files installs and prunes nothing.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (failures listed). Exit 2 = jq missing.
 
@@ -66,6 +70,18 @@ bad() { printf 'FAIL: %s\n' "$*" >&2; FAIL=$((FAIL + 1)); }
 
 contains() { printf '%s\n' "$1" | grep -qF -- "$2"; }
 count_files() { find "$1" -maxdepth 1 -name "$2" 2>/dev/null | wc -l | tr -d ' '; }
+# Basenames of the files in directory $1 matching glob suffix $2, sorted. `find -printf` is GNU-only,
+# and this harness is also the portability record for macOS/BSD operators, so it stays out of here.
+list_names() { local f; for f in "$1"/*"$2"; do [[ -f "$f" ]] && basename "$f"; done | sort; }
+# Rewrite a file's contents to stdout with CRLF endings, including a final CRLF. `sed 's/$/\r/'`
+# depends on GNU sed's escape handling — BSD/macOS sed emits a literal `r` and the CRLF fixtures
+# below would silently stop testing CRLF at all.
+to_crlf() { local line; while IFS= read -r line || [[ -n "$line" ]]; do printf '%s\r\n' "$line"; done < "$1"; }
+# Insert $2 immediately above the final line of file $1 (GNU `sed -i '$i ...'` is not portable).
+insert_above_last_line() {
+  awk -v ins="$2" 'NR > 1 { print prev } { prev = $0 } END { print ins; print prev }' "$1" > "$1.edit" \
+    && mv "$1.edit" "$1"
+}
 TILDE='~'   # documented paths are written with a literal tilde; keep shellcheck from "helping".
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/wgm-adapters-test.XXXXXX")"
@@ -108,7 +124,7 @@ else
 fi
 
 # ---- A2: manifest roles == canonical files (1:1) ---------------------------
-canon_list="$(find "$CANON_DIR" -maxdepth 1 -name '*.agent.md' -printf '%f\n' | sort)"
+canon_list="$(list_names "$CANON_DIR" '.agent.md')"
 manifest_list="$(jq -r '.roles[].canonical_file' "$MANIFEST" | sort)"
 if [[ "$canon_list" == "$manifest_list" && -n "$canon_list" ]]; then
   ok "A2 manifest roles and .github/agents/*.agent.md are a 1:1 set ($(printf '%s\n' "$canon_list" | wc -l | tr -d ' ') roles)"
@@ -240,7 +256,7 @@ out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot 2>&1)"
 # Then edit a file wgm DOES own, keeping its marker in the terminal position, and re-run: the marker
 # is what makes that file refreshable. The foreign collision must also stay out of the receipt — wgm
 # never claims it.
-sed -i '$i local edit that will be overwritten' "$adir/wgm-implementer.agent.md"
+insert_above_last_line "$adir/wgm-implementer.agent.md" 'local edit that will be overwritten'
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
 if [[ "$(head -c "$(wc -c < "$CANON_DIR/wgm-implementer.agent.md")" "$adir/wgm-implementer.agent.md")" \
       == "$(cat "$CANON_DIR/wgm-implementer.agent.md")" ]] \
@@ -347,7 +363,7 @@ fi
 h="$WORK/b13"; adir="$h/.copilot/agents"; mkdir -p "$h"
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
 printf -- '---\nname: My Own Agent\ndescription: not wgm\n---\nkeep me\n' > "$adir/my-team.agent.md"
-crlf="$(sed 's/$/\r/' "$adir/.wgm-adapters")"
+crlf="$(to_crlf "$adir/.wgm-adapters")"
 printf '%s' "$crlf" > "$adir/.wgm-adapters"      # CRLF endings, and no newline on the last entry
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
 if [[ "$(count_files "$adir" '*.agent.md')" -eq 1 ]] \
@@ -366,7 +382,7 @@ rm -f "$src/.github/agents/wgm-hermes.agent.md" "$src/adapters/claude/agents/wgm
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
 printf -- '---\nname: Not Wgm\ndescription: unlisted and unmarked\n---\nmine\n' > "$adir/wgm-extra.agent.md"
 grep -vF -- "$MARKER" "$adir/wgm-griller.agent.md" > "$adir/.griller.tmp" && mv "$adir/.griller.tmp" "$adir/wgm-griller.agent.md"
-crlf="$(sed 's/$/\r/' "$adir/.wgm-adapters")"; printf '%s' "$crlf" > "$adir/.wgm-adapters"
+crlf="$(to_crlf "$adir/.wgm-adapters")"; printf '%s' "$crlf" > "$adir/.wgm-adapters"
 HOME="$h" WGM_FORCE_WSL=0 bash "$src/scripts/install.sh" --user --client copilot >/dev/null 2>&1
 if [[ ! -e "$adir/wgm-hermes.agent.md" ]] \
    && [[ -f "$adir/wgm-griller.agent.md" ]] && ! grep -qF -- "$MARKER" "$adir/wgm-griller.agent.md" \
@@ -381,22 +397,31 @@ fi
 # ---- B15: a lost, partial, or interrupted receipt is still safe ------------
 # An install killed between the copy and the receipt write leaves marked files and no list; a
 # half-written list names fewer files. Neither may strand wgm's own files or endanger anyone else's.
+# Both interrupted-write shapes are planted here: an adapter temp (`.wgm-adapter.tmp.*`) and a
+# receipt temp (`.wgm-adapters.tmp.*`), which the singular prefix does NOT match. Install and
+# uninstall must each sweep both, and must sweep nothing else.
 h="$WORK/b15"; adir="$h/.copilot/agents"; mkdir -p "$h"
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
-leftovers="$(find "$adir" -maxdepth 1 -name '.wgm-adapter*.tmp.*' -o -maxdepth 1 -name '.wgm-adapters.tmp.*' 2>/dev/null)"
+leftovers="$(find "$adir" -maxdepth 1 -name '.wgm-adapter.tmp.*' -o -maxdepth 1 -name '.wgm-adapters.tmp.*' 2>/dev/null)"
 printf -- '---\nname: My Own Agent\ndescription: not wgm\n---\nkeep me\n' > "$adir/my-team.agent.md"
 printf 'partial\n' > "$adir/.wgm-adapter.tmp.999.wgm-validator.agent.md"   # an interrupted copy
+printf 'partial\n' > "$adir/.wgm-adapters.tmp.999"                         # an interrupted receipt
 rm -f "$adir/.wgm-adapters"                                                # ... and a lost receipt
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
 recovered="$(count_files "$adir" '*.agent.md')"
+swept_install=0
+[[ ! -e "$adir/.wgm-adapter.tmp.999.wgm-validator.agent.md" && ! -e "$adir/.wgm-adapters.tmp.999" ]] && swept_install=1
 head -n 4 "$adir/.wgm-adapters" > "$adir/.partial" && mv "$adir/.partial" "$adir/.wgm-adapters"
+printf 'partial\n' > "$adir/.wgm-adapters.tmp.998"                         # left behind again
+printf 'partial\n' > "$adir/.wgm-adapter.tmp.998.wgm-validator.agent.md"
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
 if [[ -z "$leftovers" ]] \
-   && [[ ! -e "$adir/.wgm-adapter.tmp.999.wgm-validator.agent.md" ]] \
+   && [[ "$swept_install" -eq 1 ]] \
+   && [[ ! -e "$adir/.wgm-adapters.tmp.998" && ! -e "$adir/.wgm-adapter.tmp.998.wgm-validator.agent.md" ]] \
    && [[ "$recovered" -eq "$(( $(count_files "$CANON_DIR" '*.agent.md') + 1 ))" ]] \
    && [[ "$(count_files "$adir" '*.agent.md')" -eq 1 && -f "$adir/my-team.agent.md" ]] \
    && [[ ! -e "$adir/.wgm-adapters" && -d "$adir" ]]; then
-  ok "B15 a normal install leaves no temp files, a lost receipt is re-established, and a partial receipt still removes only marked files"
+  ok "B15 a normal install leaves no temp files, install and uninstall both sweep adapter and receipt temps, and a lost or partial receipt still removes only marked files"
 else
   bad "B15 interrupted-install handling misbehaved in $adir (leftovers: ${leftovers:-none})"
 fi
@@ -503,7 +528,7 @@ b19_listed=0
 grep -qxF 'wgm-validator.agent.md' "$adir/.wgm-adapters" && b19_listed=1
 grep -qxF 'wgm-hermes.agent.md' "$adir/.wgm-adapters" && b19_listed=1
 # A real adapter, mangled into CRLF with blank lines after the marker, must survive as wgm's own.
-sed 's/$/\r/' "$adir/wgm-griller.agent.md" > "$adir/.crlf" && printf '\r\n\r\n' >> "$adir/.crlf" \
+to_crlf "$adir/wgm-griller.agent.md" > "$adir/.crlf" && printf '\r\n\r\n' >> "$adir/.crlf" \
   && mv "$adir/.crlf" "$adir/wgm-griller.agent.md"
 HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
 if [[ "$b19_listed" -eq 0 ]] \
@@ -515,6 +540,53 @@ if [[ "$b19_listed" -eq 0 ]] \
   ok "B19 a non-terminal or wrong-source marker is not ownership, while a CRLF-mangled genuine marker still is"
 else
   bad "B19 marker position/source validation misbehaved in $adir"
+fi
+
+# ---- B20: uninstall deletes on the marker, never on the receipt alone ------
+# The receipt is an index; the marker is the authority. So take a file wgm genuinely installed and
+# genuinely listed, and remove ONLY its terminal marker — the operator's way of saying "this one is
+# mine now". Uninstall must walk past it and still take every other file it stamped. Delete the
+# ownership guard in either installer and this check goes red on the survivor.
+h="$WORK/b20"; adir="$h/.copilot/agents"; mkdir -p "$h"
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
+disowned="$adir/wgm-validator.agent.md"
+b20_listed=0; grep -qxF 'wgm-validator.agent.md' "$adir/.wgm-adapters" && b20_listed=1
+b20_other_listed=0; grep -qxF 'wgm-implementer.agent.md' "$adir/.wgm-adapters" && b20_other_listed=1
+grep -vF -- "$MARKER" "$disowned" > "$adir/.disowned" && mv "$adir/.disowned" "$disowned"
+b20_before="$(cksum < "$disowned")"
+out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall 2>&1)"
+if [[ "$b20_listed" -eq 1 && "$b20_other_listed" -eq 1 ]] \
+   && [[ -f "$disowned" ]] \
+   && [[ "$(cksum < "$disowned")" == "$b20_before" ]] \
+   && [[ ! -e "$adir/wgm-implementer.agent.md" ]] \
+   && [[ "$(count_files "$adir" '*.agent.md')" -eq 1 ]] \
+   && [[ ! -e "$adir/.wgm-adapters" && -d "$adir" ]] \
+   && contains "$out" "listed but not wgm's"; then
+  ok "B20 uninstall skips a receipt-listed file whose marker was removed, and still removes every file it did stamp"
+else
+  bad "B20 uninstall deleted a disowned file, or failed to remove the still-marked ones, in $adir"
+fi
+
+# ---- B21: a source with zero role files prunes nothing ---------------------
+# A truncated tarball, an interrupted bootstrap extract, or a bad --ref can leave the canonical
+# directory present and empty. That is an incomplete source, not a source that retired every role,
+# so an install from it must refuse to stale-prune the adapters already on disk — and say why.
+src="$WORK/b21-src"; h="$WORK/b21"; adir="$h/.copilot/agents"; mkdir -p "$src" "$h"
+tar -C "$ROOT" --exclude=.git -cf - . 2>/dev/null | tar -C "$src" -xf - 2>/dev/null
+HOME="$h" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
+b21_installed="$(count_files "$adir" '*.agent.md')"
+b21_receipt="$(cksum < "$adir/.wgm-adapters")"
+rm -f "$src"/.github/agents/*.agent.md      # canonical dir still there, no roles left in it
+out="$(HOME="$h" WGM_FORCE_WSL=0 bash "$src/scripts/install.sh" --user --client copilot 2>&1)"
+if [[ -d "$src/.github/agents" ]] \
+   && [[ "$b21_installed" -eq "$(count_files "$CANON_DIR" '*.agent.md')" ]] \
+   && [[ "$(count_files "$adir" '*.agent.md')" -eq "$b21_installed" ]] \
+   && [[ -f "$adir/wgm-implementer.agent.md" ]] && grep -qF -- "$MARKER" "$adir/wgm-implementer.agent.md" \
+   && [[ "$(cksum < "$adir/.wgm-adapters")" == "$b21_receipt" ]] \
+   && contains "$out" "installing and pruning nothing"; then
+  ok "B21 a source whose canonical dir exists but ships no roles installs and prunes nothing, leaving every marked adapter in place"
+else
+  bad "B21 an empty role source pruned or rewrote installed adapters in $adir"
 fi
 
 echo ""
