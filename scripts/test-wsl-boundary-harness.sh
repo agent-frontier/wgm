@@ -14,6 +14,7 @@
 #   E  scripts/test-wsl-reachability.ps1 rejects a bad URL (exit 2), reports an unreachable endpoint
 #      as a failure (exit 1), fetches a live local fixture (exit 0), honours -RequireWebSocket in
 #      both directions, and ignores a bogus system proxy — skipped when no pwsh.
+#   G  the named Windows-PowerShell startup allowance that bounds a wedged probe.
 #   F  the accept path, the seam policy and the required-failure paths, driven by a SIMULATED
 #      Windows PowerShell that speaks the probe's output contract with CRLF line endings: a genuine
 #      `Win32NT\r` must be parsed and accepted, yet — because these runs override detection seams —
@@ -39,7 +40,10 @@ BOUNDARY="$ROOT/scripts/test-wsl-windows-boundary.sh"
 PROBE="$ROOT/scripts/test-wsl-reachability.ps1"
 
 FAILED=0
-pass() { printf 'ok:   %s\n' "$*"; }
+PASSED=0
+# The totals are computed, never hard-coded: a pinned count in a comment or a doc goes stale the
+# first time a case is added, and then quietly misreports the coverage.
+pass() { printf 'ok:   %s\n' "$*"; PASSED=$((PASSED + 1)); }
 fail() { printf 'FAIL: %s\n' "$*" >&2; FAILED=1; }
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/wgm-wsl-boundary-test.XXXXXX")"
@@ -264,6 +268,7 @@ exit "$rc"
 SIMEOF
 chmod +x "$SIM_PWSH"
 
+SIM_EXTRA_ENV=()
 sim_boundary() {  # $1 = FAKE_MODE, remaining args = extra orchestrator flags
   local mode="$1"; shift
   : >"$TMP/fake-counter"
@@ -271,6 +276,7 @@ sim_boundary() {  # $1 = FAKE_MODE, remaining args = extra orchestrator flags
              "WGM_WSL_PROC_VERSION_FILE=$IS_WSL" "WGM_WSL_BINFMT_DIR=$BINFMT_OK" \
              "WGM_WSL_WINDOWS_MOUNT_ROOT=$FAKE_MOUNT_ROOT" "WGM_WSL_PWSH=$SIM_PWSH" \
              "WGM_WSL_IPV4=127.0.0.1" \
+             ${SIM_EXTRA_ENV[@]+"${SIM_EXTRA_ENV[@]}"} \
              bash "$BOUNDARY" "$@" 2>&1)"; RC=$?
 }
 
@@ -355,7 +361,9 @@ if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
   fi
   # F8 a wedged interop path must be reported as a TIMEOUT, never as a non-Windows origin.
   if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n1 | grep -qi 'coreutils'; then
+    SIM_EXTRA_ENV=("WGM_WSL_PWSH_STARTUP_ALLOWANCE=2")
     sim_boundary hang --timeout 1
+    SIM_EXTRA_ENV=()
     if [[ "$RC" -ne 0 ]] && grep -q "TIMED OUT" <<<"$OUT" \
        && grep -q "NOT evidence that the process was non-Windows" <<<"$OUT" \
        && ! grep -q "did not originate on Windows" <<<"$OUT"; then
@@ -363,8 +371,33 @@ if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
     else
       fail "F8 a wedged probe was misdiagnosed (rc=$RC): $OUT"
     fi
+    if grep -q "pwsh-startup-allowance=2" <<<"$OUT" && grep -q "probe hard timeout: 5s" <<<"$OUT"; then
+      pass "G1 the startup allowance is what bounds the wedged probe (3x1s network + 2s allowance = 5s)"
+    else
+      fail "G1 the wedged probe was not bounded by the named allowance: $OUT"
+    fi
+
+    # G2 the default allowance is explicit, named, and added to the network budget rather than
+    # hidden in a magic number: 3 x --timeout 2s + 20s = 26s.
+    sim_boundary all-ok --timeout 2
+    if grep -q "pwsh-startup-allowance=20" <<<"$OUT" \
+       && grep -q "probe hard timeout: 26s = 3 network operations x --timeout=2s" <<<"$OUT"; then
+      pass "G2 the default 20s Windows-PowerShell startup allowance is named and reported"
+    else
+      fail "G2 the default startup allowance was not reported (rc=$RC): $OUT"
+    fi
+
+    # G3 a nonsense allowance is a usage error, not a silently clamped value.
+    SIM_EXTRA_ENV=("WGM_WSL_PWSH_STARTUP_ALLOWANCE=abc")
+    sim_boundary all-ok
+    SIM_EXTRA_ENV=()
+    if [[ "$RC" -eq 2 ]] && grep -q "must be an integer 1..600" <<<"$OUT"; then
+      pass "G3 an invalid startup allowance exits 2"
+    else
+      fail "G3 an invalid startup allowance was not rejected (rc=$RC): $OUT"
+    fi
   else
-    printf 'note: GNU timeout not available — skipping the wedged-probe case (F8).\n'
+    printf 'note: GNU timeout not available — skipping the wedged-probe and allowance cases (F8, G1-G2).\n'
   fi
 else
   printf 'note: python3/curl missing — skipping the simulated accept/failure cases (F1-F8).\n'
@@ -471,8 +504,8 @@ else
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then
-  echo "wsl-boundary harness: GREEN"
+  echo "wsl-boundary harness: GREEN ($PASSED assertions passed)"
   exit 0
 fi
-echo "wsl-boundary harness: RED" >&2
+echo "wsl-boundary harness: RED (after $PASSED passing assertions)" >&2
 exit 1

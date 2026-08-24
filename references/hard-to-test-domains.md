@@ -140,7 +140,10 @@ browser, editor, or CLI can connect.
 - **Normalize and bound the cross-OS subprocess.** Windows processes emit CRLF, so strip it once
   before parsing or a real `Win32NT\r` gets rejected as a non-Windows origin; and wrap each interop
   invocation in a wall-clock timeout (falling back to the probe's own per-operation bound) so a
-  wedged interop path cannot hang the run.
+  wedged interop path cannot hang the run. Size that timeout as *network budget + an explicit,
+  named cold-start allowance*: launching an interpreter across the boundary pays interop, runtime
+  init and antivirus costs that are not network time, and folding them into one magic number either
+  kills healthy probes or hides wedged ones.
 - **Fail loudly on an unsupported host.** If the environment cannot host the real boundary (no WSL,
   no interop, no Windows PowerShell on a Windows mount), exit nonzero with the reason. A synthetic
   `wsl.exe`/`powershell.exe` shim on the guest filesystem is a test double for the harness's own

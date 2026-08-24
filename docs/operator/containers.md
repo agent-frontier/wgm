@@ -103,6 +103,13 @@ boundary. A probe that never answers is reported as a **timeout**, not as a non-
 
 Exit codes: **0** green · **1** red · **2** usage · **3** unsupported host · **4** simulated.
 
+`--timeout` (default 5s) is the **network** budget the probe applies per operation. The outer kill is
+`(3 × --timeout) + a startup allowance` — 20s by default, tunable with
+`WGM_WSL_PWSH_STARTUP_ALLOWANCE` — because Windows PowerShell's cold start over interop, plus
+on-access antivirus scanning, is not network time and must not be charged to it. That allowance only
+widens or narrows the grace, so it never marks a run simulated. Raise it on a cold or heavily
+scanned machine if probes are killed before they answer.
+
 Every run opens with a `seams-overridden=` line. Only `seams-overridden=none` — a real distro, real
 interop, a Windows PowerShell the script found by itself — can print `GREEN` and count as evidence.
 If any `WGM_WSL_*` override is set, the run is labeled **SIMULATED (UNVERIFIED)** and exits **4**,

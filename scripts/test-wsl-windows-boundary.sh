@@ -23,8 +23,9 @@
 #      localhost route and the WSL IPv4 route for BOTH binds, and refuses any probe output that
 #      does not report a Windows origin platform. Probe output is CRLF-normalized before parsing,
 #      because a genuine Windows process reports "origin-platform=Win32NT\r". Each invocation runs
-#      under a hard `timeout` when GNU coreutils is present; otherwise the probe's own -TimeoutSec
-#      bounds every network operation, so no leg can hang the run indefinitely.
+#      under a hard `timeout` when GNU coreutils is present — (3 x --timeout) + a named
+#      PWSH_STARTUP_ALLOWANCE for Windows PowerShell/interop/AV cold start — and otherwise under the
+#      probe's own -TimeoutSec, so no leg can hang the run indefinitely.
 #   5. Prints a per-route matrix with the observed result, then a verdict.
 #
 # Which results are REQUIRED (a failure here is RED) vs OBSERVATIONAL (either answer is data):
@@ -40,9 +41,15 @@
 #   scripts/test-wsl-windows-boundary.sh [--timeout SEC] [--keep] [-h|--help]
 #
 # Flags:
-#   --timeout SEC   per-probe timeout in seconds (default 5)
+#   --timeout SEC   per-NETWORK-OPERATION budget in seconds, handed to the probe (default 5)
 #   --keep          keep the temporary fixture directory (prints its path) for debugging
 #   -h | --help     show this help
+#
+# Timeouts: each Windows probe is killed after (3 x --timeout) + PWSH_STARTUP_ALLOWANCE seconds.
+# The allowance (default 20s, override with WGM_WSL_PWSH_STARTUP_ALLOWANCE=1..600) covers Windows
+# PowerShell / interop / antivirus COLD START, not the network — it is not a detection seam, so it
+# never marks a run simulated. Without GNU timeout there is no outer kill and the probe's own
+# per-operation -TimeoutSec is the only (cooperative) bound; the run says so explicitly.
 #
 # Environment seams (also used by scripts/test-wsl-boundary-harness.sh to drive failure paths):
 #   WGM_WSL_PROC_VERSION_FILE   kernel version file to inspect         (default /proc/version)
@@ -71,6 +78,23 @@ PROBE_PS1="$ROOT/scripts/test-wsl-reachability.ps1"
 
 TIMEOUT=5
 KEEP=0
+
+# Two different budgets, deliberately separate:
+#   * --timeout      the NETWORK budget the caller controls, applied per operation by the probe
+#                    (page, client asset, WebSocket) — see -TimeoutSec in test-wsl-reachability.ps1.
+#   * this allowance the wall-clock grace for everything that is NOT network: Windows PowerShell's
+#                    own cold start over interop (\\wsl.localhost path resolution, .NET/CLR load,
+#                    profile-less engine init) plus on-access antivirus scanning of powershell.exe
+#                    and the script. On a warm machine that is well under a second; on a cold one
+#                    with real-time AV it is routinely several seconds, so 20s is a deliberately
+#                    generous default that still bounds a wedged interop path.
+# The outer kill is therefore (3 network operations x --timeout) + PWSH_STARTUP_ALLOWANCE, which
+# always exceeds the probe's own cooperative bound and never fires before the probe can report.
+# WGM_WSL_PWSH_STARTUP_ALLOWANCE only tunes this grace; it cannot fabricate a result, so it is not a
+# detection seam and does not mark a run simulated.
+PWSH_STARTUP_ALLOWANCE="${WGM_WSL_PWSH_STARTUP_ALLOWANCE:-20}"
+[[ "$PWSH_STARTUP_ALLOWANCE" =~ ^[0-9]+$ ]] && [[ "$PWSH_STARTUP_ALLOWANCE" -ge 1 ]] && [[ "$PWSH_STARTUP_ALLOWANCE" -le 600 ]] \
+  || { echo "WGM_WSL_PWSH_STARTUP_ALLOWANCE must be an integer 1..600 (seconds)" >&2; exit 2; }
 
 PROC_VERSION_FILE="${WGM_WSL_PROC_VERSION_FILE:-/proc/version}"
 BINFMT_DIR="${WGM_WSL_BINFMT_DIR:-/proc/sys/fs/binfmt_misc}"
@@ -340,8 +364,10 @@ stop_fixture() {
 # Windows PowerShell writes CRLF and can block indefinitely if the interop path wedges. Both are
 # handled here, once, so every parse below sees clean LF text and no probe can hang the run.
 PWSH_TIMEOUT=()
+PWSH_HARD_TIMEOUT="$((TIMEOUT * 3 + PWSH_STARTUP_ALLOWANCE))"
 if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n1 | grep -qi 'coreutils'; then
-  PWSH_TIMEOUT=(timeout --preserve-status -k 5 "$((TIMEOUT * 3 + 5))")
+  PWSH_TIMEOUT=(timeout --preserve-status -k 5 "$PWSH_HARD_TIMEOUT")
+  note "probe hard timeout: ${PWSH_HARD_TIMEOUT}s = 3 network operations x --timeout=${TIMEOUT}s + pwsh-startup-allowance=${PWSH_STARTUP_ALLOWANCE}s (Windows PowerShell/interop/AV cold start)"
 else
   note "note: GNU timeout not available — falling back to the probe's own cooperative bound (-TimeoutSec $TIMEOUT per network operation, applied to the page, the asset, and the WebSocket). Install coreutils for a hard wall-clock kill."
 fi
