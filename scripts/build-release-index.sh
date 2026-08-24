@@ -19,8 +19,10 @@
 # It is also the validator for that record (`--validate`), and the workflow runs it in that mode
 # BEFORE `gh release create`. Everything here fails closed: malformed JSON, a missing field, a
 # tag/version mismatch, a missing asset, a hash or size mismatch, a mutable stable ref, a stable
-# archive that is not a byte-identical copy of the versioned one, or an archive that does not carry a
-# root SKILL.md plus exactly the shipped companions and a references/ tree is RED, never a warning.
+# archive that is not a byte-identical copy of the versioned one, a SHA256SUMS manifest whose lines
+# disagree with the record or the files (or that is malformed, incomplete, duplicated, or names a
+# path), or an archive that does not carry a root SKILL.md plus exactly the shipped companions and a
+# references/ tree is RED, never a warning.
 #
 # Usage:
 #   scripts/build-release-index.sh --tag vX.Y --commit SHA [options]   # build
@@ -330,6 +332,100 @@ verify_assets() {
   done < <(jq -r '.assets[]? | select(.role == "versioned-archive" or .role == "stable-archive") | .name' "$file" 2>/dev/null)
 
   verify_stable_is_copy "$file" || rc=1
+  verify_checksum_manifest "$file" || rc=1
+
+  return "$rc"
+}
+
+# SHA256SUMS is the file a human actually runs their checksum tool against, and until it is PARSED it
+# is just an opaque blob: its own hash and size can be perfectly correct while the lines inside name
+# the wrong hashes, the wrong files, or a path outside the download directory. A verifier would then
+# get a cheerful "OK" for bytes the release never vouched for. So every line is checked against both
+# the record and the file on disk.
+#
+# Parsed by hand with sha256_of rather than shelling out to `sha256sum -c`: that flag set is GNU-only,
+# and macOS ships `shasum` instead. Verification must not depend on which coreutils you have.
+verify_checksum_manifest() {
+  local file="$1" manifest_name manifest_path rc=0
+  manifest_name="$(jq -r '[.assets[]? | select(.role == "checksums") | .name] | first // ""' "$file" 2>/dev/null)"
+  [[ -n "$manifest_name" ]] || return 0
+  manifest_path="$ASSETS_DIR/$manifest_name"
+  # A missing manifest is already reported by the per-asset loop; don't double-report it.
+  [[ -f "$manifest_path" ]] || return 0
+
+  local -a want_names=() want_hashes=() seen=()
+  local n h
+  while IFS=$'\t' read -r n h; do
+    [[ -n "$n" ]] || continue
+    want_names+=("$n")
+    want_hashes+=("$h")
+  done < <(jq -r '.assets[]? | select(.role == "versioned-archive" or .role == "stable-archive") | [.name, .sha256] | @tsv' "$file" 2>/dev/null)
+
+  local lineno=0 line hash name idx found expected actual
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lineno=$((lineno + 1))
+    if [[ "$line" == *$'\r'* ]]; then
+      note "$manifest_name line ${lineno} has a carriage return; the manifest must be LF-only"
+      rc=1
+      continue
+    fi
+    [[ -n "${line//[[:space:]]/}" ]] || { note "$manifest_name line ${lineno} is blank"; rc=1; continue; }
+
+    # coreutils/shasum format: 64 hex digits, two spaces (or space + '*' for binary mode), then the name.
+    if [[ ! "$line" =~ ^([0-9a-f]{64})\ [\ *](.+)$ ]]; then
+      note "$manifest_name line ${lineno} is malformed: '${line}'"
+      rc=1
+      continue
+    fi
+    hash="${BASH_REMATCH[1]}"
+    name="${BASH_REMATCH[2]}"
+
+    # The manifest is consumed in whatever directory a user downloaded into, so a name with a path in
+    # it — or a traversal — would point their checksum tool somewhere it was never meant to look.
+    if [[ "$name" == */* || "$name" == ".."* || "$name" == -* ]]; then
+      note "$manifest_name line ${lineno} names a path rather than a plain file: '${name}'"
+      rc=1
+      continue
+    fi
+
+    found=""
+    for idx in "${!want_names[@]}"; do
+      [[ "${want_names[$idx]}" == "$name" ]] && found="$idx"
+    done
+    if [[ -z "$found" ]]; then
+      note "$manifest_name names '${name}', which is not an archive this release record covers"
+      rc=1
+      continue
+    fi
+
+    for idx in "${seen[@]:-}"; do
+      [[ "$idx" == "$name" ]] && { note "$manifest_name lists '${name}' more than once"; rc=1; }
+    done
+    seen+=("$name")
+
+    expected="${want_hashes[$found]}"
+    if [[ "$hash" != "$expected" ]]; then
+      note "$manifest_name gives '${name}' the hash ${hash}, but the release record says ${expected}"
+      rc=1
+      continue
+    fi
+    if [[ -f "$ASSETS_DIR/$name" ]]; then
+      actual="$(sha256_of "$ASSETS_DIR/$name")"
+      if [[ "$hash" != "$actual" ]]; then
+        note "$manifest_name gives '${name}' the hash ${hash}, but the file is ${actual}"
+        rc=1
+      fi
+    fi
+  done < "$manifest_path"
+
+  for idx in "${!want_names[@]}"; do
+    name="${want_names[$idx]}"
+    found=""
+    for h in "${seen[@]:-}"; do
+      [[ "$h" == "$name" ]] && found=1
+    done
+    [[ -n "$found" ]] || { note "$manifest_name does not cover '${name}', so a user verifying that archive gets no answer"; rc=1; }
+  done
 
   return "$rc"
 }

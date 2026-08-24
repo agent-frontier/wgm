@@ -24,6 +24,8 @@
 #  10. the stable archive must be a byte-identical copy of the versioned one, or WGM_REF=latest and
 #      WGM_REF=vX.Y would install different code from the same release with both hashes "valid"
 #  11. a declared size_bytes that disagrees with the file on disk is rejected
+#  13. the CONTENTS of SHA256SUMS are checked line by line — wrong hashes, missing or extra entries,
+#      duplicates, paths, and malformed lines are all RED even when the manifest's own hash is right
 #  12. contents.companions must be EXACTLY the shipped set — extra claims fail too, not just missing
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
@@ -38,6 +40,17 @@ pass() { printf 'ok:   %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; FAILED=1; }
 
 command -v jq >/dev/null 2>&1 || { echo "jq is required but not found on PATH." >&2; exit 2; }
+
+# Same portability rule the validator follows: sha256sum on GNU systems, shasum on macOS.
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 \
+  || { echo "neither sha256sum nor shasum is on PATH." >&2; exit 2; }
 
 TMP="$(mktemp -d)"
 trap 'cd /; rm -rf "$TMP"' EXIT
@@ -108,10 +121,23 @@ else
   fail "building the honest release record failed (rc=$RC): $OUT"
 fi
 
-if [[ -f dist/SHA256SUMS ]] && ( cd dist && sha256sum -c SHA256SUMS >/dev/null 2>&1 ); then
-  pass "SHA256SUMS is written and verifies with 'sha256sum -c'"
+# Verified without `sha256sum -c`: that flag set is GNU-only and macOS ships `shasum`, so a harness
+# that depends on it would pass or fail for reasons that have nothing to do with the release.
+manifest_ok=1
+[[ -f dist/SHA256SUMS ]] || manifest_ok=0
+if [[ "$manifest_ok" -eq 1 ]]; then
+  while IFS= read -r line; do
+    [[ "$line" =~ ^([0-9a-f]{64})\ \ ([^/]+)$ ]] || { manifest_ok=0; break; }
+    [[ -f "dist/${BASH_REMATCH[2]}" ]] || { manifest_ok=0; break; }
+    [[ "$(sha256_file "dist/${BASH_REMATCH[2]}")" == "${BASH_REMATCH[1]}" ]] || { manifest_ok=0; break; }
+  done < dist/SHA256SUMS
+  # Exactly the two archives, in the two-space format a checksum tool expects.
+  [[ "$(wc -l < dist/SHA256SUMS)" -eq 2 ]] || manifest_ok=0
+fi
+if [[ "$manifest_ok" -eq 1 ]]; then
+  pass "SHA256SUMS is written in checksum-tool format and its hashes match the archives"
 else
-  fail "SHA256SUMS is missing or does not verify"
+  fail "SHA256SUMS is missing, malformed, or does not match the archives: $(cat dist/SHA256SUMS 2>&1)"
 fi
 
 GOOD="$TMP/good.json"
@@ -414,6 +440,112 @@ if [[ "$RC" -ne 0 ]] && grep -q "size mismatch" <<<"$OUT"; then
   pass "a declared size_bytes that disagrees with the file on disk is rejected"
 else
   fail "a wrong size_bytes was accepted (rc=$RC): $OUT"
+fi
+
+# --- 12) the CONTENTS of SHA256SUMS ---------------------------------------------------------------
+# SHA256SUMS is the file a human actually feeds to their checksum tool. Checking only its own hash and
+# size treats it as an opaque blob: a manifest full of plausible-but-wrong hashes passes every other
+# gate and then tells a verifier "OK" for bytes the release never vouched for. Each fixture below
+# rewrites the manifest AND re-points the record's checksum-asset hash/size at the rewritten file, so
+# the per-asset hash and size checks are satisfied and only manifest-content validation can catch it.
+
+# Rebuild a dist whose record's checksums entry matches the (tampered) manifest beside it.
+manifest_case() {
+  local dir="$1"; shift
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  cp "dist/wgm-${TAG}.tar.gz" dist/wgm.tar.gz "$dir/"
+  cat > "$dir/SHA256SUMS"        # manifest body arrives on stdin
+  jq --arg h "$(sha256_file "$dir/SHA256SUMS")" \
+     --argjson s "$(wc -c < "$dir/SHA256SUMS")" \
+     '(.assets[] | select(.role == "checksums") | .sha256) = $h
+      | (.assets[] | select(.role == "checksums") | .size_bytes) = $s' "$GOOD" > "$dir/release.json"
+}
+
+VSUM="$(sha256_file "dist/wgm-${TAG}.tar.gz")"
+WRONG="1111111111111111111111111111111111111111111111111111111111111111"
+
+manifest_case sums-wrong <<EOF
+${WRONG}  wgm-${TAG}.tar.gz
+${WRONG}  wgm.tar.gz
+EOF
+validate sums-wrong/release.json --assets-dir sums-wrong
+if [[ "$RC" -ne 0 ]] && grep -q "but the release record says" <<<"$OUT" && ! grep -q "hash mismatch" <<<"$OUT"; then
+  pass "a SHA256SUMS full of wrong-but-well-formed hashes is rejected, though its own hash and size check out"
+else
+  fail "a tampered checksum manifest was accepted, or failed for another reason (rc=$RC): $OUT"
+fi
+
+manifest_case sums-missing <<EOF
+${VSUM}  wgm-${TAG}.tar.gz
+EOF
+validate sums-missing/release.json --assets-dir sums-missing
+if [[ "$RC" -ne 0 ]] && grep -q "does not cover 'wgm.tar.gz'" <<<"$OUT"; then
+  pass "a manifest that omits an archive is rejected — a verifier would get no answer for it"
+else
+  fail "an incomplete checksum manifest was accepted (rc=$RC): $OUT"
+fi
+
+manifest_case sums-extra <<EOF
+${VSUM}  wgm-${TAG}.tar.gz
+${VSUM}  wgm.tar.gz
+${VSUM}  installer.sh
+EOF
+validate sums-extra/release.json --assets-dir sums-extra
+if [[ "$RC" -ne 0 ]] && grep -q "not an archive this release record covers" <<<"$OUT"; then
+  pass "a manifest naming a file the record does not cover is rejected"
+else
+  fail "an extra checksum entry was accepted (rc=$RC): $OUT"
+fi
+
+manifest_case sums-dup <<EOF
+${VSUM}  wgm-${TAG}.tar.gz
+${VSUM}  wgm.tar.gz
+${VSUM}  wgm.tar.gz
+EOF
+validate sums-dup/release.json --assets-dir sums-dup
+if [[ "$RC" -ne 0 ]] && grep -q "more than once" <<<"$OUT"; then
+  pass "a duplicated manifest entry is rejected"
+else
+  fail "a duplicated checksum entry was accepted (rc=$RC): $OUT"
+fi
+
+# A name with a path in it points the verifier's tool outside the directory they downloaded into.
+manifest_case sums-traversal <<EOF
+${VSUM}  wgm-${TAG}.tar.gz
+${VSUM}  wgm.tar.gz
+${VSUM}  ../../etc/passwd
+EOF
+validate sums-traversal/release.json --assets-dir sums-traversal
+if [[ "$RC" -ne 0 ]] && grep -q "names a path rather than a plain file" <<<"$OUT"; then
+  pass "a manifest entry containing a path is rejected"
+else
+  fail "a path-traversal checksum entry was accepted (rc=$RC): $OUT"
+fi
+
+manifest_case sums-malformed <<EOF
+${VSUM}  wgm-${TAG}.tar.gz
+${VSUM}  wgm.tar.gz
+not-a-checksum-line
+EOF
+validate sums-malformed/release.json --assets-dir sums-malformed
+if [[ "$RC" -ne 0 ]] && grep -q "is malformed" <<<"$OUT"; then
+  pass "a malformed manifest line is rejected"
+else
+  fail "a malformed checksum line was accepted (rc=$RC): $OUT"
+fi
+
+# And the honest manifest still passes, proving the cases above fail on their tampering, not on the
+# checker being unable to accept any manifest at all.
+manifest_case sums-good <<EOF
+${VSUM}  wgm-${TAG}.tar.gz
+${VSUM}  wgm.tar.gz
+EOF
+validate sums-good/release.json --assets-dir sums-good
+if [[ "$RC" -eq 0 ]]; then
+  pass "a correct manifest listing both archives passes"
+else
+  fail "an honest checksum manifest was rejected (rc=$RC): $OUT"
 fi
 
 # --- 8) honest provenance -----------------------------------------------------------------------

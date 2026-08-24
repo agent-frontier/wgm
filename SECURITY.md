@@ -32,19 +32,31 @@ given release always names one specific version of the tree.
 There is no wgm marketplace, registry, or update service. GitHub Releases is the source of truth, and
 every release publishes its own integrity evidence as static assets:
 
-- `SHA256SUMS` — SHA-256 of `wgm-vX.Y.tar.gz` and `wgm.tar.gz`, in `sha256sum -c` format.
+- `SHA256SUMS` — SHA-256 of `wgm-vX.Y.tar.gz` and `wgm.tar.gz`, one line each in the standard
+  two-space checksum format. The release workflow parses it and refuses to publish if a line
+  disagrees with the record or the archive it names, or if an entry is missing, duplicated,
+  malformed, or contains a path.
 - `release.json` — a schema-versioned release record naming the channel, version, tag, commit sha,
   publication time, and each asset's per-tag URL, size, and SHA-256. Its full field list is in
   [docs/reference/cli-install.md](docs/reference/cli-install.md).
 
-Verify a download before trusting it:
+Verify a download before trusting it. Fetch the archive and `SHA256SUMS` into the same directory,
+then use whichever tool your platform ships:
 
 ```bash
 tag=v0.3
 base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
 curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
-sha256sum --ignore-missing -c SHA256SUMS
+
+sha256sum --ignore-missing -c SHA256SUMS   # Linux (GNU coreutils)
+shasum -a 256 "wgm-${tag}.tar.gz"          # macOS: compare this hash to the SHA256SUMS line
+```
+
+```powershell
+# Windows PowerShell
+(Get-FileHash "wgm-v0.3.tar.gz" -Algorithm SHA256).Hash.ToLower()
+Select-String -Path SHA256SUMS -Pattern 'wgm-v0.3.tar.gz'
 ```
 
 **What this proves.** That the archive you hold is byte-for-byte what the release's own checksums
@@ -68,8 +80,10 @@ back it.
 
 **If verification fails.** A mismatch between a download and `SHA256SUMS`, or between a hash you
 recorded earlier and the one a release now advertises, should be treated as a security event, not a
-flaky download. Do not extract or install the archive. Keep the file and the checksums you fetched,
-confirm you compared the same tag, and report it through the private channel above.
+flaky download. Do not extract, install, or run the archive. Keep the file and the checksums you
+fetched, confirm you compared the same tag and file name, and re-download once to rule out a
+truncated transfer. If it still differs, report it through the private channel above and install
+nothing from that copy.
 
 The release workflow fails closed before anything is published: malformed metadata, a missing asset,
 a checksum mismatch, a tag that disagrees with `SKILL.md`'s version, a stable record pinned to a

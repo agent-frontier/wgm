@@ -86,8 +86,10 @@ jobs:
             --validate dist/release.json \
             --assets-dir dist \
             --expect-tag "${GITHUB_REF_NAME}"
-          # SHA256SUMS holds bare names so a user can verify in whatever directory they downloaded
-          # into — which means it must be checked from inside dist/, not from the repo root.
+          # Belt and braces: the validator already parses SHA256SUMS line by line (portably, via
+          # sha256sum-or-shasum), so this is an independent cross-check with GNU coreutils, which the
+          # runner is known to have. SHA256SUMS holds bare names so a user can verify in whatever
+          # directory they downloaded into — which means it runs from inside dist/, not the repo root.
           ( cd dist && sha256sum -c SHA256SUMS )
 
       - name: Publish GitHub release

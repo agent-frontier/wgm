@@ -151,23 +151,47 @@ different code from one release while each checksum verified on its own.
 
 ### Verifying a download
 
+Download the archive and the checksum manifest into the same directory:
+
 ```bash
 tag=v0.3
 base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
 curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
-sha256sum --ignore-missing -c SHA256SUMS
 ```
+
+Then compare, with whatever your platform ships:
+
+```bash
+# Linux (GNU coreutils)
+sha256sum --ignore-missing -c SHA256SUMS
+
+# macOS — no `-c` mode; print the hash and compare it to the manifest line
+shasum -a 256 "wgm-${tag}.tar.gz"
+grep "wgm-${tag}.tar.gz" SHA256SUMS
+```
+
+```powershell
+# Windows PowerShell
+$tag = 'v0.3'
+(Get-FileHash "wgm-$tag.tar.gz" -Algorithm SHA256).Hash.ToLower()
+Select-String -Path SHA256SUMS -Pattern "wgm-$tag.tar.gz"
+```
+
+The two strings must be identical, character for character. `SHA256SUMS` itself is covered by
+`release.json`, and the release workflow refuses to publish a manifest whose lines disagree with the
+record or the archives — so a manifest that verifies the wrong bytes cannot be released.
 
 SHA-256 proves the bytes you got are the bytes `SHA256SUMS` names. It is a checksum, not a
 signature: it says nothing about *who* built them, and if the release itself were rewritten the
 checksums would be rewritten with it. Its real strength is comparison over time — a hash you recorded
 at install time, or one an independent copy of the release record carries.
 
-**If a hash does not match:** stop. Do not extract or install the archive, keep the downloaded file
-and the `SHA256SUMS` you fetched, re-check that you compared the same tag, and report it through the
-private channel in [SECURITY.md](../../SECURITY.md). A mismatch is either a corrupted download or a
-replaced asset, and both are worth a report.
+**If a hash does not match:** stop — do not extract, install, or run the archive. Keep the downloaded
+file and the `SHA256SUMS` you fetched, confirm you compared the same tag and the same file name, and
+re-download once to rule out a truncated transfer. If it still differs, report it through the private
+channel in [SECURITY.md](../../SECURITY.md) and do not install from that copy. A mismatch is either a
+corrupted download or a replaced asset, and both are worth a report.
 
 ### The release record (`release.json`)
 
