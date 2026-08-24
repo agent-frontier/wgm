@@ -323,8 +323,9 @@ So the canonical file is authored once and translated deterministically:
 - The names differ on purpose: Copilot uses the display name (`WGM Implementer`), Claude uses a slug
   (`wgm-implementer`). The dispatch handles in this document are the slugs.
 - `scripts/install.sh` and `scripts/install.ps1` write those directories when a host client is
-  selected, claim only the files listed in a per-directory `.wgm-adapters` receipt, and take
-  `--no-agents` / `-NoAgents` to skip adapters entirely.
+  selected, stamp each file they write with a `wgm-role-agent-adapter` marker, refresh or remove only
+  marked files (a `.wgm-adapters` receipt just indexes them), and take `--no-agents` / `-NoAgents` to
+  skip adapters entirely.
 - The Claude translation is conservative — name, description, and the canonical body, no invented
   tool or model keys — because it is a documented-format prediction, not an observed run. Raising it
   to a stronger claim means recording a journey, not editing an adjective.

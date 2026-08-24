@@ -2,6 +2,11 @@
   "_see": "references/subagents.md (dispatch protocol) and references/harness-portability.md (evidence tiers). scripts/test-agent-adapters.sh checks this file against the tree and the installers.",
   "manifest_version": "1",
   "receipt_file": ".wgm-adapters",
+  "ownership": {
+    "marker_token": "wgm-role-agent-adapter",
+    "marker_form": "An HTML comment appended to every adapter file the installer writes: `<!-- wgm-role-agent-adapter host=<id> source=<canonical path> version=<manifest_version> ... -->`. Matched as a substring, so CRLF line endings cannot hide it.",
+    "rule": "Ownership is proved by the marker, never inferred from a matching file name. Files without the marker are never refreshed, pruned, or deleted, and are never listed in the receipt; only --force / -Force may replace one, and it stamps and records what it replaced. The receipt is an atomically written index of the last install (basenames only, host suffix enforced, CRLF tolerated) that narrows where wgm looks; the marker is what authorises a delete, so a lost or partial receipt costs recovery, not safety."
+  },
   "canonical": {
     "source_dir": ".github/agents",
     "file_suffix": ".agent.md",

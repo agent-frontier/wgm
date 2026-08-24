@@ -17,6 +17,7 @@
 #   T11 release-tarball install-> a flat (release-style) file:// tarball installs end to end.
 #   T15 role adapters        -> selecting a host client also installs its role agents (+ receipt).
 #   T16 --no-agents          -> the skill installs, the adapters do not.
+#   T17 adapter ownership    -> a foreign file sharing a wgm role name is not stamped, claimed, or removed.
 #
 # Testing/advanced override seams honoured by install.sh:
 #   WGM_FORCE_WSL=0|1      force the WSL detection result (so we can simulate non-WSL on a WSL host).
@@ -214,6 +215,23 @@ if [[ -f "$b_home/.agents/skills/$WGM/SKILL.md" && ! -e "$b_home/.copilot/agents
   ok "T16 --no-agents installs the portable skill with no role adapters"
 else
   bad "T16 --no-agents still produced adapter directories under $b_home"
+fi
+
+# ---- T17: adapter ownership is proven by a marker, never by a matching name ------
+# The install-time hazard is adoption: a file that merely shares a wgm role name must survive an
+# install, stay out of the receipt, and survive the uninstall that follows.
+c_home="$WORK/t17"; c_dir="$c_home/.copilot/agents"; mkdir -p "$c_dir"
+printf -- '---\nname: Someone Elses Validator\ndescription: not wgm\n---\nkeep me\n' > "$c_dir/wgm-validator.agent.md"
+HOME="$c_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot >/dev/null 2>&1
+t17_claimed=0
+grep -qxF 'wgm-validator.agent.md' "$c_dir/.wgm-adapters" && t17_claimed=1
+HOME="$c_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client copilot --uninstall >/dev/null 2>&1
+if [[ "$t17_claimed" -eq 0 ]] \
+   && grep -q 'keep me' "$c_dir/wgm-validator.agent.md" \
+   && [[ ! -e "$c_dir/wgm-implementer.agent.md" && -d "$c_dir" ]]; then
+  ok "T17 a foreign file sharing a wgm role name is never stamped, claimed, or removed"
+else
+  bad "T17 the installer adopted a foreign agent file in $c_dir"
 fi
 
 echo ""

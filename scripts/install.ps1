@@ -44,8 +44,9 @@
   (compatibility\agent-adapters.json). When a host client is selected they are installed where that
   host actually scans: copilot user -> ~\.copilot\agents, project -> .github\agents; claude user ->
   ~\.claude\agents, project -> .claude\agents. The generic `.agents` client gets none, because the
-  Agent Skills standard defines skills, not subagents. Only files recorded in a per-directory
-  receipt (.wgm-adapters) are ever refreshed or removed.
+  Agent Skills standard defines skills, not subagents. Every adapter wgm writes carries a
+  wgm-role-agent-adapter marker comment, and only files carrying it are ever refreshed, pruned, or
+  removed; the per-directory .wgm-adapters receipt is an atomically written index, not the proof.
 
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
@@ -405,11 +406,34 @@ function Uninstall-One {
 }
 
 # ----- role-agent adapters --------------------------------------------------
-# Each host scans a flat directory of agent files that it does NOT own exclusively: a user's own
-# agents live there too. So wgm never treats the directory as its own - it installs individual files
-# and records exactly which ones it wrote in a per-directory receipt, and only those are ever
-# refreshed or removed. Nothing else in the directory is read, moved, or deleted.
+# Each host scans a flat directory of agent files that it does NOT own exclusively: your own agents
+# live there too, and one of them may already carry a wgm role name. Name resemblance is therefore
+# never evidence of ownership. wgm proves ownership instead: every file it writes ends with a marker
+# comment carrying the token below plus the host, the canonical source file, and the adapter version.
+# Only a file carrying that token is refreshed, pruned, or removed - nothing else in the directory is
+# moved, rewritten, or deleted, and the directory itself is never removed.
+#
+# The per-directory .wgm-adapters receipt is an index of what the last install wrote, written
+# temp-then-rename so it is never half a list. It narrows what wgm looks at; the marker is what
+# authorises a delete. A missing or partial receipt therefore loses no safety and creates no false
+# claim: wgm can still recover its own files by their marker, and still cannot touch yours.
 $adapterReceipt = '.wgm-adapters'
+$adapterMarker = 'wgm-role-agent-adapter'
+$adapterTmpPrefix = '.wgm-adapter.tmp.'
+$script:adapterVersion = $null
+
+function Get-AdapterVersion {
+  # The adapter manifest version travels with the source tree, so a stamped file records exactly
+  # which mapping produced it. 'unknown' is honest when the manifest is absent.
+  if ($script:adapterVersion) { return $script:adapterVersion }
+  $script:adapterVersion = 'unknown'
+  $manifest = Join-Path (Join-Path $srcDir 'compatibility') 'agent-adapters.json'
+  if (Test-Path -LiteralPath $manifest) {
+    $raw = Get-Content -Raw -LiteralPath $manifest
+    if ($raw -match '"manifest_version"\s*:\s*"([^"]*)"') { $script:adapterVersion = $Matches[1] }
+  }
+  return $script:adapterVersion
+}
 
 function Get-AdapterSourceDir {
   param([string]$HostId)
@@ -425,17 +449,83 @@ function Get-AdapterFilter {
   if ($HostId -eq 'copilot') { return '*.agent.md' } else { return '*.md' }
 }
 
-function Get-AgentName {
-  # The `name:` frontmatter value of an agent file (leading --- block only), or ''.
+function Get-AdapterSuffix {
+  param([string]$HostId)
+  if ($HostId -eq 'copilot') { return '.agent.md' } else { return '.md' }
+}
+
+function Get-AdapterCanonicalPath {
+  param([string]$HostId, [string]$Name)
+  if ($HostId -eq 'copilot') { return ".github/agents/$Name" } else { return "adapters/claude/agents/$Name" }
+}
+
+function Test-AdapterMarker {
+  # True when the file carries wgm's ownership token. A plain substring test, so CRLF endings or a
+  # host that rewrote the file's newlines cannot hide it.
   param([string]$Path)
-  if (-not (Test-Path -LiteralPath $Path)) { return '' }
-  $inFm = $false
-  foreach ($line in (Get-Content -LiteralPath $Path)) {
-    if (-not $inFm) { if ($line -eq '---') { $inFm = $true; continue } else { return '' } }
-    if ($line -eq '---') { return '' }
-    if ($line -match '^name:\s*(.*?)\s*$') { return $Matches[1] }
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+  $raw = Get-Content -Raw -LiteralPath $Path -ErrorAction SilentlyContinue
+  return ($null -ne $raw -and $raw.Contains($adapterMarker))
+}
+
+function Write-AdapterFile {
+  # Temp-then-rename inside the destination directory: an interrupted install leaves either the
+  # previous file or the complete new one, never a truncated agent definition.
+  param([string]$Source, [string]$Dest, [string]$HostId)
+  $dir = Split-Path -Parent $Dest
+  $name = Split-Path -Leaf $Dest
+  $tmp = Join-Path $dir ("$adapterTmpPrefix$PID.$name")
+  $rel = Get-AdapterCanonicalPath -HostId $HostId -Name $name
+  $body = Get-Content -Raw -LiteralPath $Source
+  $stamp = "`n<!-- $adapterMarker host=$HostId source=$rel version=$(Get-AdapterVersion) - installed by wgm. wgm refreshes or removes only adapter files carrying this token; delete this comment to disown the file. -->`n"
+  try {
+    [System.IO.File]::WriteAllText($tmp, ($body + $stamp), (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath $tmp -Destination $Dest -Force
+    return $true
   }
-  return ''
+  catch {
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+    return $false
+  }
+}
+
+function Write-AdapterReceipt {
+  # Same-directory temp + rename, so a later uninstall reads the old complete list or the new one.
+  param([string]$Dir, [string]$HostId, [string[]]$Names)
+  $tmp = Join-Path $Dir ("$adapterReceipt.tmp.$PID")
+  $lines = @(
+    "# wgm role-agent adapters - host=$HostId version=$(Get-AdapterVersion). One basename per line, this directory only.",
+    '# This list is an index, not a claim: wgm removes a listed file only while it still carries',
+    '# the ownership marker wgm stamped into it.'
+  ) + $Names
+  try {
+    [System.IO.File]::WriteAllText($tmp, (($lines -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath $tmp -Destination (Join-Path $Dir $adapterReceipt) -Force
+  }
+  catch {
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+    Write-Warning "  failed to write the $HostId adapter receipt in: $Dir"
+  }
+}
+
+function Get-AdapterReceiptEntries {
+  # Validated basenames from the receipt. Tolerates CRLF; rejects comments, blank lines, anything
+  # with a path separator, dotfiles (so '..' can never appear), and names that are not this host's
+  # adapter files. A hand-edited or half-written receipt can only ever name fewer files.
+  param([string]$Dir, [string]$HostId)
+  $receiptPath = Join-Path $Dir $adapterReceipt
+  if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) { return @() }
+  $suffix = Get-AdapterSuffix -HostId $HostId
+  $out = [System.Collections.Generic.List[string]]::new()
+  foreach ($line in (Get-Content -LiteralPath $receiptPath)) {
+    if ($null -eq $line) { continue }
+    $entry = $line.Trim("`r", ' ', "`t")
+    if (-not $entry) { continue }
+    if ($entry.StartsWith('#') -or $entry.StartsWith('.') -or $entry -match '[\\/]') { continue }
+    if (-not $entry.EndsWith($suffix)) { continue }
+    $out.Add($entry)
+  }
+  return $out.ToArray()
 }
 
 function Install-Agents {
@@ -455,59 +545,111 @@ function Install-Agents {
   }
   Write-Host "  role agents ($HostId): $Dir"
   if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
-  # A prior receipt is wgm's own record of what it installed here last time. It is what lets a
-  # re-run refresh a file wgm owns even after the file was edited beyond recognition, without
-  # widening the claim to anything wgm never wrote.
-  $receiptPath = Join-Path $Dir $adapterReceipt
-  $prior = @()
-  if (Test-Path $receiptPath) {
-    $prior = @(Get-Content -LiteralPath $receiptPath | Where-Object { $_ -and -not $_.StartsWith('#') })
+  $prior = @(Get-AdapterReceiptEntries -Dir $Dir -HostId $HostId)
+  if (-not $DryRun) {
+    # Clear wgm's own leftovers from an interrupted earlier run. The prefix is wgm's, so this can
+    # only ever remove a temp file wgm itself created.
+    Get-ChildItem -LiteralPath $Dir -Filter "$adapterTmpPrefix*" -Force -File -ErrorAction SilentlyContinue |
+      ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
   }
   $written = [System.Collections.Generic.List[string]]::new()
   $wrote = 0
+  $pruned = 0
   foreach ($file in (Get-ChildItem -LiteralPath $src -Filter (Get-AdapterFilter -HostId $HostId) -File | Sort-Object Name)) {
     $dest = Join-Path $Dir $file.Name
-    if ((Test-Path $dest) -and -not $Force) {
-      if (($prior -notcontains $file.Name) -and ((Get-AgentName -Path $dest) -ne (Get-AgentName -Path $file.FullName))) {
+    if (Test-Path -LiteralPath $dest -PathType Container) {
+      Write-Host "    a directory occupies that name - skipping: $dest"
+      continue
+    }
+    if ((Test-Path -LiteralPath $dest) -and -not (Test-AdapterMarker -Path $dest)) {
+      # No marker means wgm did not write this file, whatever it is called. A prior receipt entry
+      # does not override that: the file on disk is somebody else's now.
+      if (-not $Force) {
         Write-Host "    exists and is not wgm's - skipping (use -Force to replace): $dest"
         continue
       }
+      Write-Host "    -Force: replacing a file wgm did not write: $dest"
     }
     $written.Add($file.Name)
     if ($DryRun) { Write-Host "    would install: $dest"; continue }
-    Copy-Item -LiteralPath $file.FullName -Destination $dest -Force
+    if (-not (Write-AdapterFile -Source $file.FullName -Dest $dest -HostId $HostId)) {
+      Write-Warning "  failed to write role adapter: $dest"
+      continue
+    }
     $wrote++
   }
+  # Prune roles this source no longer ships. Only a file the last receipt named AND that still
+  # carries wgm's marker qualifies: a name that reappeared as somebody else's agent survives.
+  foreach ($stale in $prior) {
+    if ($written -contains $stale) { continue }
+    $stalePath = Join-Path $Dir $stale
+    if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) { continue }
+    if (-not (Test-AdapterMarker -Path $stalePath)) {
+      Write-Host "    no longer wgm's (marker gone) - leaving: $stalePath"
+      continue
+    }
+    if ($DryRun) { Write-Host "    would remove (role no longer shipped): $stalePath"; continue }
+    Remove-Item -LiteralPath $stalePath -Force
+    $pruned++
+  }
   if ($DryRun) { return }
-  # The receipt is what makes uninstall safe: it is the only list of files wgm claims to own here.
-  $lines = @("# wgm role-agent adapters - $HostId. Removing this file makes -Uninstall skip them.") + $written
-  Set-Content -LiteralPath $receiptPath -Value $lines
-  Write-Host "    installed $wrote file(s)"
+  Write-AdapterReceipt -Dir $Dir -HostId $HostId -Names $written.ToArray()
+  if ($pruned -gt 0) { Write-Host "    installed $wrote file(s), pruned $pruned no longer shipped" }
+  else { Write-Host "    installed $wrote file(s)" }
 }
 
 function Uninstall-Agents {
+  # Removes only files that carry wgm's ownership marker: the receipt says where to look, the marker
+  # decides. The directory itself is never removed.
   param([string]$HostId, [string]$Dir)
   if ($Dir -notmatch '[\\/]agents$') {
     Write-Warning "  refusing to touch unexpected agent dir: $Dir"
     return
   }
+  if (-not (Test-Path -LiteralPath $Dir -PathType Container)) {
+    Write-Host "  no $HostId agent directory to clean: $Dir"
+    return
+  }
   $receiptPath = Join-Path $Dir $adapterReceipt
-  if (-not (Test-Path $receiptPath)) {
-    Write-Host "  no wgm adapter receipt, leaving untouched: $Dir"
+  $candidates = [System.Collections.Generic.List[string]]::new()
+  foreach ($entry in (Get-AdapterReceiptEntries -Dir $Dir -HostId $HostId)) {
+    if (-not $candidates.Contains($entry)) { $candidates.Add($entry) }
+  }
+  # An install interrupted between the copy and the receipt write leaves stamped files and no list.
+  # Scanning for wgm's own marker recovers exactly those, and can never select somebody else's file.
+  foreach ($file in (Get-ChildItem -LiteralPath $Dir -Filter (Get-AdapterFilter -HostId $HostId) -File -ErrorAction SilentlyContinue)) {
+    if (-not (Test-AdapterMarker -Path $file.FullName)) { continue }
+    if (-not $candidates.Contains($file.Name)) { $candidates.Add($file.Name) }
+  }
+  if ($candidates.Count -eq 0) {
+    Write-Host "  no wgm adapter receipt entries or marked adapter files, leaving untouched: $Dir"
+    if ((Test-Path -LiteralPath $receiptPath) -and -not $DryRun) {
+      Remove-Item -LiteralPath $receiptPath -Force
+      Write-Host "  removed the empty $HostId adapter receipt: $receiptPath"
+    }
     return
   }
   $removed = 0
-  foreach ($base in (Get-Content -LiteralPath $receiptPath)) {
-    if (-not $base -or $base.StartsWith('#') -or $base -match '[\\/]') { continue }
+  $kept = 0
+  foreach ($base in $candidates) {
     $dest = Join-Path $Dir $base
-    if (-not (Test-Path $dest)) { continue }
+    if (-not (Test-Path -LiteralPath $dest -PathType Leaf)) { continue }
+    if (-not (Test-AdapterMarker -Path $dest)) {
+      Write-Host "    listed but not wgm's (no marker) - leaving: $dest"
+      $kept++
+      continue
+    }
     if ($DryRun) { Write-Host "    would remove: $dest"; continue }
     Remove-Item -LiteralPath $dest -Force
     $removed++
   }
-  if ($DryRun) { Write-Host "  would remove the $HostId adapter receipt: $receiptPath"; return }
-  Remove-Item -LiteralPath $receiptPath -Force
-  Write-Host "  removed $removed $HostId adapter file(s) from: $Dir"
+  if ($DryRun) {
+    if (Test-Path -LiteralPath $receiptPath) { Write-Host "  would remove the $HostId adapter receipt: $receiptPath" }
+    return
+  }
+  if (Test-Path -LiteralPath $receiptPath) { Remove-Item -LiteralPath $receiptPath -Force }
+  if ($kept -gt 0) { Write-Host "  removed $removed $HostId adapter file(s) from: $Dir ($kept left in place - not wgm's any more)" }
+  else { Write-Host "  removed $removed $HostId adapter file(s) from: $Dir" }
 }
 
 # Companion skills ship beside wgm as their own sibling skill dirs, because a skills client

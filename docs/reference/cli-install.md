@@ -91,15 +91,28 @@ Opt out entirely with `--no-agents` / `-NoAgents`.
 
 ### Ownership: what the installer will and will not touch
 
-A host agent directory is shared property — your own agents live there too. So wgm never claims the
-directory, only individual files, and records exactly which ones it wrote in a per-directory receipt
-named `.wgm-adapters`.
+A host agent directory is shared property — your own agents live there too, and one of them may
+already carry a wgm role name. So a matching name is never treated as proof of ownership. Every file
+wgm writes ends with a marker comment:
 
-- A re-run refreshes the files in that receipt, even if you edited one beyond recognition.
-- A file wgm did not install is skipped, and the installer says `exists and is not wgm's` — including
-  a file that merely shares one of wgm's role names. Pass `--force` to replace it deliberately.
-- `--uninstall` removes only the receipt-listed files and the receipt. Unrelated agents, and the
-  directory itself, survive. With no receipt, uninstall removes nothing.
+```html
+<!-- wgm-role-agent-adapter host=copilot source=.github/agents/wgm-implementer.agent.md version=1 … -->
+```
+
+- Only a file carrying that marker is refreshed, pruned, or removed. Delete the comment and wgm
+  disowns the file for good.
+- A file wgm did not write is skipped, and the installer says `exists and is not wgm's` — including
+  a file that merely shares one of wgm's role names. It is never listed in the receipt. Pass
+  `--force` / `-Force` to replace it deliberately; the replacement is then stamped and recorded.
+- `--uninstall` removes marked files only, and never the directory itself. Unrelated agents survive,
+  and so does a wgm-named file whose marker you removed.
+- Re-running from a source that dropped a role prunes that role's file, again only when the marker
+  is still there.
+- The per-directory `.wgm-adapters` receipt is an index of the last install, written temp-then-rename
+  so it is never half a list, and parsed leniently (CRLF tolerated, basenames only, host suffix
+  enforced). It narrows where wgm looks; the marker is what authorises a delete. A receipt lost to an
+  interrupted install therefore costs nothing: uninstall still finds wgm's own files by their marker,
+  and still cannot touch yours.
 - Running a project install from inside wgm's own checkout is refused for the Copilot target,
   because `.github/agents` there *is* the canonical source.
 
@@ -133,7 +146,8 @@ the repo itself.
 **Caution:** `--uninstall` only removes paths ending in `skills/wgm`, `skills/teach-me`,
 `skills/quiz-me`, or `skills/rugged`. It refuses any other path. A `--dir` install outside a
 `skills/` directory therefore cannot be uninstalled automatically; remove it by hand. Role adapters
-are removed by receipt, not by path pattern, and only from a directory ending in `agents`.
+are removed by their ownership marker, not by path pattern, and only from a directory ending in
+`agents`.
 
 ## Verifying an install
 

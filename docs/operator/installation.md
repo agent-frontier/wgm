@@ -155,9 +155,12 @@ with the weaker independence recorded. The Copilot adapter is the one wgm dispat
 Claude adapter matches Claude Code's documented format but has not been dispatched from a live run,
 and each file says so.
 
-wgm claims only the files it wrote. Each agent directory gets a `.wgm-adapters` receipt, a re-run
-refreshes exactly those files, an agent of your own is never touched, and `--uninstall` removes only
-what the receipt lists. Skip adapters entirely with `--no-agents` / `-NoAgents`.
+wgm claims only the files it wrote, and proves it: every adapter it installs ends with a
+`wgm-role-agent-adapter` marker comment naming the host and the canonical source it came from. Only
+marked files are refreshed, pruned, or removed — an agent of your own is never touched, not even one
+that shares a wgm role name. Each directory also gets a `.wgm-adapters` receipt (an atomically
+written index of the last install), but the marker, not the receipt, is what authorises a delete.
+Skip adapters entirely with `--no-agents` / `-NoAgents`.
 
 `--dir` / `-Dir` installs the skill only. A bare path names no host, so the installer refuses to
 guess an agent directory and tells you what it skipped.
@@ -193,7 +196,7 @@ flowchart TD
 **Updating:** just re-run the installer. A directory wgm recognizes as its own (its `SKILL.md` says
 `name: wgm`) is refreshed in place — no `--force` — and a missing Windows mirror is added. Unrelated
 directories are left untouched unless you pass `--force`. Role adapters follow the same rule at file
-granularity, driven by the `.wgm-adapters` receipt in each agent directory.
+granularity, driven by the `wgm-role-agent-adapter` marker wgm stamps into each file it writes.
 
 ## Verify & uninstall
 
