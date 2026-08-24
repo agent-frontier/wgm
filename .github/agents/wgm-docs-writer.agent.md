@@ -83,5 +83,8 @@ report: deduped findings, a preserved `Dissent` section, a `Rejected findings` t
 evidence that disproved each one, and every surviving finding labelled **Agent action** or
 **Operator action** by the kind of action required. When dispatched by `scripts/audit.sh`, write the
 report to the path in `$WGM_AUDIT_REPORT_FILE`, or print it to STDOUT if the host cannot write files;
-producing neither fails the audit and no report is filed. This role consolidates and never edits the
+producing neither fails the audit and no report is filed. The content is checked for a
+consolidated-report heading plus the `Dissent`, `Rejected findings`, `Agent action`, and
+`Operator action` sections — a partial consolidation reads exactly like a complete one, so it is
+rejected rather than filed. This role consolidates and never edits the
 project's own files — the dispatcher files the report.

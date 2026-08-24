@@ -40,30 +40,46 @@
 #   --retries N          retry a failed role up to N times (default: 0)
 #   --retry-delay N      seconds to wait between retries (default: 5)
 #   --keep               keep the run's working directory (the four persona reports live there)
+#   --allow-unguarded    run against a target that is NOT a git working tree. Off by default: with
+#                        no git tree there is no read-only guard, so the dispatcher refuses rather
+#                        than silently downgrading its own safety property.
 #   --dry-run            print the roles, order, commands, and output paths; invoke nothing
 #   -h | --help          show this help
 #
 # Contract (what this script guarantees, and what it refuses to fake):
 #   * Exactly four persona passes — wgm-docs-junior, wgm-docs-senior, wgm-docs-principal,
 #     wgm-docs-pm — each with the IDENTICAL bounded scope, each blind to the other three.
-#   * wgm-docs-writer runs LAST, and only after all four persona reports exist and are non-empty.
-#   * Every role is read-only. The dispatcher snapshots the git working tree around each role and
-#     FAILS the run if a role mutated it — the roles report, this script writes.
-#   * A role that exits non-zero, times out, or produces an empty report fails the run, blocks the
-#     writer, and exits non-zero with the reason on stderr. No success-shaped report is ever
-#     created from a failed run.
+#   * wgm-docs-writer runs LAST, and only after all four persona reports exist AND satisfy the
+#     report contract below.
+#   * Every role is read-only, and that is CHECKED: the git working tree is compared against one
+#     run baseline after every attempt, and a role that mutates it fails the run TERMINALLY — no
+#     retry, no re-baseline, and the mutation is left in place for you to inspect and clean up.
+#   * A role that exits non-zero, times out, produces nothing, or produces something that does not
+#     satisfy its report contract fails the run, blocks the writer, and exits non-zero with the
+#     reason on stderr. No success-shaped report is ever created from a failed run.
 #   * The holdout scenarios (scenarios/, .wgm/scenarios/) are never read, named, or modified here —
 #     they belong to wgm-validator alone.
-#   * Each run gets its own unique working directory, so two concurrent audits cannot race on a
-#     shared same-name temp file.
+#   * One audit at a time per working tree: an atomic .wgm/audit.lock (mkdir) is taken before any
+#     role runs, and each run still gets its own unique working directory underneath it.
 #
-# Report contract per role (the host decides which half it can satisfy):
+# Report contract (the host decides which half of the DELIVERY it can satisfy; the CONTENT is not
+# negotiable):
 #   $WGM_AUDIT_REPORT_FILE is exported to a role-specific path. Write the report there if the agent
-#   can write files; otherwise print it to STDOUT and this script captures it. Either is accepted;
-#   producing neither fails the role.
+#   can write files; otherwise print it to STDOUT and this script captures it. Either delivery is
+#   accepted — and then the content is checked against what the prompt demanded, because an agent
+#   that exits 0 after printing a banner or an error message is exactly the failure a bare
+#   "is it non-empty?" check cannot see:
+#     * a PERSONA report needs a `### <role>` heading AND the four-column finding-table header
+#       `| Doc | Observation | Severity | Recommended action |`;
+#     * the WRITER's report needs a consolidated-report heading (`# Docs Audit Report …` or
+#       `## Consolidated report …`) AND all four of `Dissent`, `Rejected findings`, `Agent action`,
+#       and `Operator action`.
+#   Anything looser lets a banner become the paper trail.
 #
-# Exit 0 = a consolidated report was produced. Exit 1 = a role failed (no report written).
-# Exit 2 = misconfiguration (bad flag, bad slug, no agent).
+# Exit 0 = a consolidated report was produced.
+# Exit 1 = a role failed, timed out, edited the tree, or broke its report contract (no report).
+# Exit 2 = refused before any role ran: bad flag, bad slug, no agent, a non-git target without
+#          --allow-unguarded, or another audit already holding this tree's lock.
 
 set -euo pipefail
 
@@ -78,6 +94,7 @@ AGENT_TIMEOUT=0
 RETRIES=0
 RETRY_DELAY=5
 KEEP=0
+ALLOW_UNGUARDED=0
 DRY_RUN=0
 TIMEOUT_BIN=""
 
@@ -98,6 +115,7 @@ while [[ $# -gt 0 ]]; do
     --retries) [[ $# -ge 2 ]] || { echo "--retries requires a number" >&2; exit 2; }; RETRIES="$2"; shift 2 ;;
     --retry-delay) [[ $# -ge 2 ]] || { echo "--retry-delay requires a number" >&2; exit 2; }; RETRY_DELAY="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
+    --allow-unguarded) ALLOW_UNGUARDED=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --) shift; AGENT_ARGV=("$@"); break ;;
     -*) echo "Unknown flag: $1" >&2; exit 2 ;;
@@ -122,7 +140,9 @@ if [[ "$AGENT_TIMEOUT" -ne 0 ]]; then
   elif command -v gtimeout >/dev/null 2>&1 && gtimeout --help 2>&1 | grep -q -- '--kill-after'; then
     TIMEOUT_BIN="$(command -v gtimeout)"
   else
-    echo "⚠ --timeout-seconds is requested, but GNU timeout/gtimeout is unavailable; roles run unbounded." >&2
+    echo "⚠ --timeout-seconds ${AGENT_TIMEOUT} requested, but GNU timeout/gtimeout is unavailable:" >&2
+    echo "  falling back to a cooperative timeout — the dispatcher cannot bound a role itself, so only" >&2
+    echo "  the agent's own limits apply. Install GNU coreutils for an enforced bound." >&2
   fi
 fi
 
@@ -176,11 +196,13 @@ Rules:
 * Execute the published examples in scope rather than reasoning about them, against the real
   artifacts they name.
 
-Output contract:
+Output contract (checked mechanically — a report that misses either line is REJECTED, and a bare
+status banner is not a report):
 Write your finding table to ${report_path} if you can write files; otherwise print it to STDOUT and
 the dispatcher will capture it. \$WGM_AUDIT_REPORT_FILE and \$WGM_AUDIT_ROLE are exported for you.
-Start with the heading "### ${role} — $(lens_for "$role")", then one table:
-| Doc | Observation | Severity | Recommended action |
+1. Start with the heading:  ### ${role} — $(lens_for "$role")
+2. Then the finding table, with exactly this header row:
+   | Doc | Observation | Severity | Recommended action |
 Emit the table even when you found nothing; a clean pass is a claim, so state in one sentence what
 you examined and why you found nothing.
 EOF
@@ -213,9 +235,15 @@ Rules:
   missing files or docs indexed nowhere.
 * READ ONLY on the working tree: do not edit project files or commit. The dispatcher files the report.
 
-Output contract:
+Output contract (checked mechanically — a report missing any of these is REJECTED and no paper
+trail is filed, because a partial consolidation reads exactly like a complete one):
 Write the complete report to ${report_path} if you can write files; otherwise print it to STDOUT and
 the dispatcher will capture it. \$WGM_AUDIT_REPORT_FILE and \$WGM_AUDIT_ROLE are exported for you.
+The report must contain:
+1. a consolidated-report heading — "# Docs Audit Report — <stamp> — <slug>" or "## Consolidated report";
+2. a "Dissent" section (say "Unanimous: no dissent recorded" when there is none);
+3. a "Rejected findings" section (say so explicitly when nothing was rejected);
+4. an "Agent action" section;  5. an "Operator action" section.
 EOF
   }
 }
@@ -227,7 +255,14 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "scope=${SCOPE}"
   echo "out_dir=${OUT_DIR} placement=${PLACEMENT}"
   echo "report=${REPORT}"
-  echo "timeout=${AGENT_TIMEOUT}s timeout_bin=${TIMEOUT_BIN:-none} retries=${RETRIES} retry_delay=${RETRY_DELAY}s keep=${KEEP}"
+  timeout_note="disabled"
+  if [[ "$AGENT_TIMEOUT" -ne 0 ]]; then
+    timeout_note="${TIMEOUT_BIN:-cooperative fallback (unenforced)}"
+  fi
+  echo "timeout=${AGENT_TIMEOUT}s timeout_bin=${timeout_note} retries=${RETRIES} retry_delay=${RETRY_DELAY}s keep=${KEEP}"
+  guard_note="required (git working tree)"
+  if [[ "$ALLOW_UNGUARDED" -eq 1 ]]; then guard_note="waived (--allow-unguarded)"; fi
+  echo "read_only_guard=${guard_note} lock=.wgm/audit.lock"
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
   echo "prompt_stdin=${PROMPT_STDIN}"
@@ -253,28 +288,66 @@ if [[ ${#AGENT_ARGV[@]} -eq 0 && -z "$AGENT" ]]; then
   exit 2
 fi
 
-# ----- per-run working directory -------------------------------------------
-# `mktemp -d` with a unique template: two audits started in the same second must not collide on a
-# shared same-name scratch file. It lives under .wgm/ (wgm's own scratch space, gitignored) so the
-# run leaves no residue in the project's tree.
-mkdir -p .wgm
-WORK="$(mktemp -d "$(pwd)/.wgm/audit-run-XXXXXX")"
+# ----- fail closed without a read-only guard --------------------------------
+# The read-only rule is only a rule because the git tree is checked around every role. Outside a git
+# working tree there is no snapshot to compare, so the guarantee silently evaporates — and a
+# dispatcher that quietly downgrades its own safety property is worse than one that stops. Refuse by
+# default; --allow-unguarded is the explicit, noisy operator escape hatch.
+GIT_GUARD=0
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then GIT_GUARD=1; fi
+if [[ "$GIT_GUARD" -eq 0 ]]; then
+  if [[ "$ALLOW_UNGUARDED" -eq 0 ]]; then
+    echo "✗ refusing to audit: $(pwd) is not a git working tree." >&2
+    echo "  Without one there is no read-only guard, so a role could edit the docs it is reviewing" >&2
+    echo "  and nothing here would notice. Run the audit inside the project's git checkout, or pass" >&2
+    echo "  --allow-unguarded to accept an UNGUARDED run explicitly." >&2
+    exit 2
+  fi
+  echo "⚠ --allow-unguarded: no git working tree, so the read-only guard is OFF for this run." >&2
+  echo "  A role that edits files will not be detected. Treat the resulting report accordingly." >&2
+fi
+
+# ----- one audit at a time, per working tree --------------------------------
+# Two audits sharing a tree interleave their read-only guards: each sees the other's (perfectly
+# legitimate) writes as a mutation, and both can file a report for the same moment. `mkdir` is the
+# portable atomic test-and-set, so the loser is refused before any role runs — and a refusal is
+# never retried, because waiting on a lock is the operator's decision, not the dispatcher's.
+LOCK_DIR="$(pwd)/.wgm/audit.lock"
+LOCK_HELD=0
+WORK=""
 cleanup() {
-  if [[ "$KEEP" -eq 1 ]]; then
-    echo "Working directory kept: ${WORK}"
-  else
-    rm -rf "$WORK"
+  if [[ "$LOCK_HELD" -eq 1 ]]; then rm -rf "$LOCK_DIR"; fi
+  if [[ -n "$WORK" ]]; then
+    if [[ "$KEEP" -eq 1 ]]; then echo "Working directory kept: ${WORK}"; else rm -rf "$WORK"; fi
   fi
 }
 trap cleanup EXIT
 
-# ----- read-only guard ------------------------------------------------------
-# Roles report; they never edit. The prompt says so, but a prompt is not a gate — so snapshot the
-# tree around every role and fail the run if one mutated it. .wgm/ is excluded because that is where
-# the dispatcher's own scratch lives. Outside a git repo the guard is skipped, and says so.
-GIT_GUARD=0
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then GIT_GUARD=1; fi
+mkdir -p .wgm
+if mkdir "$LOCK_DIR" 2>/dev/null; then
+  LOCK_HELD=1
+  printf 'pid=%s\nstarted=%s\ncwd=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(pwd)" \
+    > "${LOCK_DIR}/owner" 2>/dev/null || true
+else
+  echo "✗ refusing to start: another docs audit already holds this tree's lock." >&2
+  echo "  lock: ${LOCK_DIR}" >&2
+  if [[ -f "${LOCK_DIR}/owner" ]]; then sed 's/^/    /' "${LOCK_DIR}/owner" >&2 || true; fi
+  echo "  Wait for that run to finish. If no audit is running, the lock is stale — remove it with:" >&2
+  echo "    rm -rf ${LOCK_DIR}" >&2
+  exit 2
+fi
 
+# ----- per-run working directory -------------------------------------------
+# `mktemp -d` with a unique template: even under the lock, a kept working dir from an earlier run
+# must never be reused or clobbered. It lives under .wgm/ (wgm's own scratch space, gitignored) so
+# the run leaves no residue in the project's tree.
+WORK="$(mktemp -d "$(pwd)/.wgm/audit-run-XXXXXX")"
+
+# ----- read-only guard ------------------------------------------------------
+# Roles report; they never edit. The prompt says so, but a prompt is not a gate. ONE baseline is
+# taken here, before any role runs, and every attempt is compared against THAT — never against a
+# freshly re-read tree. Re-baselining after a mutation would adopt the damage as the new "clean"
+# state and let the retry pass.
 tree_snapshot() {
   [[ "$GIT_GUARD" -eq 1 ]] || { echo "no-git-guard"; return 0; }
   {
@@ -283,6 +356,7 @@ tree_snapshot() {
     git diff --cached -- ':(exclude).wgm' 2>/dev/null || true
   } | cksum
 }
+BASELINE="$(tree_snapshot)"
 
 # ----- invoke ---------------------------------------------------------------
 RUNNER=()
@@ -290,89 +364,156 @@ if [[ -n "$TIMEOUT_BIN" && "$AGENT_TIMEOUT" -ne 0 ]]; then
   RUNNER=("$TIMEOUT_BIN" --signal=TERM --kill-after=5s "$AGENT_TIMEOUT")
 fi
 
+# Failures are captured with `|| rc=$?` rather than by toggling `set -e` around the call. Toggling
+# is what bit this script once: a `set -e` inside the callee re-armed errexit for the CALLER too, so
+# the first agent that exited non-zero killed the whole dispatcher before it could report the role's
+# failure, retry it, or write its own summary.
 invoke_agent() {  # $1 = prompt, $2 = stdout capture file
   local prompt="$1" capture="$2" rc=0
-  set +e
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
     # argv passthrough: executed directly, never through a shell, so nothing in the prompt or the
     # scope text can be interpreted as a command.
     if [[ "$PROMPT_STDIN" == "1" ]]; then
-      printf '%s' "$prompt" | ${RUNNER[@]+"${RUNNER[@]}"} "${AGENT_ARGV[@]}" > "$capture"
+      printf '%s' "$prompt" | ${RUNNER[@]+"${RUNNER[@]}"} "${AGENT_ARGV[@]}" > "$capture" || rc=$?
     else
-      ${RUNNER[@]+"${RUNNER[@]}"} "${AGENT_ARGV[@]}" "$prompt" > "$capture"
+      ${RUNNER[@]+"${RUNNER[@]}"} "${AGENT_ARGV[@]}" "$prompt" > "$capture" || rc=$?
     fi
   else
     # $AGENT is a command line the operator explicitly trusted, so it is shell-evaluated — but the
     # prompt is handed over as a positional ("$1"), never spliced into the command string.
     if [[ "$PROMPT_STDIN" == "1" ]]; then
-      printf '%s' "$prompt" | ${RUNNER[@]+"${RUNNER[@]}"} bash -c "$AGENT" > "$capture"
+      printf '%s' "$prompt" | ${RUNNER[@]+"${RUNNER[@]}"} bash -c "$AGENT" > "$capture" || rc=$?
     else
-      ${RUNNER[@]+"${RUNNER[@]}"} bash -c "$AGENT \"\$1\"" _ "$prompt" > "$capture"
+      ${RUNNER[@]+"${RUNNER[@]}"} bash -c "$AGENT \"\$1\"" _ "$prompt" > "$capture" || rc=$?
     fi
   fi
-  rc=$?
-  set -e
   return "$rc"
 }
 
 has_content() { [[ -f "$1" ]] && grep -q '[^[:space:]]' "$1" 2>/dev/null; }
 
+# ----- report contracts -----------------------------------------------------
+# "The process exited 0 and the file is non-empty" is not evidence of a review. An agent that prints
+# `Ready.` or `I could not read that path.` satisfies it perfectly, and the audit then looks complete
+# with a whole lens missing. So each artifact is checked against the same contract its prompt spelled
+# out. Both functions print the FIRST violation and print nothing when the artifact is valid.
+persona_violation() {  # $1 = role, $2 = file
+  local role="$1" f="$2"
+  if ! grep -Eq "^###[[:space:]]+${role}([[:space:]]|$)" "$f"; then
+    echo "no '### ${role} — $(lens_for "$role")' heading"
+    return 0
+  fi
+  if ! grep -Eqi '^\|[[:space:]]*doc[[:space:]]*\|[[:space:]]*observation[[:space:]]*\|[[:space:]]*severity[[:space:]]*\|[[:space:]]*recommended action[[:space:]]*\|' "$f"; then
+    echo "no '| Doc | Observation | Severity | Recommended action |' table header"
+    return 0
+  fi
+}
+
+writer_violation() {  # $1 = file
+  local f="$1" marker
+  if ! grep -Eqi '^#{1,3}[[:space:]]+(docs audit report|consolidated report)' "$f"; then
+    echo "no consolidated-report heading ('# Docs Audit Report …' or '## Consolidated report …')"
+    return 0
+  fi
+  for marker in "Dissent" "Rejected findings" "Agent action" "Operator action"; do
+    if ! grep -qiF "$marker" "$f"; then
+      echo "no '${marker}' section — the consolidation contract needs all four"
+      return 0
+    fi
+  done
+}
+
+contract_violation() {  # $1 = role, $2 = file
+  if [[ "$1" == "$WRITER" ]]; then writer_violation "$2"; else persona_violation "$1" "$2"; fi
+}
+
 FAILURES=()
 
-run_role() {  # $1 = role, $2 = prompt; 0 = a non-empty report exists at $WORK/$role.md
+# Exit status: 0 = a valid report exists at $WORK/$role.md
+#              1 = transient failure, retried up to --retries times and still failing
+#              2 = TERMINAL failure (tree mutation): never retried, aborts the whole audit
+run_role() {
   local role="$1" prompt="$2"
   local report="${WORK}/${role}.md" capture="${WORK}/${role}.stdout"
-  local attempt=0 rc=0 before after
+  local attempt=0 rc=0 after violation
 
   while :; do
     attempt=$((attempt + 1))
     rm -f "$report" "$capture"
-    before="$(tree_snapshot)"
     echo "→ ${role} (attempt ${attempt}/$((RETRIES + 1)))"
-    set +e
+    rc=0
     WGM_AUDIT_ROLE="$role" WGM_AUDIT_REPORT_FILE="$report" WGM_AUDIT_SCOPE="$SCOPE" \
-      invoke_agent "$prompt" "$capture"
-    rc=$?
-    set -e
+      invoke_agent "$prompt" "$capture" || rc=$?
+
+    # Checked FIRST, and against the run baseline: a role that edited the tree has broken the one
+    # property the dispatcher exists to hold, so its exit status no longer matters.
     after="$(tree_snapshot)"
+    if [[ "$after" != "$BASELINE" ]]; then
+      echo "✗ ${role}: modified the working tree. Audit roles are READ-ONLY — the dispatcher writes the report." >&2
+      echo "  This is terminal: no retry and no re-baseline, because retrying against the mutated tree" >&2
+      echo "  would accept the damage as the new normal. The change is left in place — inspect it with" >&2
+      echo "  'git status' / 'git diff' and revert it yourself." >&2
+      rm -f "$report"
+      return 2
+    fi
 
     if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
       echo "✗ ${role}: timed out after ${AGENT_TIMEOUT}s." >&2
     elif [[ "$rc" -ne 0 ]]; then
       echo "✗ ${role}: agent exited ${rc}." >&2
-    elif [[ "$before" != "$after" ]]; then
-      echo "✗ ${role}: modified the working tree. Audit roles are READ-ONLY — the dispatcher writes the report." >&2
-      rc=1
     else
-      # Either half of the report contract is accepted: the file it was given, or its stdout.
+      # Either half of the DELIVERY contract is accepted: the file it was given, or its stdout.
       if ! has_content "$report" && has_content "$capture"; then cp "$capture" "$report"; fi
-      if has_content "$report"; then
-        echo "✓ ${role}: report captured ($(wc -l < "$report" | tr -d ' ') lines)"
-        return 0
+      if ! has_content "$report"; then
+        echo "✗ ${role}: exited 0 but produced no report (neither \$WGM_AUDIT_REPORT_FILE nor STDOUT)." >&2
+        rc=1
+      else
+        violation="$(contract_violation "$role" "$report")"
+        if [[ -z "$violation" ]]; then
+          echo "✓ ${role}: report captured and contract-valid ($(wc -l < "$report" | tr -d ' ') lines)"
+          return 0
+        fi
+        echo "✗ ${role}: output is not a report — ${violation}." >&2
+        echo "  (An exit-0 banner or error message is not a review; see --help for the contract.)" >&2
+        rc=1
       fi
-      echo "✗ ${role}: exited 0 but produced no report (neither \$WGM_AUDIT_REPORT_FILE nor STDOUT)." >&2
-      rc=1
     fi
 
+    # Only transient failures get here: a non-zero exit, a timeout, nothing produced, or a broken
+    # contract. Mutation and lock refusal never reach this point.
     if [[ "$attempt" -gt "$RETRIES" ]]; then
       rm -f "$report"
       return 1
     fi
+    echo "  retrying ${role} (${attempt}/${RETRIES} used)" >&2
     if [[ "$RETRY_DELAY" -gt 0 ]]; then sleep "$RETRY_DELAY"; fi
   done
+}
+
+abort_mutation() {  # $1 = role
+  echo "" >&2
+  echo "✗ docs audit aborted: ${1} mutated the working tree." >&2
+  echo "  ${WRITER} was NOT run and no report was written to ${OUT_DIR}." >&2
+  echo "audit: RED" >&2
+  exit 1
 }
 
 echo "== wgm docs audit =="
 echo "scope: ${SCOPE}"
 echo "output: ${REPORT}  [${PLACEMENT}]"
-[[ "$GIT_GUARD" -eq 1 ]] || echo "note: not a git repository — the read-only guard is skipped for this run."
+if [[ "$GIT_GUARD" -eq 1 ]]; then
+  echo "guard: read-only (git baseline taken; a role that edits the tree fails the run terminally)"
+else
+  echo "guard: NONE (--allow-unguarded) — a role that edits files will not be detected"
+fi
 
 # The four personas are independent: identical scope, no shared state, and none of them is told
 # where another's report lives. Order here is arbitrary and carries no meaning.
 for role in "${PERSONAS[@]}"; do
-  if ! run_role "$role" "$(persona_prompt "$role" "${WORK}/${role}.md")"; then
-    FAILURES+=("$role")
-  fi
+  role_rc=0
+  run_role "$role" "$(persona_prompt "$role" "${WORK}/${role}.md")" || role_rc=$?
+  if [[ "$role_rc" -eq 2 ]]; then abort_mutation "$role"; fi
+  if [[ "$role_rc" -ne 0 ]]; then FAILURES+=("$role"); fi
 done
 
 if [[ ${#FAILURES[@]} -gt 0 ]]; then
@@ -384,16 +525,20 @@ if [[ ${#FAILURES[@]} -gt 0 ]]; then
   exit 1
 fi
 
-# Belt and braces: the writer runs only when all four reports are physically present and non-empty.
+# Belt and braces: the writer runs only when all four reports are present AND still satisfy their
+# contract at writer time — the same check, re-asserted at the gate it actually guards.
 for role in "${PERSONAS[@]}"; do
-  if ! has_content "${WORK}/${role}.md"; then
-    echo "✗ docs audit aborted: ${role}'s report is missing or empty at writer time." >&2
+  if ! has_content "${WORK}/${role}.md" || [[ -n "$(contract_violation "$role" "${WORK}/${role}.md")" ]]; then
+    echo "✗ docs audit aborted: ${role}'s report is missing or invalid at writer time." >&2
     echo "audit: RED" >&2
     exit 1
   fi
 done
 
-if ! run_role "$WRITER" "$(writer_prompt "${WORK}/${WRITER}.md")"; then
+writer_rc=0
+run_role "$WRITER" "$(writer_prompt "${WORK}/${WRITER}.md")" || writer_rc=$?
+if [[ "$writer_rc" -eq 2 ]]; then abort_mutation "$WRITER"; fi
+if [[ "$writer_rc" -ne 0 ]]; then
   echo "" >&2
   echo "✗ docs audit aborted: ${WRITER} failed to consolidate the four persona reports." >&2
   echo "  No report was written to ${OUT_DIR} — a failed audit must not leave a success-shaped artifact." >&2

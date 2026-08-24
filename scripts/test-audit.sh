@@ -54,10 +54,16 @@ git add -A && git commit -qm seed
 
 # ----- the fake agent -------------------------------------------------------
 # Behaviour is driven entirely by environment variables so each test can shape one failure mode:
-#   FAKE_LOG        append-only role order log        FAKE_PROMPT_DIR  per-role prompt capture
-#   FAKE_FAIL_ROLE  this role exits non-zero          FAKE_EMPTY_ROLE  this role exits 0 silently
-#   FAKE_EDIT_ROLE  this role edits a tracked file    FAKE_STDOUT_ROLE this role reports on STDOUT only
-#   FAKE_STDIN      read the prompt from stdin instead of "$1"
+#   FAKE_LOG         append-only role order log       FAKE_PROMPT_DIR   per-role prompt capture
+#   FAKE_FAIL_ROLE   this role exits non-zero         FAKE_EMPTY_ROLE   this role exits 0 silently
+#   FAKE_EDIT_ROLE   this role edits a tracked file   FAKE_STDOUT_ROLE  this role reports on STDOUT
+#   FAKE_BANNER_ROLE this role exits 0 printing a status banner instead of a report
+#   FAKE_TABLELESS_ROLE this role emits a correct heading but no finding table
+#   FAKE_SLEEP_ROLE  this role sleeps FAKE_SLEEP_SECS seconds (for the timeout bound)
+#   FAKE_FLAKY_ROLE  this role fails its FIRST attempt only, then succeeds (for the retry path)
+#   FAKE_STDIN       read the prompt from stdin instead of "$1"
+# The writer emits the five markers the consolidation contract requires; FAKE_THIN_WRITER makes it
+# emit a plausible-looking but incomplete report instead.
 cat > "$TMP/fake-agent.sh" <<'FAKE'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -66,12 +72,57 @@ if [[ "${FAKE_STDIN:-0}" == "1" ]]; then prompt="$(cat)"; else prompt="${1:-}"; 
 printf '%s\n' "$role" >> "$FAKE_LOG"
 printf '%s' "$prompt" > "${FAKE_PROMPT_DIR}/${role}.prompt"
 if [[ "${FAKE_EDIT_ROLE:-}" == "$role" ]]; then printf 'sneaky edit by %s\n' "$role" >> README.md; fi
+if [[ "${FAKE_SLEEP_ROLE:-}" == "$role" ]]; then sleep "${FAKE_SLEEP_SECS:-5}"; fi
+if [[ "${FAKE_FLAKY_ROLE:-}" == "$role" ]]; then
+  # One transient failure, then success — the exact shape --retries exists for.
+  tries="${FAKE_TRIES_DIR}/${role}"
+  if [[ ! -e "$tries" ]]; then
+    : > "$tries"
+    echo "fake agent: transient failure for $role" >&2
+    exit 4
+  fi
+fi
 if [[ "${FAKE_FAIL_ROLE:-}" == "$role" ]]; then echo "fake agent: deliberate failure for $role" >&2; exit 3; fi
 if [[ "${FAKE_EMPTY_ROLE:-}" == "$role" ]]; then exit 0; fi
-body="### ${role} report
+if [[ "${FAKE_TABLELESS_ROLE:-}" == "$role" ]]; then
+  # Correct heading, no finding table: plausible prose that is not a review.
+  printf '### %s — fake lens\n\nEverything looked fine to me.\n' "$role" > "$WGM_AUDIT_REPORT_FILE"
+  exit 0
+fi
+if [[ "${FAKE_BANNER_ROLE:-}" == "$role" ]]; then
+  # Exit 0 with plenty of output and no report in it: the failure a non-empty check cannot see.
+  printf 'Model ready.\nI reviewed the scope and everything looks fine to me.\nDone.\n'
+  exit 0
+fi
+if [[ "$role" == "wgm-docs-writer" ]]; then
+  if [[ "${FAKE_THIN_WRITER:-0}" == "1" ]]; then
+    body="# Docs Audit Report — fake
+Everything was fine, nothing else to say."
+  else
+    body="# Docs Audit Report — fake stamp — fake slug
+
+## Consolidated report (wgm-docs-writer)
+
+### Agent actions
+| # | Finding | Raised by | Doc(s) | Action |
+|---|---|---|---|---|
+| 1 | fake | junior | README.md | fix |
+
+### Operator actions
+None.
+
+### Rejected findings
+None rejected.
+
+### Dissent
+Unanimous: no dissent recorded."
+  fi
+else
+  body="### ${role} — fake lens
 | Doc | Observation | Severity | Recommended action |
 |---|---|---|---|
 | README.md | fake finding from ${role} | GREEN | none |"
+fi
 if [[ "${FAKE_STDOUT_ROLE:-}" == "$role" ]]; then printf '%s\n' "$body"; else printf '%s\n' "$body" > "$WGM_AUDIT_REPORT_FILE"; fi
 exit 0
 FAKE
@@ -80,19 +131,35 @@ AGENT_ARGV=(bash "$TMP/fake-agent.sh")
 
 export FAKE_LOG="$TMP/order.log"
 export FAKE_PROMPT_DIR="$TMP/prompts"
+export FAKE_TRIES_DIR="$TMP/tries"
 
 OUT=""; RC=0
 run() {  # run audit.sh capturing combined output + exit code without tripping set -e
   : > "$FAKE_LOG"
   rm -rf "$FAKE_PROMPT_DIR"; mkdir -p "$FAKE_PROMPT_DIR"
+  rm -rf "$FAKE_TRIES_DIR"; mkdir -p "$FAKE_TRIES_DIR"
   set +e
   OUT="$("$AUDIT" "$@" 2>&1)"; RC=$?
+  set -e
+}
+
+run_in() {  # same as run(), but from another working directory
+  local dir="$1"; shift
+  : > "$FAKE_LOG"
+  rm -rf "$FAKE_PROMPT_DIR"; mkdir -p "$FAKE_PROMPT_DIR"
+  rm -rf "$FAKE_TRIES_DIR"; mkdir -p "$FAKE_TRIES_DIR"
+  set +e
+  OUT="$(cd "$dir" && "$AUDIT" "$@" 2>&1)"; RC=$?
   set -e
 }
 
 reset_runs() {  # drop reports + working dirs between tests
   rm -rf docs/audit .wgm
   git checkout -q -- README.md docs/README.md 2>/dev/null || true
+}
+
+count_role() {  # how many times a role was invoked in the last run
+  grep -c "^$1\$" "$FAKE_LOG" 2>/dev/null || true
 }
 
 # 1) --help succeeds and describes the contract; bad arguments are rejected before anything runs.
@@ -165,7 +232,7 @@ if [[ "$RC" -eq 0 ]] \
    && [[ "$ORDER" == "wgm-docs-junior wgm-docs-senior wgm-docs-principal wgm-docs-pm wgm-docs-writer " ]] \
    && [[ -f "${REPORTS[0]}" ]] \
    && [[ "${#REPORTS[@]}" -eq 1 ]] \
-   && grep -q "wgm-docs-writer report" "${REPORTS[0]}" \
+   && grep -q "Docs Audit Report" "${REPORTS[0]}" \
    && grep -q "audit: GREEN" <<<"$OUT"; then
   pass "four personas run, the writer runs last, and one consolidated report is written"
 else
@@ -378,11 +445,194 @@ reset_runs
 FAKE_STDOUT_ROLE=wgm-docs-junior run --scope "docs/" --slug stdout --keep -- "${AGENT_ARGV[@]}"
 KEPT=(.wgm/audit-run-*)
 if [[ "$RC" -eq 0 ]] && [[ -f "${KEPT[0]}/wgm-docs-junior.md" ]] \
-   && grep -q "wgm-docs-junior report" "${KEPT[0]}/wgm-docs-junior.md"; then
+   && grep -q "^### wgm-docs-junior" "${KEPT[0]}/wgm-docs-junior.md"; then
   pass "a role that reports only on STDOUT still produces a captured report"
 else
   fail "STDOUT-only reporting was not captured (rc=$RC): $OUT"
 fi
+reset_runs
+
+# 13) An exit-0 status BANNER is not a report. This is the failure a "did the process succeed and is
+#     the file non-empty?" check cannot see: the agent exits clean with plenty of output, so a naive
+#     dispatcher consolidates a chat greeting into the paper trail and calls the audit done.
+FAKE_BANNER_ROLE=wgm-docs-senior run --scope "docs/" --slug banner -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "is not a report" <<<"$OUT" \
+   && grep -q "no '### wgm-docs-senior" <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && [[ ! -d docs/audit ]]; then
+  pass "an exit-0 banner fails the persona report contract and blocks the writer"
+else
+  fail "an exit-0 banner was accepted as a persona report (rc=$RC): $OUT"
+fi
+reset_runs
+
+# 13b) The TABLE half of the persona contract is enforced independently: prose under a correct
+#      heading is an opinion, not a finding list, and the four columns are what makes a finding
+#      actionable (which doc, what, how bad, what to do).
+FAKE_TABLELESS_ROLE=wgm-docs-pm run --scope "docs/" --slug notable -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "table header" <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && [[ ! -d docs/audit ]]; then
+  pass "a persona report with a heading but no finding table is rejected"
+else
+  fail "a tableless persona report was accepted (rc=$RC): $OUT"
+fi
+reset_runs
+
+# 13a) The heading half of the contract is enforced too: a table with no role heading is not
+#      attributable to a lens, and an audit's whole value is knowing which lens said what.
+FAKE_BANNER_ROLE=wgm-docs-writer run --scope "docs/" --slug wbanner -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] && grep -q "is not a report" <<<"$OUT" && [[ ! -d docs/audit ]]; then
+  pass "an exit-0 banner from the writer is rejected and files no report"
+else
+  fail "a writer banner was accepted (rc=$RC): $OUT"
+fi
+reset_runs
+
+# 14) A writer report missing the consolidation markers is rejected. A partial consolidation reads
+#     exactly like a complete one — no Dissent section looks identical to "there was no dissent".
+FAKE_THIN_WRITER=1 run --scope "docs/" --slug thin -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && grep -qE "no '(Dissent|Rejected findings|Agent action|Operator action)' section" <<<"$OUT" \
+   && [[ ! -d docs/audit ]]; then
+  pass "a writer report missing Dissent/Rejected/Agent/Operator markers is rejected"
+else
+  fail "an incomplete consolidated report was filed (rc=$RC): $OUT"
+fi
+reset_runs
+
+# 15) A tree mutation is TERMINAL. With --retries 1 a retryable failure would run twice; a mutation
+#     must run exactly once, because retrying against the mutated tree would re-baseline the damage
+#     into "clean" and let attempt 2 pass. The mutation is also left in place for diagnosis.
+FAKE_EDIT_ROLE=wgm-docs-junior run --scope "docs/" --slug mutate --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+edits="$(count_role wgm-docs-junior)"
+if [[ "$RC" -ne 0 ]] \
+   && [[ "$edits" -eq 1 ]] \
+   && grep -q "This is terminal" <<<"$OUT" \
+   && ! grep -q "attempt 2/" <<<"$OUT" \
+   && ! grep -q "wgm-docs-senior" "$FAKE_LOG" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && [[ -n "$(git status --porcelain README.md)" ]] \
+   && [[ ! -d docs/audit ]]; then
+  pass "a tree mutation is terminal: one attempt, no retry, no writer, and the change stays visible"
+else
+  fail "a mutation was retried or did not abort the run (rc=$RC, attempts=$edits): $OUT"
+fi
+reset_runs
+
+# 16) A transient failure IS retryable — that is the only failure class --retries exists for.
+FAKE_FLAKY_ROLE=wgm-docs-senior run --scope "docs/" --slug flaky --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-senior)"
+FLAKY_REPORT=(docs/audit/*_flaky.md)
+if [[ "$RC" -eq 0 ]] && [[ "$tries" -eq 2 ]] && [[ -f "${FLAKY_REPORT[0]}" ]] \
+   && grep -q "retrying wgm-docs-senior" <<<"$OUT"; then
+  pass "a transient role failure is retried and the audit completes"
+else
+  fail "--retries did not recover a transient failure (rc=$RC, attempts=$tries): $OUT"
+fi
+reset_runs
+
+# 16a) …and retries are bounded: exhausting them is still a failure, not an infinite loop.
+FAKE_FAIL_ROLE=wgm-docs-pm run --scope "docs/" --slug exhaust --retries 2 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-pm)"
+if [[ "$RC" -ne 0 ]] && [[ "$tries" -eq 3 ]] && [[ ! -d docs/audit ]]; then
+  pass "retries are bounded at --retries + 1 attempts, then the role fails"
+else
+  fail "retry bound not honored (rc=$RC, attempts=$tries)"
+fi
+reset_runs
+
+# 17) A non-git target has no read-only guard at all, so the default must be a clear refusal rather
+#     than a silent downgrade of the one property this dispatcher enforces.
+mkdir -p "$TMP/nogit"
+run_in "$TMP/nogit" --scope "docs/" --slug nogit -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 2 ]] \
+   && grep -q "not a git working tree" <<<"$OUT" \
+   && grep -q -- "--allow-unguarded" <<<"$OUT" \
+   && [[ ! -s "$FAKE_LOG" ]]; then
+  pass "a non-git target is refused before any role runs, and names the escape hatch"
+else
+  fail "a non-git target was audited without a guard (rc=$RC): $OUT"
+fi
+
+# 17a) The escape hatch works, and says out loud what it gave up.
+run_in "$TMP/nogit" --scope "docs/" --slug nogit --allow-unguarded -- "${AGENT_ARGV[@]}"
+NOGIT_REPORT=("$TMP"/nogit/docs/audit/*_nogit.md)
+if [[ "$RC" -eq 0 ]] && [[ -f "${NOGIT_REPORT[0]}" ]] \
+   && grep -q "read-only guard is OFF" <<<"$OUT" \
+   && grep -q "guard: NONE" <<<"$OUT"; then
+  pass "--allow-unguarded runs the audit and warns that the guard is off"
+else
+  fail "--allow-unguarded did not run or did not warn (rc=$RC): $OUT"
+fi
+rm -rf "$TMP/nogit"
+reset_runs
+
+# 18) Two audits in one tree would interleave their read-only guards — each seeing the other's
+#     legitimate writes as a mutation — and could file two reports for one run. The loser is refused
+#     before any role runs, and it must not delete the winner's lock on the way out.
+mkdir -p .wgm/audit.lock
+printf 'pid=99999\n' > .wgm/audit.lock/owner
+run --scope "docs/" --slug locked -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 2 ]] \
+   && grep -q "already holds this tree's lock" <<<"$OUT" \
+   && grep -q "pid=99999" <<<"$OUT" \
+   && [[ ! -s "$FAKE_LOG" ]] \
+   && [[ -d .wgm/audit.lock ]] \
+   && [[ ! -d docs/audit ]]; then
+  pass "a held lock refuses the second audit before any role runs, and keeps the holder's lock"
+else
+  fail "a concurrent audit was not refused (rc=$RC): $OUT"
+fi
+rm -rf .wgm/audit.lock
+reset_runs
+
+# 18a) A completed run releases its own lock, so the next audit is not blocked by a ghost.
+run --scope "docs/" --slug unlocked -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 0 ]] && [[ ! -e .wgm/audit.lock ]]; then
+  pass "a finished run releases its lock"
+else
+  fail "the lock survived a completed run (rc=$RC)"
+fi
+reset_runs
+
+# 19) --timeout-seconds must actually bound a role when GNU timeout is available…
+if command -v timeout >/dev/null 2>&1 && timeout --help 2>&1 | grep -q -- '--kill-after'; then
+  FAKE_SLEEP_ROLE=wgm-docs-junior FAKE_SLEEP_SECS=8 \
+    run --scope "docs/" --slug slow --timeout-seconds 1 -- "${AGENT_ARGV[@]}"
+  if [[ "$RC" -ne 0 ]] \
+     && grep -q "timed out after 1s" <<<"$OUT" \
+     && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+     && [[ ! -d docs/audit ]]; then
+    pass "--timeout-seconds bounds a hanging role, blocks the writer, and files no report"
+  else
+    fail "--timeout-seconds did not bound a hanging role (rc=$RC): $OUT"
+  fi
+  reset_runs
+else
+  pass "(skipped) --timeout-seconds bound: GNU timeout/gtimeout is unavailable on this host"
+fi
+
+# 19a) …and when it is NOT available, the run says so instead of implying a bound it cannot enforce.
+#      A stub `timeout`/`gtimeout` without --kill-after makes this deterministic on any host.
+mkdir -p "$TMP/stub"
+for stub in timeout gtimeout; do
+  printf '#!/usr/bin/env bash\necho "usage: %s SECONDS COMMAND"\nexit 0\n' "$stub" > "$TMP/stub/$stub"
+  chmod +x "$TMP/stub/$stub"
+done
+set +e
+OUT="$(PATH="$TMP/stub:$PATH" "$AUDIT" --scope "docs/" --dry-run --timeout-seconds 30 -- "${AGENT_ARGV[@]}" 2>&1)"; RC=$?
+set -e
+if [[ "$RC" -eq 0 ]] \
+   && grep -q "cooperative timeout" <<<"$OUT" \
+   && grep -q "cooperative fallback (unenforced)" <<<"$OUT"; then
+  pass "without GNU timeout the run reports the cooperative fallback instead of claiming a bound"
+else
+  fail "the cooperative-fallback path was not reported (rc=$RC): $OUT"
+fi
+rm -rf "$TMP/stub"
 reset_runs
 
 if [[ "$FAILED" -eq 0 ]]; then

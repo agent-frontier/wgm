@@ -41,6 +41,7 @@ developing wgm itself.
 | `--retries N` | `0` | Retry a failed role up to N times. |
 | `--retry-delay N` | `5` | Seconds between retries. |
 | `--keep` | off | Keep the run's working directory, which holds the four persona reports. |
+| `--allow-unguarded` | off | Run against a target that is **not** a git working tree. Without one there is no read-only guard, so the default is a refusal, not a silent downgrade. |
 | `--dry-run` | off | Print the roles, order, commands, and output paths. Invoke nothing, create nothing. |
 | `-h`, `--help` | — | Show usage. |
 
@@ -82,7 +83,10 @@ afterwards — the dispatcher prints the reminder and leaves the wording to the 
 |---|---|
 | Run the writer when any persona failed, timed out, or returned nothing | Consolidating three of four reports produces a report that *looks* complete while a whole lens is missing. |
 | Write a report when the writer fails or returns nothing | A failed audit must not leave a success-shaped artifact in the paper trail. |
-| Let a role modify the working tree | Roles report; the dispatcher writes. The tree is snapshotted around every role and a mutation fails the run. |
+| Accept an exit-0 banner as a report | `Ready.` or `I could not read that path.` passes any "did it succeed and is the file non-empty?" check. Content is checked against the contract the prompt demanded. |
+| Let a role modify the working tree | Roles report; the dispatcher writes. Every attempt is compared against one run baseline, and a mutation is **terminal**: no retry, no re-baseline, and the change is left in place for you to inspect. |
+| Audit a non-git tree by default | With no git tree there is no read-only guard at all. Pass `--allow-unguarded` to accept that explicitly; the run then says out loud that the guard is off. |
+| Run two audits in one tree at once | They would interleave their read-only guards and could file two reports for one moment. An atomic `.wgm/audit.lock` (created with `mkdir`) refuses the second before any role runs. |
 | Read or name the holdout scenarios | `scenarios/` belongs to `wgm-validator`. An audit that read it would contaminate the holdout. |
 | Accept `--slug ../../elsewhere` | The slug is a filename. Traversal is rejected before anything runs. |
 | Share a scratch directory between runs | Each run gets its own `mktemp -d` working directory under `.wgm/`, so two concurrent audits cannot race. |
@@ -90,7 +94,7 @@ afterwards — the dispatcher prints the reminder and leaves the wording to the 
 ## The report contract
 
 Each role is invoked with `$WGM_AUDIT_ROLE`, `$WGM_AUDIT_SCOPE`, and `$WGM_AUDIT_REPORT_FILE`
-exported. A role satisfies the contract either way:
+exported. **Delivery** is the host's choice:
 
 - write the report to `$WGM_AUDIT_REPORT_FILE`, or
 - print it to **stdout**, which the dispatcher captures.
@@ -98,13 +102,39 @@ exported. A role satisfies the contract either way:
 Producing neither fails that role. This is what makes the script host-agnostic: an agent that cannot
 write files is still a usable reviewer.
 
+**Content is not the host's choice.** Delivery being flexible is exactly why the content is checked —
+otherwise a status banner delivered perfectly becomes the paper trail. The minimal contract, checked
+on every artifact and re-checked at the writer gate:
+
+| Artifact | Must contain |
+|---|---|
+| Persona report | A `### wgm-docs-ROLE` heading (the role id, e.g. `### wgm-docs-junior`), **and** the finding-table header row `\| Doc \| Observation \| Severity \| Recommended action \|`. |
+| Writer report | A consolidated-report heading (`# Docs Audit Report …` or `## Consolidated report …`), **and** all four of `Dissent`, `Rejected findings`, `Agent action`, `Operator action`. |
+
+The lens tail of a persona heading is free text; the role name and the four columns are not. A report
+that misses either is rejected with the exact reason, and the role is retried if `--retries` allows.
+
+## What is retried, and what is not
+
+`--retries` exists for one failure class: a **transient** one. Everything else is a decision, and a
+decision is not improved by repeating it.
+
+| Failure | Retried? | Why |
+|---|---|---|
+| Non-zero exit, timeout, empty output, broken report contract | Yes, up to `--retries` | Transient: a flaky call or a wandering agent may get it right on the next fresh prompt. |
+| A role edited the working tree | **Never** | The baseline is never re-read, so a retry would be measured against the mutated tree and pass. The run aborts at once and the mutation stays visible. |
+| The lock is already held | **Never** | Whether to wait for another audit is the operator's call, not the dispatcher's. |
+
+A `--timeout-seconds` bound needs GNU `timeout` or `gtimeout`. Without one the run says so and falls
+back to a cooperative timeout it cannot enforce — it never implies a bound it does not have.
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | Four persona passes were consolidated and the report was written. |
-| `1` | A role failed, timed out, edited the tree, or produced no report. No report was written. |
-| `2` | Misconfiguration: unknown flag, missing flag value, invalid slug, or no agent configured. |
+| `1` | A role failed, timed out, edited the tree, or broke its report contract. No report was written. |
+| `2` | Refused before any role ran: unknown flag, missing flag value, invalid slug, no agent, a non-git target without `--allow-unguarded`, or another audit holding this tree's lock. |
 
 ## Examples
 

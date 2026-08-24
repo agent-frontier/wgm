@@ -197,17 +197,32 @@ What the dispatcher enforces rather than merely requests:
 - **Four identical, bounded scopes.** Every persona receives the same scope text, and none is told
   where another's report lives — independence of lens is the reason there are four.
 - **Writer last, on four real reports.** If any persona fails, times out, edits the tree, or returns
-  nothing, the writer does **not** run and the whole audit exits non-zero with the reason. Three
-  reports consolidated into one file would read as a complete audit with a lens silently missing.
+  something that is not a report, the writer does **not** run and the whole audit exits non-zero with
+  the reason. Three reports consolidated into one file would read as a complete audit with a lens
+  silently missing.
+- **A banner is not a report.** Delivery is flexible (`$WGM_AUDIT_REPORT_FILE` *or* stdout, so an
+  agent that cannot write files is still a usable reviewer) — which is exactly why the *content* is
+  checked. A persona artifact needs its `### <role>` heading and the four-column finding-table
+  header; the writer's needs a consolidated-report heading plus `Dissent`, `Rejected findings`,
+  `Agent action`, and `Operator action`. An agent that exits 0 after printing `Ready.` satisfies
+  every process-level check ever written and has reviewed nothing.
 - **No success-shaped artifact from a failed run.** A failing writer produces no file at all; the
   paper trail never gains an entry that implies a pass.
-- **Read-only roles, checked not trusted.** The git working tree is snapshotted around every role and
-  a mutation fails the run.
+- **Read-only roles, checked not trusted — and terminal.** One baseline is taken before any role
+  runs, and every attempt is compared against *that*. A mutation aborts the audit immediately: no
+  retry, no re-baseline (re-reading the tree would adopt the damage as the new "clean" state and let
+  the retry pass), and the change is deliberately left in place to be inspected and reverted.
+- **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
+  may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
+  repeating a decision does not improve it.
+- **One audit at a time per tree.** An atomic `.wgm/audit.lock` (`mkdir`) is taken before any role
+  runs; concurrent audits would otherwise read each other's legitimate writes as mutations and could
+  file two reports for one moment.
+- **No guard, no run.** Outside a git working tree there is nothing to snapshot, so the dispatcher
+  refuses by default rather than silently dropping its own safety property. `--allow-unguarded` is the
+  explicit, loudly-announced escape hatch.
 - **The holdout stays holdout.** `scenarios/` is never read, named, or modified here — that is
   `wgm-validator`'s alone.
-- **Report contract, either half.** `$WGM_AUDIT_REPORT_FILE` is exported per role; a role writes
-  there *or* prints to stdout, which the dispatcher captures. An agent that cannot write files is
-  still a usable reviewer.
 
 **Placement is a real choice, not a synonym.** `docs/audit/` is the committed paper trail a human
 reads; `.wgm/docs/audit/` is wgm's own local path for a project that already owns its `docs/` tree.
