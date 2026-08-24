@@ -115,6 +115,40 @@ cannot be queried from a test. Manufacture a deterministic **proxy** instead of 
 
 **Provenance:** `[learn]` issues #32 (SEO/ranking proxy) and #35 (ads/CWV as a perf constraint).
 
+## Cross-OS boundary reachability (WSL ↔ Windows, guest ↔ host)
+"The service is up" and "the consumer can reach the service" are different claims whenever the
+consumer runs on the *other side* of a virtualization boundary. A guest-side probe cannot observe
+that boundary — it never crosses it — so a green `curl` inside WSL is not evidence that a Windows
+browser, editor, or CLI can connect.
+
+- **Run the probe as a process on the consumer's OS.** For WSL that means a real Windows PowerShell
+  reached through interop, not `curl` in the distro. Make the probe *print the platform it ran on*
+  and have the orchestrator refuse any result that does not report the expected origin — otherwise a
+  same-side run silently gets relabeled as cross-boundary evidence.
+- **Contrast both binds in one run.** Publish the same disposable service on guest **loopback** and
+  then on **all interfaces**, and report the observed result per *endpoint* (host loopback vs. the
+  guest's routable IPv4). One endpoint alone cannot distinguish "wrong bind" from "no route".
+- **Exercise what the consumer actually does.** Fetch the generated client assets and open the
+  WebSocket, not just `/health`: an upgrade can fail where a plain GET succeeds. Where the WebSocket
+  client type is unavailable, report that check as **unsupported** rather than folding it into a
+  pass.
+- **Fail loudly on an unsupported host.** If the environment cannot host the real boundary (no WSL,
+  no interop, no Windows PowerShell on a Windows mount), exit nonzero with the reason. A synthetic
+  `wsl.exe`/`powershell.exe` shim on the guest filesystem is a test double for the harness's own
+  failure paths — never field evidence.
+- **CI caveat.** GitHub-hosted Linux runners have no Windows interop and Windows runners have no WSL
+  distro, so this check cannot be a hosted CI gate. Keep the portable half
+  (`scripts/test-wsl-boundary-harness.sh`) in CI and run the real boundary check manually, or on a
+  self-hosted Windows+WSL runner. Do not mark the boundary "verified" from a Linux-only run.
+
+**Provenance:** `[learn]` issue `agent-frontier/wgm#101` — a service published on WSL loopback was
+not reachable through the host's Windows interop path, while the same disposable service published
+on all interfaces was reachable at the WSL IPv4 address. **Landed in:**
+`scripts/test-wsl-windows-boundary.sh`, `scripts/test-wsl-reachability.ps1`,
+`scripts/test-wsl-boundary-harness.sh`. **Open validation requirement:** the harness's own failure
+paths are covered on any host, but the Windows-origin leg is still awaiting a run on a Windows+WSL
+machine — until an operator records that run, treat the boundary result as unverified here.
+
 ## Cross-links
 [`ralph-loop.md`](ralph-loop.md) (backpressure in depth) · [`scoring.md`](scoring.md) (holdout
 satisfaction when no deterministic check fits) · [`validation-env.md`](validation-env.md)
