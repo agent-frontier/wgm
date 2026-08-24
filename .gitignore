@@ -14,3 +14,6 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# Release artifacts built by .github/workflows/release.yml and scripts/build-release-index.sh.
+/dist/

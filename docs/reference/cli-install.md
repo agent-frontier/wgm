@@ -103,8 +103,91 @@ To confirm the skill is visible:
 4. Ask your client to list skills (for example `/skills` in VS Code or Copilot CLI), and confirm
    `wgm`, `teach-me`, `quiz-me`, and `rugged` all appear.
 
+## Release channel and integrity
+
+wgm has no marketplace, no update service, and no account to hold. **GitHub Releases is the source
+of truth.** A tag and its assets are immutable once published, and nothing sits between you and the
+bytes that could later start serving something else. Trading a hosted registry for a static,
+release-backed contract removes the whole class of "the server changed its mind" problems, at the
+cost of doing version discovery by reading one file.
+
+Every tagged release on the `stable` channel publishes four assets:
+
+<!-- wgm: complete-table -->
+
+| Asset | What it is |
+|---|---|
+| `wgm-vX.Y.tar.gz` | The complete skill tree for that version: `SKILL.md`, `references/`, `scripts/`, and all three companion skills. |
+| `wgm.tar.gz` | A byte-identical copy under a stable name, so `…/releases/latest/download/wgm.tar.gz` always resolves. |
+| `SHA256SUMS` | SHA-256 of both archives in `sha256sum -c` format. |
+| `release.json` | The machine-readable release record described below. |
+
+Two URL shapes exist, and they are not interchangeable:
+
+<!-- wgm: complete-table -->
+
+| URL | Moves? | Used by |
+|---|---|---|
+| `https://github.com/agent-frontier/wgm/releases/download/vX.Y/wgm-vX.Y.tar.gz` | Never. Pinned to one tag. | `--ref vX.Y` / `WGM_REF=vX.Y`, and every URL inside `release.json`. |
+| `https://github.com/agent-frontier/wgm/releases/latest/download/wgm.tar.gz` | Yes. Follows the newest release. | `--ref latest` / `WGM_REF=latest`, as a convenience alias. |
+
+The `latest` alias is a fetch convenience only. It never appears inside a release record: the record
+always names immutable per-tag URLs, and the release workflow fails closed if it does not. The stable
+channel therefore can never resolve to a moving `main`.
+
+### Verifying a download
+
+```bash
+tag=v0.3
+base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
+curl -fsSLO "${base}/wgm-${tag}.tar.gz"
+curl -fsSLO "${base}/SHA256SUMS"
+sha256sum --ignore-missing -c SHA256SUMS
+```
+
+SHA-256 proves the bytes you got are the bytes that release published. It is a checksum, not a
+signature: it says nothing about *who* built them. See [SECURITY.md](../../SECURITY.md) for what the
+`provenance` block does and does not claim.
+
+### The release record (`release.json`)
+
+`release.json` is a schema-versioned JSON object generated and validated by
+`scripts/build-release-index.sh`. It carries:
+
+<!-- wgm: complete-table -->
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | Shape of this record. Bumped whenever fields change, so an old reader refuses rather than guesses. |
+| `channel` | `stable` today. `edge` is reserved and must be set explicitly if it is ever used. |
+| `version` / `tag` | The skill version (`0.3`) and its tag (`v0.3`). The workflow fails if they disagree with `SKILL.md`. |
+| `commit` | The full 40-character commit sha the tag points at — the immutable anchor of the release. |
+| `published_at` / `generated_at` | RFC 3339 UTC timestamps for publication and record generation. |
+| `minimum_updater_schema` | The lowest updater implementation able to read this record. |
+| `assets[]` | Each asset's `name`, `role`, `sha256`, `size_bytes`, and immutable download `url`. |
+| `contents` | What the archive must contain: `SKILL.md` plus every companion skill. |
+| `provenance` | Honest labelling of the integrity evidence: checksums, attestation state, signature state. |
+
+Fetch the newest record with
+`https://github.com/agent-frontier/wgm/releases/latest/download/release.json`, or a specific one with
+`https://github.com/agent-frontier/wgm/releases/download/vX.Y/release.json`.
+
+**How the updater will use it.** A self-update command reads the stable record, compares `version`
+against the installed `SKILL.md` version, downloads the `versioned-archive` asset by its immutable
+`url`, re-hashes it against the recorded `sha256`, and installs only on a match — refusing outright
+if `schema_version` exceeds what it understands. That is the entire protocol: one static file, no
+service, no credentials. Until then, `--ref latest` remains the supported way to update.
+
+To reproduce the metadata for a tag locally:
+
+```bash
+bash scripts/build-release-index.sh --tag vX.Y --commit "$(git rev-parse vX.Y^{commit})" --dist dist
+bash scripts/build-release-index.sh --validate dist/release.json --assets-dir dist --expect-tag vX.Y
+```
+
 ## What to do next
 
 - [Requirements](../get-started/requirements.md) — what must be present before you install.
 - [Get started](../get-started/README.md) — the end-to-end first run.
 - [Troubleshooting](../operator/troubleshooting.md) — if the skill does not appear.
+- [Security policy](../../SECURITY.md) — the release-integrity contract and what it does not claim.

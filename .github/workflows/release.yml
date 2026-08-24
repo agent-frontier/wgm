@@ -46,14 +46,49 @@ jobs:
       - name: Docs backpressure check
         run: bash scripts/check-docs.sh
 
+      - name: Release-index harness
+        # Runs the offline harness before anything is built, so a broken metadata generator fails the
+        # release rather than publishing an immutable tag with a record nobody can trust.
+        run: bash scripts/test-release-index.sh
+
       - name: Package skill tarball
         run: |
           mkdir -p dist
+          # The archive is the COMPLETE skill tree: SKILL.md, references/, and companions/ (teach-me,
+          # quiz-me, rugged). build-release-index.sh re-opens the archive and fails the release if any
+          # of those are absent.
           tar --exclude-vcs --exclude=./dist -czf "dist/wgm-${GITHUB_REF_NAME}.tar.gz" .
           # Stable-named copy so `…/releases/latest/download/wgm.tar.gz` always resolves — this is
           # what `install.sh`/`install.ps1` fetch for WGM_REF=latest.
           cp "dist/wgm-${GITHUB_REF_NAME}.tar.gz" dist/wgm.tar.gz
           ls -l dist
+
+      - name: Build release record and checksums
+        # Writes dist/SHA256SUMS and dist/release.json (schema-versioned: channel, version, immutable
+        # tag + commit, asset names/URLs/hashes, publication time, minimum updater schema, provenance).
+        # GITHUB_SHA on a tag push is the commit the tag points at, so the stable channel is pinned to
+        # an immutable object rather than to whatever `main` happens to be.
+        run: |
+          bash scripts/build-release-index.sh \
+            --tag "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --channel stable \
+            --dist dist \
+            --out dist/release.json
+
+      - name: Verify release metadata (fail closed)
+        # Independent re-validation of the record against the archives on disk. Malformed metadata, a
+        # missing asset, a hash mismatch, a tag/version mismatch, a mutable stable ref, or an archive
+        # missing SKILL.md/a companion stops the release here — before the tag's assets exist.
+        run: |
+          bash scripts/build-release-index.sh \
+            --validate dist/release.json \
+            --assets-dir dist \
+            --expect-tag "${GITHUB_REF_NAME}"
+          # SHA256SUMS holds bare names so a user can verify in whatever directory they downloaded
+          # into — which means it must be checked from inside dist/, not from the repo root.
+          ( cd dist && sha256sum -c SHA256SUMS )
 
       - name: Publish GitHub release
         env:
@@ -63,4 +98,25 @@ jobs:
             --title "wgm ${GITHUB_REF_NAME}" \
             --generate-notes \
             "dist/wgm-${GITHUB_REF_NAME}.tar.gz" \
-            "dist/wgm.tar.gz"
+            "dist/wgm.tar.gz" \
+            "dist/SHA256SUMS" \
+            "dist/release.json"
+
+      - name: Confirm published assets
+        # Last fail-closed gate: re-read the release from the API and prove every asset the record
+        # names was actually uploaded. A partial upload would leave an immutable tag whose record
+        # points at URLs that 404.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          published="$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort)"
+          echo "published assets:"; echo "${published}"
+          missing=0
+          while IFS= read -r expected; do
+            [ -n "${expected}" ] || continue
+            if ! grep -Fxq "${expected}" <<<"${published}"; then
+              echo "::error::release asset '${expected}' is named in the release record but was not published."
+              missing=1
+            fi
+          done < <(jq -r '.assets[].name, "release.json"' dist/release.json)
+          [ "${missing}" -eq 0 ]

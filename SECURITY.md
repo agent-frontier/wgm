@@ -23,6 +23,49 @@ report stays confidential.
 wgm is distributed as an Agent Skill and is rolling-released from `main`. Security fixes land on
 `main`; re-running the installer updates an existing install in place.
 
+Tagged releases are cut from `main` and published to GitHub Releases on the `stable` channel. A tag
+is the only immutable thing in this distribution, so `stable` is always pinned to a tag and a full
+commit sha — never to a moving branch.
+
+## Release integrity (what is and is not proven)
+
+There is no wgm marketplace, registry, or update service. GitHub Releases is the source of truth, and
+every release publishes its own integrity evidence as static assets:
+
+- `SHA256SUMS` — SHA-256 of `wgm-vX.Y.tar.gz` and `wgm.tar.gz`, in `sha256sum -c` format.
+- `release.json` — a schema-versioned release record naming the channel, version, tag, commit sha,
+  publication time, and each asset's immutable URL, size, and SHA-256. Its full field list is in
+  [docs/reference/cli-install.md](docs/reference/cli-install.md).
+
+Verify a download before trusting it:
+
+```bash
+tag=v0.3
+base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
+curl -fsSLO "${base}/wgm-${tag}.tar.gz"
+curl -fsSLO "${base}/SHA256SUMS"
+sha256sum --ignore-missing -c SHA256SUMS
+```
+
+**What this proves.** That the archive you hold is byte-for-byte the archive that release published,
+and that it is the release the record claims: right version, right tag, right commit, complete skill
+tree including all three companion skills.
+
+**What this does not prove.** SHA-256 is a checksum, not a signature. It carries no cryptographic
+proof of *who* produced the bytes, and an attacker who could rewrite the release could rewrite the
+checksums with it. wgm publishes **no cryptographic signatures** today, and **no build attestation**
+is configured — `release.json` says so explicitly (`provenance.signatures: "none"`,
+`provenance.attestation: "unavailable"`). The release workflow rejects any record that claims
+otherwise, so the field cannot quietly start overstating what exists. If signing or GitHub artifact
+attestation is added later, the record will name it and the validator will require the evidence to
+back it.
+
+The release workflow fails closed before anything is published: malformed metadata, a missing asset,
+a checksum mismatch, a tag that disagrees with `SKILL.md`'s version, a stable record pinned to a
+moving ref, or an archive missing `SKILL.md` or a companion all stop the release. The same checks run
+offline via `scripts/build-release-index.sh --validate` and `scripts/test-release-index.sh`, so you
+can reproduce them without credentials.
+
 ## Safety model (please read before running)
 
 wgm ships three capabilities that execute on your machine or reach outside it. All are designed to
