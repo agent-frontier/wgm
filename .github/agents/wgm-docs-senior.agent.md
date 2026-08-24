@@ -59,3 +59,13 @@ Runs as one of four independent, order-agnostic persona passes at the audit's tr
 (Plan-exit baseline, Ship/Handoff, or a doc-touching diff — see `references/docs-audit.md`). Its
 findings feed **@wgm-docs-writer**, which consolidates all four passes into the paper-trail report.
 See `references/subagents.md` for the full dispatch order.
+
+**Input/output contract (host-independent).** Input is one bounded scope, identical for all four
+personas, plus this brief — nothing about a sibling persona's findings. Output is one finding table
+(`| Doc | Observation | Severity | Recommended action |`) and nothing else: no edits, no fixes, no
+Agent-vs-Operator classification. When dispatched by `scripts/audit.sh`, write that table to the path
+in `$WGM_AUDIT_REPORT_FILE`, or print it to STDOUT if the host cannot write files; either delivery
+satisfies the contract, and producing neither fails the audit. The content is checked: an artifact
+without the `### <role>` heading and the four-column table header is rejected as not-a-report, so a
+status banner or an error message can never become the paper trail. The dispatcher writes every artifact — a persona
+that modifies the working tree fails the run.

@@ -1,8 +1,13 @@
 # Docs audit — the core, automatic paper trail
 
-Documentation quality is a **mandatory lifecycle requirement**, but the persona dispatcher is
-host-owned: the portable shell runner cannot launch arbitrary host subagents by itself. A compatible
-host should run the audit without requiring a separate user reminder; if no such host dispatcher is
+Documentation quality is a **mandatory lifecycle requirement**. Dispatch has two honest paths: a host
+with a native subagent mechanism runs the five roles itself, and any other host can use
+`scripts/audit.sh`, the portable dispatcher designed to drive the same five roles through one opaque
+headless agent command — once that command is configured as its agent. What the portable runner still
+cannot do is launch *host* subagents: five briefs against one agent buys independence of context and
+lens, not of model or tooling. Whether the portable path has actually been exercised on a given
+harness is recorded per entry in `compatibility/harnesses.json`, never assumed. A compatible
+host should run the audit without requiring a separate user reminder; if neither dispatch path is
 available, the operator must record that limitation rather than claiming the audit passed. This
 reference defines when the audit runs, who reviews (four personas), how a technical writer consolidates
 their feedback, and what durable artifact it leaves behind: the **paper trail**.
@@ -174,6 +179,80 @@ See `references/subagents.md` for the five archetypes (`wgm-docs-junior`, `wgm-d
 The four persona passes are independent of each other (order doesn't matter, and they may run in
 parallel); the technical writer always runs last, after all four have reported.
 
+### Portable dispatch (`scripts/audit.sh`)
+A host with its own subagent mechanism dispatches the five roles directly. Every other host has
+`scripts/audit.sh`: an **opaque-command orchestrator** that drives the same five roles through one
+headless agent command, configured exactly like `scripts/loop.sh` (`$WGM_AGENT`, `--agent "CMD"`, a
+`--` argv passthrough invoked without eval, and `WGM_PROMPT_STDIN=1` for stdin agents). It assumes no
+marketplace, no custom-agent registry, and no proprietary subagent API — only that a command can be
+handed a prompt. Full flags in [`docs/reference/cli-audit.md`](../docs/reference/cli-audit.md).
+
+**Ownership boundary — the part that keeps the audit honest:**
+
+| Owner | Owns |
+|---|---|
+| The four personas | Findings through one lens. Read-only: they never edit a file, never fix a defect, and never classify Agent vs Operator action. |
+| `wgm-docs-writer` | Consolidation only — dedupe, dissent, verification, and strict Agent/Operator labels. It adds no opinions of its own. |
+| The dispatcher | Ordering, scope equality, failure handling, and **writing every artifact**. It reviews nothing. |
+
+What the dispatcher enforces rather than merely requests:
+- **Four identical, bounded scopes.** Every persona receives the same scope text, and none is told
+  where another's report lives — independence of lens is the reason there are four.
+- **Writer last, on four real reports.** If any persona fails, times out, edits the tree, or returns
+  something that is not a report, the writer does **not** run and the whole audit exits non-zero with
+  the reason. Three reports consolidated into one file would read as a complete audit with a lens
+  silently missing.
+- **A banner is not a report.** Delivery is flexible (`$WGM_AUDIT_REPORT_FILE` *or* stdout, so an
+  agent that cannot write files is still a usable reviewer) — which is exactly why the *content* is
+  checked. A persona artifact needs its `### <role>` heading and the four-column finding-table
+  header; the writer's needs a consolidated-report heading plus `Dissent`, `Rejected findings`,
+  `Agent action`, and `Operator action`. An agent that exits 0 after printing `Ready.` satisfies
+  every process-level check ever written and has reviewed nothing.
+- **No success-shaped artifact from a failed run.** A failing writer produces no file at all; the
+  paper trail never gains an entry that implies a pass.
+- **Read-only roles, checked not trusted — and terminal.** One baseline is taken before any role
+  runs, and every attempt is compared against *that*. Any change aborts the audit immediately: no
+  retry, no re-baseline (re-reading the tree would adopt it as the new "clean" state and let the
+  retry pass), and nothing is reverted, so the evidence survives.
+  The baseline is not "is the tree dirty?": an agent that **commits**, **stashes**, or writes a
+  **gitignored** path leaves a spotless `git status`, so the snapshot also covers HEAD and branch,
+  the stash ref and its depth, ignored paths outside `.wgm/`, and a content hash of the staged and
+  unstaged diffs. Every file git knows only by **name** — ignored *and* untracked-but-not-ignored — is
+  fingerprinted by **content**, not merely listed: a path list sees such a file appear or vanish but
+  never an *overwrite* of one already there, and `.env`, `.envrc`, cached build artifacts, and
+  not-yet-added scratch files are all present, all unlisted-by-content, and all worth overwriting.
+  That scan hashes both sets on every attempt, with no size cap, because a cap is the hole an agent
+  writing into `node_modules/` would fall through. Symlinks are recorded by target and never
+  followed.
+- **Evidence, not accusation.** The dispatcher cannot tell a role's write from a concurrent editor,
+  watcher, or build in the same checkout — they produce the same delta. So it reports
+  `repository state changed during <role>; origin unknown (role or concurrent process)`, prints the
+  exact bounded delta between the two snapshots, and stops. It never claims the role did it. One
+  hole stays named rather than pretended away: a change made and reverted *exactly* within one turn
+  is invisible to a before/after comparison, whatever it touched.
+- **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
+  may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
+  repeating a decision does not improve it.
+- **One audit at a time per tree.** An atomic `.wgm/audit.lock` (`mkdir`) at the **worktree root** is
+  taken before any role runs, so runs launched from different subdirectories serialize on the same
+  tree; concurrent audits would otherwise read each other's legitimate writes as changes and could
+  file two reports for one moment.
+- **No guard, no run.** Outside a git working tree there is nothing to snapshot, so the dispatcher
+  refuses by default rather than silently dropping its own safety property. `--allow-unguarded` is the
+  explicit, loudly-announced escape hatch.
+- **The holdout stays holdout.** `scenarios/` is never read, named, or modified here — that is
+  `wgm-validator`'s alone.
+
+**Placement is a real choice, not a synonym.** `docs/audit/` is the committed paper trail a human
+reads; `.wgm/docs/audit/` is wgm's own local path for a project that already owns its `docs/` tree.
+The dispatcher picks by the same rule as every other artifact (`references/artifacts.md`) and prints
+which rule it applied, so the choice stays visible instead of implied.
+
+**Honest boundary.** Running one agent five times buys independence of *context and lens*, not of
+model or tooling. It is a fallback, not an equal: prefer a host that genuinely dispatches
+role-specialized subagents, and where neither is available, record the limitation rather than
+recording a passing audit.
+
 ## Model selection
 The four persona reviewers can run on a frugal model — each is a bounded, single-lens read-only pass.
 The technical writer earns a more capable model: consolidation, dissent-preservation, and correct
@@ -181,6 +260,7 @@ Agent/Operator classification is the part that is easy to get subtly wrong.
 
 ## Cross-links
 `references/subagents.md` (dispatch + dissent-preservation) · `references/artifacts.md` (artifact
-placement rules) · `scripts/check-docs.sh` (the structural check this complements) ·
+placement rules) · `scripts/audit.sh` + [`docs/reference/cli-audit.md`](../docs/reference/cli-audit.md)
+(the portable dispatcher) · `scripts/check-docs.sh` (the structural check this complements) ·
 `docs/operator/playbook.md` (how an operator reads the resulting report) ·
 `references/self-improvement.md` (a recurring finding across projects is a `[learn]` candidate).

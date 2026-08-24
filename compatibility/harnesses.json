@@ -33,7 +33,7 @@
         "notes": "Pi's README states it deliberately ships without sub agents and plan mode, and expects such workflows to come from extensions or third-party pi packages."
       },
       "missing_capability": "Host-dispatched subagents — the two-stage role swarm and the five-role docs-audit swarm have no host primitive to launch.",
-      "fallback": "Run the two review passes and the docs-audit personas inline and sequentially in one context, as references/subagents.md's no-subagent fallback prescribes, and record the dissent explicitly. The portable kernel (grill, plan, loop, deterministic gates) is unaffected.",
+      "fallback": "Run the two review passes inline and sequentially in one context, as references/subagents.md's no-subagent fallback prescribes, and record the dissent explicitly. For the docs-audit swarm the intended fallback is scripts/audit.sh, which is designed to dispatch all five roles through Pi's documented headless command (invocation.command above) instead of a host subagent primitive. wgm has not executed that dispatch against Pi — invocation.verification is unverified — so this is design intent matching a documented interface, not an observed run, and the flag set may drift. Where it does work it would buy independence of context and lens only, never of model or tooling. The portable kernel (grill, plan, loop, deterministic gates) is unaffected.",
       "adapter": {
         "status": "adapter-needed",
         "notes": "A Pi extension or pi package could dispatch role subagents; none is written. Until one exists, Pi runs the portable kernel only."
@@ -77,7 +77,7 @@
         "notes": "The twelve role agents in .github/agents/*.agent.md are launched by the host dispatcher; the portable runner never claims to launch them itself."
       },
       "missing_capability": "",
-      "fallback": "If the host session cannot dispatch custom agents, run both review passes and the docs-audit personas inline and sequentially, preserving dissent.",
+      "fallback": "If the host session cannot dispatch custom agents, run both review passes inline and sequentially preserving dissent, and dispatch the docs-audit swarm with scripts/audit.sh's opaque-command runner.",
       "adapter": {
         "status": "adapter-shipped",
         "notes": "wgm ships the host-format role agents this harness dispatches (.github/agents/*.agent.md), checked structurally by scripts/check-docs.sh."
@@ -177,7 +177,7 @@
         "notes": "Third-party claims that Codex CLI exposes a dispatchable subagent primitive are not corroborated by OpenAI's skills documentation; treat Codex subagent capability as unverified."
       },
       "missing_capability": "",
-      "fallback": "Inline sequential two-pass review per references/subagents.md; assume no host subagent dispatch until it is corroborated.",
+      "fallback": "Inline sequential two-pass review per references/subagents.md, and scripts/audit.sh's opaque-command dispatch for the docs-audit swarm; assume no host subagent dispatch until it is corroborated.",
       "adapter": {
         "status": "adapter-needed",
         "notes": "No Codex-format role definitions ship with wgm."
@@ -345,7 +345,7 @@
         "notes": "No dispatchable subagent primitive is documented."
       },
       "missing_capability": "Agent Skills discovery (no directory scan) and host-dispatched subagents.",
-      "fallback": "Load the protocol explicitly instead of relying on discovery — `aider --read ~/.agents/skills/wgm/SKILL.md --message \"...\"`, the same habit as Aider's documented conventions file — and run both review passes inline. The deterministic gates still provide the backpressure.",
+      "fallback": "Load the protocol explicitly instead of relying on discovery — `aider --read ~/.agents/skills/wgm/SKILL.md --message \"...\"`, the same habit as Aider's documented conventions file — and run both review passes inline. For the docs-audit swarm, scripts/audit.sh is available as the dispatcher once an explicit --read/headless wrapper is configured as its agent command, since the dispatcher only needs a command it can hand a prompt to. wgm has not executed that arrangement against Aider, so treat it as a path to configure rather than an audit already performed, and where it works it would buy independence of context and lens only, never of model or tooling. The deterministic gates still provide the backpressure.",
       "adapter": {
         "status": "adapter-needed",
         "notes": "Making wgm discoverable here means an explicit --read of SKILL.md, or a wrapper that injects it; neither ships."

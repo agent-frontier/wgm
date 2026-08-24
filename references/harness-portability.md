@@ -21,7 +21,13 @@ wgm is two things wearing one name, and the difference is exactly what portabili
 
 A harness that lacks an adapter capability is not incompatible; it is **degraded in a named way**,
 with a named fallback (usually: run the passes inline and sequentially, preserving dissent — see
-[subagents](subagents.md)). The kernel keeps steering on the project's own validation command
+[subagents](subagents.md)). For the docs-audit swarm the named fallback is `scripts/audit.sh`, which
+is *designed* to dispatch all five roles through whatever headless command the host documents, so a
+host with no subagent primitive has a path to running the audit rather than only recording it
+unavailable. Whether that path has actually been exercised on a given harness is that entry's own
+evidence question — several entries record it as design intent against a documented interface, not as
+an observed run — and even where it works it buys independence of context and lens, never of model or
+tooling. The kernel keeps steering on the project's own validation command
 either way, because the backpressure comes from the project, not from the harness.
 
 ## Evidence tiers
