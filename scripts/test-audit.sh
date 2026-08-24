@@ -36,9 +36,13 @@ cd "$TMP/repo" || exit 1
 git init -q
 git config user.email "wgm-test@example.com"
 git config user.name "wgm test"
+git config commit.gpgsign false
 mkdir -p docs
 printf '# readme\n' > README.md
 printf '# docs\n' > docs/README.md
+# An ignored path, so the harness can prove that "not in git status" is not the same as "not a
+# change": a role writing here is still writing to the operator's tree.
+printf 'build/\n' > .gitignore
 
 # A holdout scenario with a canary string. audit.sh must never read, name, or modify it: holdout
 # scenarios belong to wgm-validator alone, and an audit that leaked them would contaminate the
@@ -48,6 +52,7 @@ printf 'id: s1\nprompt: CANARY-HOLDOUT-DO-NOT-LEAK\n' > scenarios/holdout.yaml
 SCEN_SUM="$(cksum scenarios/holdout.yaml)"
 
 git add -A && git commit -qm seed
+SEED="$(git rev-parse HEAD)"
 
 # `scenarios/` exists now, but the default-placement rule keys off AGENTS.md / IMPLEMENTATION_PLAN.md
 # / specs/ only, so this repo still counts as greenfield until test 9 says otherwise.
@@ -60,6 +65,8 @@ git add -A && git commit -qm seed
 #   FAKE_BANNER_ROLE this role exits 0 printing a status banner instead of a report
 #   FAKE_TABLELESS_ROLE this role emits a correct heading but no finding table
 #   FAKE_SLEEP_ROLE  this role sleeps FAKE_SLEEP_SECS seconds (for the timeout bound)
+#   FAKE_COMMIT_ROLE / FAKE_STASH_ROLE / FAKE_IGNORED_ROLE — three mutations that leave
+#                    `git status` clean: commit it, stash it, or write an ignored path
 #   FAKE_FLAKY_ROLE  this role fails its FIRST attempt only, then succeeds (for the retry path)
 #   FAKE_STDIN       read the prompt from stdin instead of "$1"
 # The writer emits the five markers the consolidation contract requires; FAKE_THIN_WRITER makes it
@@ -73,6 +80,21 @@ printf '%s\n' "$role" >> "$FAKE_LOG"
 printf '%s' "$prompt" > "${FAKE_PROMPT_DIR}/${role}.prompt"
 if [[ "${FAKE_EDIT_ROLE:-}" == "$role" ]]; then printf 'sneaky edit by %s\n' "$role" >> README.md; fi
 if [[ "${FAKE_SLEEP_ROLE:-}" == "$role" ]]; then sleep "${FAKE_SLEEP_SECS:-5}"; fi
+# Three ways to change a repository that leave `git status` looking pristine. Each is a real thing a
+# capable agent does by habit — "I tidied up and committed it" is the single most likely one.
+if [[ "${FAKE_COMMIT_ROLE:-}" == "$role" ]]; then
+  printf 'committed by %s\n' "$role" >> README.md
+  git add -A >/dev/null 2>&1
+  git commit -qm "role commit" >/dev/null 2>&1
+fi
+if [[ "${FAKE_STASH_ROLE:-}" == "$role" ]]; then
+  printf 'stashed by %s\n' "$role" >> README.md
+  git stash -q >/dev/null 2>&1
+fi
+if [[ "${FAKE_IGNORED_ROLE:-}" == "$role" ]]; then
+  mkdir -p build
+  printf 'written by %s\n' "$role" > build/artifact.txt
+fi
 if [[ "${FAKE_FLAKY_ROLE:-}" == "$role" ]]; then
   # One transient failure, then success — the exact shape --retries exists for.
   tries="${FAKE_TRIES_DIR}/${role}"
@@ -369,7 +391,7 @@ reset_runs
 #    split exists to prevent.
 FAKE_EDIT_ROLE=wgm-docs-senior run --scope "docs/" --slug readonly -- "${AGENT_ARGV[@]}"
 if [[ "$RC" -ne 0 ]] \
-   && grep -q "modified the working tree" <<<"$OUT" \
+   && grep -q "changed the repository" <<<"$OUT" \
    && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
    && [[ ! -d docs/audit ]]; then
   pass "a role that edits the working tree fails the audit and blocks the writer"
@@ -519,6 +541,73 @@ if [[ "$RC" -ne 0 ]] \
   pass "a tree mutation is terminal: one attempt, no retry, no writer, and the change stays visible"
 else
   fail "a mutation was retried or did not abort the run (rc=$RC, attempts=$edits): $OUT"
+fi
+reset_runs
+
+# 15a) A role that COMMITS its edit leaves a spotless `git status`. Hashing status alone would call
+#      that GREEN, and the operator would find an unexplained commit on their branch after an audit
+#      that "passed". This is the most likely evasion of the three: tidying up and committing is
+#      ordinary agent behaviour.
+FAKE_COMMIT_ROLE=wgm-docs-junior run --scope "docs/" --slug rolecommit --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-junior)"
+if [[ "$RC" -ne 0 ]] \
+   && [[ "$tries" -eq 1 ]] \
+   && ! grep -q "attempt 2/" <<<"$OUT" \
+   && grep -q "This is terminal" <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && [[ "$(git rev-parse HEAD)" != "$SEED" ]] \
+   && [[ ! -d docs/audit ]]; then
+  pass "a role that commits is caught (clean status, moved HEAD), terminally, with the commit left visible"
+else
+  fail "a role commit was not detected (rc=$RC, attempts=$tries, head moved=$([[ "$(git rev-parse HEAD)" != "$SEED" ]] && echo yes || echo no))"
+fi
+git reset -q --hard "$SEED"
+reset_runs
+
+# 15b) A role that STASHES its edit also leaves a spotless `git status` — the work is hidden in
+#      refs/stash, where a status/diff hash cannot see it, and where an operator will not look.
+FAKE_STASH_ROLE=wgm-docs-senior run --scope "docs/" --slug rolestash --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-senior)"
+if [[ "$RC" -ne 0 ]] \
+   && [[ "$tries" -eq 1 ]] \
+   && ! grep -q "attempt 2/" <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && git rev-parse --quiet --verify refs/stash >/dev/null \
+   && [[ ! -d docs/audit ]]; then
+  pass "a role that stashes is caught via the stash ref, terminally, with the stash left for inspection"
+else
+  fail "a role stash was not detected (rc=$RC, attempts=$tries)"
+fi
+git stash drop -q >/dev/null 2>&1 || true
+git checkout -q -- . 2>/dev/null || true
+reset_runs
+
+# 15c) A role that writes an IGNORED path never appears in a default `git status` at all. It is still
+#      the operator's disk, and a reviewer that writes build output is not read-only.
+FAKE_IGNORED_ROLE=wgm-docs-principal run --scope "docs/" --slug roleignored --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-principal)"
+if [[ "$RC" -ne 0 ]] \
+   && [[ "$tries" -eq 1 ]] \
+   && ! grep -q "attempt 2/" <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && [[ -f build/artifact.txt ]] \
+   && [[ -z "$(git status --porcelain)" ]] \
+   && [[ ! -d docs/audit ]]; then
+  pass "a role that writes a gitignored path is caught even though git status stays clean"
+else
+  fail "an ignored-path write was not detected (rc=$RC, attempts=$tries)"
+fi
+rm -rf build
+reset_runs
+
+# 15d) The dispatcher's OWN scratch under .wgm/ is not a role mutation — it is ignored by the guard
+#      on purpose, or every single run would fail itself.
+run --scope "docs/" --slug selfscratch --keep -- "${AGENT_ARGV[@]}"
+SELF_REPORT=(docs/audit/*_selfscratch.md)
+if [[ "$RC" -eq 0 ]] && [[ -f "${SELF_REPORT[0]}" ]]; then
+  pass "the dispatcher's own .wgm/ scratch does not trip its read-only guard"
+else
+  fail "the guard fired on the dispatcher's own working directory (rc=$RC): $OUT"
 fi
 reset_runs
 

@@ -168,7 +168,7 @@ Ownership boundaries the dispatcher makes deterministic rather than merely askin
 | The writer consolidates; it does not review | Its brief carries the four report paths plus the dedupe/dissent/verify/label rules, and nothing else. |
 | A failed audit leaves no artifact | No report file is written unless the writer produced a real one — never a success-shaped stub. |
 | A banner is not a report | Each artifact is checked against the contract its prompt demanded (persona: `### <role>` heading + the four-column table header; writer: a consolidated heading + `Dissent`, `Rejected findings`, `Agent action`, `Operator action`). An exit-0 `Ready.` fails. |
-| A mutation is terminal | The tree is compared against one baseline that is never re-read; a role that edits it aborts the audit with no retry, and the change is left visible for cleanup. |
+| A mutation is terminal | One baseline, never re-read, covering HEAD/branch, the stash, and tracked+untracked+ignored paths — because committing, stashing, or writing an ignored file all leave `git status` clean. Any of them aborts the audit with no retry, and the change is left visible for cleanup. |
 | One audit per tree | An atomic `.wgm/audit.lock` refuses a concurrent run before any role starts; a non-git target is refused outright unless `--allow-unguarded` is passed. |
 | The holdout stays the validator's | `scenarios/` is never read, named, or modified by the dispatcher. |
 

@@ -212,6 +212,11 @@ What the dispatcher enforces rather than merely requests:
   runs, and every attempt is compared against *that*. A mutation aborts the audit immediately: no
   retry, no re-baseline (re-reading the tree would adopt the damage as the new "clean" state and let
   the retry pass), and the change is deliberately left in place to be inspected and reverted.
+  Crucially, the baseline is not "is the tree dirty?": an agent that **commits**, **stashes**, or
+  writes a **gitignored** path leaves a spotless `git status`, so the snapshot also covers HEAD and
+  branch, the stash ref and its depth, and ignored paths outside `.wgm/`. A role that mutates and
+  then reverts *exactly* within its turn is not detectable by a before/after comparison — that hole
+  is named here rather than pretended away.
 - **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
   may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
   repeating a decision does not improve it.

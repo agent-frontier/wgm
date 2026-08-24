@@ -51,9 +51,12 @@
 #     wgm-docs-pm — each with the IDENTICAL bounded scope, each blind to the other three.
 #   * wgm-docs-writer runs LAST, and only after all four persona reports exist AND satisfy the
 #     report contract below.
-#   * Every role is read-only, and that is CHECKED: the git working tree is compared against one
-#     run baseline after every attempt, and a role that mutates it fails the run TERMINALLY — no
-#     retry, no re-baseline, and the mutation is left in place for you to inspect and clean up.
+#   * Every role is read-only, and that is CHECKED against one run baseline after every attempt —
+#     covering HEAD and branch (a role that COMMITS leaves a clean tree), the stash ref and depth (a
+#     role that STASHES leaves a clean tree), and every tracked, untracked, and IGNORED path outside
+#     .wgm/. A role that mutates any of it fails the run TERMINALLY — no retry, no re-baseline, and
+#     the mutation is left in place for you to inspect and clean up. A role that mutates and then
+#     reverts exactly within its own turn is not detectable by a before/after comparison.
 #   * A role that exits non-zero, times out, produces nothing, or produces something that does not
 #     satisfy its report contract fails the run, blocks the writer, and exits non-zero with the
 #     reason on stderr. No success-shaped report is ever created from a failed run.
@@ -348,10 +351,29 @@ WORK="$(mktemp -d "$(pwd)/.wgm/audit-run-XXXXXX")"
 # taken here, before any role runs, and every attempt is compared against THAT — never against a
 # freshly re-read tree. Re-baselining after a mutation would adopt the damage as the new "clean"
 # state and let the retry pass.
+#
+# "Is the working tree dirty?" is NOT the question, because the three cheapest ways for an agent to
+# change a repository all leave a pristine `git status`:
+#   * it commits    — the edit moves into history and the tree goes clean again;
+#   * it stashes    — the edit moves into refs/stash and the tree goes clean again;
+#   * it writes an ignored path — the edit was never in `git status` to begin with.
+# So the snapshot covers where the repository IS (HEAD, branch), where work can be HIDDEN (the stash
+# ref and its depth), and every path state including ignored ones. Only `.wgm/` is excluded — that
+# is the dispatcher's own scratch, which it is entitled to write.
+#
+# Known limitation, stated rather than papered over: this compares two states, so a role that mutates
+# and then reverts EXACTLY within its own turn is invisible to the guard. That is a real hole and it
+# is not closed here — closing it needs continuous filesystem observation, not a before/after hash.
+# `--ignored` also costs a full ignored-path walk on every attempt; on a repository with a huge
+# ignored tree (vendored dependencies, build output) that is the price of seeing ignored writes.
 tree_snapshot() {
   [[ "$GIT_GUARD" -eq 1 ]] || { echo "no-git-guard"; return 0; }
   {
-    git status --porcelain --untracked-files=all -- ':(exclude).wgm' 2>/dev/null || true
+    echo "head:$(git rev-parse HEAD 2>/dev/null || echo none)"
+    echo "branch:$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo detached)"
+    echo "stash:$(git rev-parse --quiet --verify refs/stash 2>/dev/null || echo none)"
+    echo "stashdepth:$(git rev-list --walk-reflogs --count refs/stash 2>/dev/null || echo 0)"
+    git status --porcelain --untracked-files=all --ignored -- ':(exclude).wgm' 2>/dev/null || true
     git diff -- ':(exclude).wgm' 2>/dev/null || true
     git diff --cached -- ':(exclude).wgm' 2>/dev/null || true
   } | cksum
@@ -449,10 +471,11 @@ run_role() {
     # property the dispatcher exists to hold, so its exit status no longer matters.
     after="$(tree_snapshot)"
     if [[ "$after" != "$BASELINE" ]]; then
-      echo "✗ ${role}: modified the working tree. Audit roles are READ-ONLY — the dispatcher writes the report." >&2
+      echo "✗ ${role}: changed the repository (working tree, HEAD/branch, stash, or an ignored path)." >&2
+      echo "  Audit roles are READ-ONLY — the dispatcher writes the report." >&2
       echo "  This is terminal: no retry and no re-baseline, because retrying against the mutated tree" >&2
       echo "  would accept the damage as the new normal. The change is left in place — inspect it with" >&2
-      echo "  'git status' / 'git diff' and revert it yourself." >&2
+      echo "  'git status --ignored', 'git log', and 'git stash list', then revert it yourself." >&2
       rm -f "$report"
       return 2
     fi
@@ -492,7 +515,7 @@ run_role() {
 
 abort_mutation() {  # $1 = role
   echo "" >&2
-  echo "✗ docs audit aborted: ${1} mutated the working tree." >&2
+  echo "✗ docs audit aborted: ${1} changed the repository." >&2
   echo "  ${WRITER} was NOT run and no report was written to ${OUT_DIR}." >&2
   echo "audit: RED" >&2
   exit 1
@@ -502,7 +525,7 @@ echo "== wgm docs audit =="
 echo "scope: ${SCOPE}"
 echo "output: ${REPORT}  [${PLACEMENT}]"
 if [[ "$GIT_GUARD" -eq 1 ]]; then
-  echo "guard: read-only (git baseline taken; a role that edits the tree fails the run terminally)"
+  echo "guard: read-only (baseline over HEAD/branch, stash, and tracked+untracked+ignored paths)"
 else
   echo "guard: NONE (--allow-unguarded) — a role that edits files will not be detected"
 fi

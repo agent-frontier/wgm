@@ -84,12 +84,33 @@ afterwards — the dispatcher prints the reminder and leaves the wording to the 
 | Run the writer when any persona failed, timed out, or returned nothing | Consolidating three of four reports produces a report that *looks* complete while a whole lens is missing. |
 | Write a report when the writer fails or returns nothing | A failed audit must not leave a success-shaped artifact in the paper trail. |
 | Accept an exit-0 banner as a report | `Ready.` or `I could not read that path.` passes any "did it succeed and is the file non-empty?" check. Content is checked against the contract the prompt demanded. |
-| Let a role modify the working tree | Roles report; the dispatcher writes. Every attempt is compared against one run baseline, and a mutation is **terminal**: no retry, no re-baseline, and the change is left in place for you to inspect. |
+| Let a role change the repository | Roles report; the dispatcher writes. Every attempt is compared against one run baseline, and a change is **terminal**: no retry, no re-baseline, and it is left in place for you to inspect. |
 | Audit a non-git tree by default | With no git tree there is no read-only guard at all. Pass `--allow-unguarded` to accept that explicitly; the run then says out loud that the guard is off. |
 | Run two audits in one tree at once | They would interleave their read-only guards and could file two reports for one moment. An atomic `.wgm/audit.lock` (created with `mkdir`) refuses the second before any role runs. |
 | Read or name the holdout scenarios | `scenarios/` belongs to `wgm-validator`. An audit that read it would contaminate the holdout. |
 | Accept `--slug ../../elsewhere` | The slug is a filename. Traversal is rejected before anything runs. |
 | Share a scratch directory between runs | Each run gets its own `mktemp -d` working directory under `.wgm/`, so two concurrent audits cannot race. |
+
+## What the read-only guard actually watches
+
+"Is the working tree dirty?" is the wrong question, because the three cheapest ways for an agent to
+change a repository all leave `git status` spotless. The baseline therefore covers:
+
+| Watched | Catches |
+|---|---|
+| `HEAD` and the current branch | A role that **commits** its edit, amends, resets, or switches branch — the tree goes clean and the change moves into history. |
+| The stash ref and its depth | A role that **stashes** its edit — the tree goes clean and the work hides in `refs/stash`. |
+| Tracked, untracked, **and ignored** paths outside `.wgm/` | A role that writes a **gitignored** path, which never appears in a default `git status` at all. |
+| Unstaged and staged diffs | Ordinary in-place edits. |
+
+`.wgm/` is excluded deliberately: that is the dispatcher's own scratch, and its lock and working
+directory live there.
+
+**Limitation, stated rather than papered over.** This is a before/after comparison, so a role that
+mutates and then reverts *exactly* within its own turn is invisible to it. Closing that needs
+continuous filesystem observation, which this script does not do. Note also that `--ignored` walks
+the ignored tree on every attempt; on a repository with a large vendored or build directory that walk
+is the cost of seeing ignored writes.
 
 ## The report contract
 
@@ -122,7 +143,7 @@ decision is not improved by repeating it.
 | Failure | Retried? | Why |
 |---|---|---|
 | Non-zero exit, timeout, empty output, broken report contract | Yes, up to `--retries` | Transient: a flaky call or a wandering agent may get it right on the next fresh prompt. |
-| A role edited the working tree | **Never** | The baseline is never re-read, so a retry would be measured against the mutated tree and pass. The run aborts at once and the mutation stays visible. |
+| A role changed the repository (tree, HEAD, stash, or an ignored path) | **Never** | The baseline is never re-read, so a retry would be measured against the mutated repository and pass. The run aborts at once and the change stays visible. |
 | The lock is already held | **Never** | Whether to wait for another audit is the operator's call, not the dispatcher's. |
 
 A `--timeout-seconds` bound needs GNU `timeout` or `gtimeout`. Without one the run says so and falls
@@ -133,7 +154,7 @@ back to a cooperative timeout it cannot enforce — it never implies a bound it 
 | Code | Meaning |
 |---|---|
 | `0` | Four persona passes were consolidated and the report was written. |
-| `1` | A role failed, timed out, edited the tree, or broke its report contract. No report was written. |
+| `1` | A role failed, timed out, changed the repository, or broke its report contract. No report was written. |
 | `2` | Refused before any role ran: unknown flag, missing flag value, invalid slug, no agent, a non-git target without `--allow-unguarded`, or another audit holding this tree's lock. |
 
 ## Examples
