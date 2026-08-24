@@ -18,7 +18,7 @@ PowerShell harness, which CI adds). Expect roughly a minute.
 | Target | Runs | Purpose |
 |---|---|---|
 | `make lint` | `shellcheck` plus `bash -n` on every script | Shell correctness and style. |
-| `make docs` | `check-docs.sh`, `check-evals.sh` | Documentation and fixture structure. |
+| `make docs` | `check-docs.sh`, `check-evals.sh`, `check-harnesses.sh` | Documentation, fixture, and harness-contract structure. |
 | `make test` | Every `test-*.sh` harness | Behavior of the shipped scripts. |
 | `make validate` | All three | The complete gate. Alias: `make check`. |
 
@@ -30,6 +30,7 @@ These check artifacts and fail on drift. They are safe to run any time.
 |---|---|---|
 | `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding; marked complete tables have no blank cells; review/evidence/executability protocol contracts remain present | `0` green, `1` red |
 | `check-evals.sh` | `evals/evals.json` is valid JSON with an allow-listed key set, and every case carries `id`, `prompt`, `expected_output`, and a non-empty `assertions` array | `0` green, `1` red, `2` `jq` missing |
+| `check-harnesses.sh` | `compatibility/harnesses.json` — allow-listed keys at every level; only the four statuses `Verified`, `Expected`, `Degraded`, `Unknown`; non-empty discovery paths, invocation command, and `https://` sources; `Verified` only with discovery **and** invocation **and** end-to-end journey evidence; no duplicate or missing harness entries | `0` green, `1` red, `2` `jq` missing |
 | `check-trailers.sh` | Every commit in `BASE..HEAD` — **merge commits included** — carries the trailers the repository mandates | `0` green, `1` red |
 | `check-doc-sync.sh` | A diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or `--warn`, `1` red |
 
@@ -62,6 +63,25 @@ scripts/check-doc-sync.sh --base HEAD~1 --warn
 
 Use `--warn` for the advisory mode the Record step uses: it reports and exits `0`. Omit it to fail.
 
+### check-harnesses.sh
+
+Turns wgm's portability claim into something that can be wrong. `compatibility/harnesses.json`
+records one entry per agent harness — discovery paths, the non-interactive invocation contract,
+subagent capability, the fallback used without it, wgm's adapter status, per-OS evidence, and
+authoritative source URLs — and this gate enforces the evidence rules behind the four statuses.
+
+```bash
+bash scripts/check-harnesses.sh
+WGM_HARNESSES=path/to/other.json bash scripts/check-harnesses.sh   # check one fixture
+```
+
+`Verified` is the only status that requires recorded discovery **plus** non-interactive invocation
+**plus** an end-to-end wgm journey; `Expected` may not carry journey evidence, `Degraded` must name
+the missing capability and its fallback, and `Unknown` may carry no evidence at all. The gate fails
+closed on malformed JSON, a missing file, duplicate ids, unsupported values, and on the deletion of
+any harness wgm publishes a claim about. It needs no network and no vendor CLI — see
+[harness portability](../../references/harness-portability.md).
+
 ## Behavior harnesses
 
 Each shipped script has a harness proving it does what it claims. They use fake agents and throwaway
@@ -77,6 +97,7 @@ repositories, so **no real agent, model, network, or token is needed**.
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
 | `test-check-evals.sh` | The schema gate rejects unknown and missing keys |
+| `test-check-harnesses.sh` | The harness-contract gate rejects an invalid status, a missing discovery path, a `Verified` entry with no evidence, malformed JSON, a deleted harness entry, and a duplicate id — while still accepting a valid `Degraded` entry |
 | `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, and blank marked-table cells |
 | `test-check-trailers.sh` | The trailer audit catches a bare generated merge commit |
 | `test-check-doc-sync.sh` | The doc-sync gate fires on undocumented surface and stays quiet otherwise |
@@ -110,4 +131,5 @@ with a harness that fails it deliberately.
 
 - [Contributing](../../CONTRIBUTING.md) — development prerequisites and the contribution flow.
 - [Artifacts](artifacts.md) — every file wgm reads and writes.
+- [Harness portability](../../references/harness-portability.md) — what `check-harnesses.sh` enforces, and which harnesses are actually verified.
 - [Backpressure in depth](../../references/ralph-loop.md) — the discipline these gates implement.

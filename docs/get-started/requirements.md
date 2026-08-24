@@ -6,7 +6,7 @@ What must be present before you install wgm, and what is optional.
 
 - **For:** anyone about to install wgm, or diagnosing why part of it will not run.
 - **The short version:** you need a skills-compatible agent client. Everything else is optional.
-- **Watch out:** the *skill* needs almost nothing; the *optional scripts* need bash and git.
+- **Watch out:** the *skill* needs almost nothing; the *optional scripts* need bash and git. "Skills-compatible" is not the same as "wgm has been run here" — see the evidence tiers below.
 - **Next:** [Get started](README.md) to install and run your first build.
 
 ## Required
@@ -17,7 +17,19 @@ wgm itself is a portable `SKILL.md` folder. To use it you need exactly one thing
 |---|---|
 | A skills-compatible agent client | To load and follow the skill. Any client that scans a skills directory works. |
 
-Known-good clients:
+Which clients, and how well, is a matter of recorded evidence rather than a blanket claim. wgm keeps
+that record in [`compatibility/harnesses.json`](../../compatibility/harnesses.json), checked by
+`scripts/check-harnesses.sh` and explained in
+[harness portability](../../references/harness-portability.md):
+
+| Status | Means | Clients |
+|---|---|---|
+| `Verified` | wgm has been run here end to end, with the evidence recorded | Copilot CLI |
+| `Expected` | The vendor documents skill discovery and a non-interactive mode; wgm has not been run here | Claude Code, OpenAI Codex CLI, Gemini CLI, Cursor CLI, OpenCode |
+| `Degraded` | Runs, but a named capability is missing and wgm falls back | Pi (no subagent primitive), Aider (no skill discovery — pass `--read` the skill path) |
+| `Unknown` | No reliable evidence either way | Windsurf |
+
+Skills directories the installers write into:
 
 | Client | Skills directory |
 |---|---|
@@ -26,7 +38,8 @@ Known-good clients:
 | VS Code agent mode, and other `.agents` clients | `~/.agents/skills/` |
 
 **Note:** The installers detect which of these exist and install into each. You do not have to
-choose.
+choose. `~/.agents/skills/` is also a documented discovery path for Codex CLI, Gemini CLI, Cursor,
+OpenCode, and Pi, so one install usually covers more clients than it targets.
 
 ## Required for the optional scripts
 
@@ -46,6 +59,12 @@ export WGM_AGENT='claude --dangerously-skip-permissions -p'
 export WGM_AGENT='codex exec'
 ```
 
+The first is `Verified`; the rest are the vendors' documented non-interactive contracts, which wgm
+has not executed. Other harnesses publish one too — `gemini -p`, `agent -p` (Cursor),
+`opencode run`, `pi -p`, `aider --message` — with the same caveat and their sources recorded in
+[harness portability](../../references/harness-portability.md). Check the flags against your
+installed version before letting a loop run unattended.
+
 ## Optional
 
 Nothing here blocks normal use. Each unlocks one capability.
@@ -53,7 +72,7 @@ Nothing here blocks normal use. Each unlocks one capability.
 | Software | Unlocks | Without it |
 |---|---|---|
 | Podman or Docker | Containerized scenario validation (`loop.sh --container`), and the local devcontainer sandbox | Scenarios needing a live service cannot be judged; run the app yourself |
-| `jq` | `scripts/check-evals.sh` | That one gate exits `2` and reports the dependency |
+| `jq` | `scripts/check-evals.sh`, `scripts/check-harnesses.sh` | Those two gates exit `2` and report the dependency |
 | `shellcheck` | `make lint` | You cannot run the shell lint locally; CI still does |
 | `gh`, authenticated | Filing an anonymized lesson upstream (`harvest-hive.sh`) | The courier stays local-only; nothing breaks |
 | `pwsh` | Running the PowerShell installer harness locally | CI still runs it |
@@ -95,3 +114,4 @@ See [Contributing](../../CONTRIBUTING.md) and the [gates reference](../reference
 
 - [Get started](README.md) — install, then run your first build end to end.
 - [Installers reference](../reference/cli-install.md) — every installer flag.
+- [Harness portability](../../references/harness-portability.md) — what each status above is based on, and what wgm does when a client is missing a capability.

@@ -1,0 +1,407 @@
+{
+  "_see": "references/harness-portability.md — the capability/evidence contract this file is checked against by scripts/check-harnesses.sh.",
+  "contract_version": "1",
+  "statuses": {
+    "Verified": "Discovery, non-interactive invocation, AND at least one end-to-end wgm journey are recorded as evidence objects with references. No entry may be Verified without them.",
+    "Expected": "The harness fits the contract on documented evidence (skill discovery and a non-interactive mode are published by the vendor), but no wgm journey has been run and recorded. Expected is a prediction, not a claim.",
+    "Degraded": "wgm runs, but a named host capability is missing. The entry must name the missing capability and the fallback wgm uses without it.",
+    "Unknown": "No reliable evidence either way. Unknown entries carry no evidence objects; sources may still record what a vendor documents."
+  },
+  "harnesses": [
+    {
+      "id": "pi",
+      "name": "Pi",
+      "status": "Degraded",
+      "skill_discovery": {
+        "paths": [
+          "~/.pi/agent/skills/",
+          "~/.agents/skills/",
+          ".pi/skills/",
+          ".agents/skills/"
+        ],
+        "verification": "documented",
+        "notes": "Pi implements the Agent Skills standard natively and reads ~/.agents/skills/, which is exactly where scripts/install.sh puts wgm — so no Pi-specific install step is expected. Documented in Pi's README; not yet executed by wgm."
+      },
+      "invocation": {
+        "command": "pi -p \"PROMPT\"",
+        "non_interactive": true,
+        "verification": "unverified",
+        "notes": "Pi's README documents print mode (-p/--print), JSON-lines mode (--mode json), and RPC mode (--mode rpc). wgm has never executed scripts/loop.sh against pi, so the headless details here are documented-not-executed and the exact flag set may drift."
+      },
+      "subagents": {
+        "capability": "none",
+        "notes": "Pi's README states it deliberately ships without sub agents and plan mode, and expects such workflows to come from extensions or third-party pi packages."
+      },
+      "missing_capability": "Host-dispatched subagents — the two-stage role swarm and the five-role docs-audit swarm have no host primitive to launch.",
+      "fallback": "Run the two review passes and the docs-audit personas inline and sequentially in one context, as references/subagents.md's no-subagent fallback prescribes, and record the dissent explicitly. The portable kernel (grill, plan, loop, deterministic gates) is unaffected.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "A Pi extension or pi package could dispatch role subagents; none is written. Until one exists, Pi runs the portable kernel only."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm run",
+        "macos": "unverified — no recorded wgm run",
+        "windows": "unverified — Pi documents Windows and Termux setup; no recorded wgm run"
+      },
+      "sources": [
+        "https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md",
+        "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md",
+        "https://agentskills.io"
+      ],
+      "evidence": [],
+      "notes": "Next real dogfood target. Running one full wgm journey under Pi is what would move discovery and invocation to verified; the missing subagent primitive keeps the entry Degraded regardless, until a Pi adapter exists."
+    },
+    {
+      "id": "copilot-cli",
+      "name": "GitHub Copilot CLI",
+      "status": "Verified",
+      "skill_discovery": {
+        "paths": [
+          "~/.copilot/skills/",
+          "~/.agents/skills/",
+          ".agents/skills/",
+          ".github/skills/",
+          ".claude/skills/"
+        ],
+        "verification": "verified",
+        "notes": "scripts/install.sh installs into ~/.copilot/skills/wgm and ~/.agents/skills/wgm, and scripts/test-install.sh asserts that layout on every run."
+      },
+      "invocation": {
+        "command": "copilot -p \"PROMPT\" --allow-all-tools",
+        "non_interactive": true,
+        "verification": "verified",
+        "notes": "Published as wgm's reference non-interactive contract in docs/reference/cli-loop.md and used by scripts/loop.sh; the permission flag is required for unattended tool use."
+      },
+      "subagents": {
+        "capability": "host-dispatched",
+        "notes": "The twelve role agents in .github/agents/*.agent.md are launched by the host dispatcher; the portable runner never claims to launch them itself."
+      },
+      "missing_capability": "",
+      "fallback": "If the host session cannot dispatch custom agents, run both review passes and the docs-audit personas inline and sequentially, preserving dissent.",
+      "adapter": {
+        "status": "adapter-shipped",
+        "notes": "wgm ships the host-format role agents this harness dispatches (.github/agents/*.agent.md), checked structurally by scripts/check-docs.sh."
+      },
+      "os_evidence": {
+        "linux": "verified — wgm's own development, loop, and docs-audit runs execute here",
+        "macos": "unverified — no recorded wgm run",
+        "windows": "unverified — native-Windows runs are not recorded; the WSL mirror path is exercised by scripts/test-install.sh"
+      },
+      "sources": [
+        "https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli",
+        "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills",
+        "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills"
+      ],
+      "evidence": [
+        {
+          "kind": "discovery",
+          "ref": "scripts/install.sh, scripts/test-install.sh",
+          "detail": "The installer writes ~/.copilot/skills/wgm and the harness asserts the installed layout, including the companion skills and the uninstall path."
+        },
+        {
+          "kind": "invocation",
+          "ref": "docs/reference/cli-loop.md, scripts/loop.sh",
+          "detail": "`copilot -p --allow-all-tools` is the published non-interactive contract the loop runs unattended."
+        },
+        {
+          "kind": "journey",
+          "ref": "docs/audit/, docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md, git log Copilot-Session trailers",
+          "detail": "This repository's own grill → plan → loop → review → docs-audit journeys were driven from Copilot CLI; every commit carries a Copilot-Session trailer and the audits are committed as a paper trail."
+        }
+      ],
+      "notes": "The only harness with all three evidence tiers on record. macOS and native Windows remain unverified even here — Verified is per-contract, not per-platform."
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "status": "Expected",
+      "skill_discovery": {
+        "paths": [
+          "~/.claude/skills/",
+          ".claude/skills/"
+        ],
+        "verification": "documented",
+        "notes": "Anthropic documents personal and project skill directories; scripts/install.sh targets ~/.claude/skills/wgm when that directory exists."
+      },
+      "invocation": {
+        "command": "claude -p \"PROMPT\" --dangerously-skip-permissions",
+        "non_interactive": true,
+        "verification": "documented",
+        "notes": "Headless mode is documented by the vendor and published in wgm's docs; no recorded wgm run pins the flag set."
+      },
+      "subagents": {
+        "capability": "native",
+        "notes": "Claude Code documents subagents, but wgm ships no Claude-format agent definitions, so the role swarm runs inline unless the operator authors them."
+      },
+      "missing_capability": "",
+      "fallback": "Inline sequential two-pass review per references/subagents.md when no host-format agent definitions are installed.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "Translating .github/agents/*.agent.md into Claude subagent definitions is unwritten work."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://docs.claude.com/en/docs/claude-code/skills",
+        "https://docs.claude.com/en/docs/claude-code/headless",
+        "https://docs.claude.com/en/docs/claude-code/sub-agents"
+      ],
+      "evidence": [],
+      "notes": "wgm's docs have long listed this harness as known-good, but the repository holds no recorded end-to-end journey, so the contract rates it Expected. Promoting it needs one recorded run, not a stronger adjective."
+    },
+    {
+      "id": "codex-cli",
+      "name": "OpenAI Codex CLI",
+      "status": "Expected",
+      "skill_discovery": {
+        "paths": [
+          ".agents/skills/",
+          "$REPO_ROOT/.agents/skills/",
+          "~/.agents/skills/",
+          "/etc/codex/skills/"
+        ],
+        "verification": "documented",
+        "notes": "OpenAI documents repo-, user-, admin-, and system-scoped skills; the user scope is ~/.agents/skills, which scripts/install.sh already writes."
+      },
+      "invocation": {
+        "command": "codex exec \"PROMPT\"",
+        "non_interactive": true,
+        "verification": "documented",
+        "notes": "wgm's docs publish `codex exec`; sandbox and approval flags vary by version and are deliberately not pinned here."
+      },
+      "subagents": {
+        "capability": "unknown",
+        "notes": "Third-party claims that Codex CLI exposes a dispatchable subagent primitive are not corroborated by OpenAI's skills documentation; treat Codex subagent capability as unverified."
+      },
+      "missing_capability": "",
+      "fallback": "Inline sequential two-pass review per references/subagents.md; assume no host subagent dispatch until it is corroborated.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "No Codex-format role definitions ship with wgm."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://developers.openai.com/codex/cli/",
+        "https://learn.chatgpt.com/docs/build-skills"
+      ],
+      "evidence": [],
+      "notes": "Skill discovery is the strongest documented fit after Copilot CLI; the unverified part is subagent dispatch, not loading the skill."
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "status": "Expected",
+      "skill_discovery": {
+        "paths": [
+          "~/.gemini/skills/",
+          "~/.agents/skills/",
+          ".gemini/skills/",
+          ".agents/skills/"
+        ],
+        "verification": "documented",
+        "notes": "Gemini CLI documents user and workspace skills and treats .agents/skills as an interoperable alias that takes precedence over .gemini/skills."
+      },
+      "invocation": {
+        "command": "gemini -p \"PROMPT\"",
+        "non_interactive": true,
+        "verification": "documented",
+        "notes": "Headless mode is documented by the vendor; wgm has no recorded run, so approval/tool flags for unattended use are unverified."
+      },
+      "subagents": {
+        "capability": "unknown",
+        "notes": "No subagent primitive wgm can dispatch was corroborated in the vendor CLI documentation."
+      },
+      "missing_capability": "",
+      "fallback": "Inline sequential two-pass review per references/subagents.md.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "No Gemini-format role definitions ship with wgm."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
+        "https://google-gemini.github.io/gemini-cli/docs/cli/headless.html"
+      ],
+      "evidence": [],
+      "notes": "Contract-fit on documentation alone. Nothing here has been executed by wgm."
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor CLI",
+      "status": "Expected",
+      "skill_discovery": {
+        "paths": [
+          ".agents/skills/",
+          ".cursor/skills/",
+          "~/.agents/skills/",
+          "~/.cursor/skills/"
+        ],
+        "verification": "documented",
+        "notes": "Cursor documents Agent Skills discovery from project and user directories, and additionally loads Claude- and Codex-compatible skill directories."
+      },
+      "invocation": {
+        "command": "agent -p \"PROMPT\"",
+        "non_interactive": true,
+        "verification": "documented",
+        "notes": "Cursor's CLI binary is `agent`; print mode is documented for scripts and CI. Model and output-format flags are version-dependent and not pinned here."
+      },
+      "subagents": {
+        "capability": "native",
+        "notes": "Cursor documents custom subagents, but wgm ships no Cursor-format subagent definitions, so the role swarm runs inline."
+      },
+      "missing_capability": "",
+      "fallback": "Inline sequential two-pass review per references/subagents.md.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "A Cursor-format translation of .github/agents/*.agent.md is unwritten work."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://cursor.com/docs/skills",
+        "https://cursor.com/docs/cli/overview"
+      ],
+      "evidence": [],
+      "notes": "Documented fit for both discovery and headless invocation; no wgm journey recorded."
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "status": "Expected",
+      "skill_discovery": {
+        "paths": [
+          ".opencode/skills/",
+          "~/.config/opencode/skills/",
+          ".claude/skills/",
+          "~/.claude/skills/",
+          ".agents/skills/",
+          "~/.agents/skills/"
+        ],
+        "verification": "documented",
+        "notes": "OpenCode documents a native skill tool with project-local walk-up discovery plus Claude- and agent-compatible directories, including ~/.agents/skills."
+      },
+      "invocation": {
+        "command": "opencode run \"PROMPT\"",
+        "non_interactive": true,
+        "verification": "documented",
+        "notes": "`opencode run` is documented as the non-interactive entry point. The permission and plugin flags needed for unattended tool use are version-dependent and unverified here — do not copy a flag set from this file into an autonomous run without checking it."
+      },
+      "subagents": {
+        "capability": "native",
+        "notes": "OpenCode documents primary and subagent modes; wgm ships no OpenCode-format agent definitions, so dispatch is the operator's to wire."
+      },
+      "missing_capability": "",
+      "fallback": "Inline sequential two-pass review per references/subagents.md.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "No OpenCode-format role definitions ship with wgm."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://opencode.ai/docs/skills/",
+        "https://opencode.ai/docs/cli/",
+        "https://opencode.ai/docs/agents/"
+      ],
+      "evidence": [],
+      "notes": "Skill discovery is unusually well documented; the flag surface for unattended runs is the unverified part."
+    },
+    {
+      "id": "aider",
+      "name": "Aider",
+      "status": "Degraded",
+      "skill_discovery": {
+        "paths": [
+          "none-documented"
+        ],
+        "verification": "unverified",
+        "notes": "No Agent Skills discovery directory is documented at aider.chat as of 2026-08-24. This is an absence of documentation, not a vendor denial; third-party aggregator pages claiming native SKILL.md support in Aider were not corroborated by the vendor's own docs."
+      },
+      "invocation": {
+        "command": "aider --message \"PROMPT\" --yes-always",
+        "non_interactive": true,
+        "verification": "documented",
+        "notes": "Aider documents scripting via --message/-m, which sends one message and exits. wgm's own loop already lists aider among the CLIs it probes for a non-interactive mode."
+      },
+      "subagents": {
+        "capability": "none",
+        "notes": "No dispatchable subagent primitive is documented."
+      },
+      "missing_capability": "Agent Skills discovery (no directory scan) and host-dispatched subagents.",
+      "fallback": "Load the protocol explicitly instead of relying on discovery — `aider --read ~/.agents/skills/wgm/SKILL.md --message \"...\"`, the same habit as Aider's documented conventions file — and run both review passes inline. The deterministic gates still provide the backpressure.",
+      "adapter": {
+        "status": "adapter-needed",
+        "notes": "Making wgm discoverable here means an explicit --read of SKILL.md, or a wrapper that injects it; neither ships."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://aider.chat/docs/scripting.html",
+        "https://aider.chat/docs/usage/conventions.html"
+      ],
+      "evidence": [],
+      "notes": "The clearest example of the portable kernel surviving a host that lacks the skill layer: the protocol is still text a model can be handed explicitly."
+    },
+    {
+      "id": "windsurf",
+      "name": "Windsurf (Cascade)",
+      "status": "Unknown",
+      "skill_discovery": {
+        "paths": [
+          "~/.agents/skills/",
+          ".agents/skills/",
+          "~/.codeium/windsurf/skills/",
+          ".claude/skills/"
+        ],
+        "verification": "documented",
+        "notes": "Windsurf's Cascade documentation describes Agent Skills discovery including ~/.agents/skills. The positive is documented; wgm has verified none of it."
+      },
+      "invocation": {
+        "command": "none-documented",
+        "non_interactive": false,
+        "verification": "unverified",
+        "notes": "No non-interactive invocation contract for an unattended wgm loop was corroborated on 2026-08-24. Absence of a corroborated headless mode is not proof that none exists."
+      },
+      "subagents": {
+        "capability": "unknown",
+        "notes": "Not corroborated either way."
+      },
+      "missing_capability": "",
+      "fallback": "Use Windsurf interactively for the skill itself and drive scripts/loop.sh from a harness with a corroborated non-interactive mode.",
+      "adapter": {
+        "status": "unknown",
+        "notes": "Nothing to adapt until the invocation contract is established."
+      },
+      "os_evidence": {
+        "linux": "unverified — no recorded wgm journey",
+        "macos": "unverified — no recorded wgm journey",
+        "windows": "unverified — no recorded wgm journey"
+      },
+      "sources": [
+        "https://docs.windsurf.com/windsurf/cascade/skills"
+      ],
+      "evidence": [],
+      "notes": "Carried in the table precisely because it is Unknown: an unlisted harness looks like an oversight, while an Unknown one is a falsifiable statement about what wgm does not know."
+    }
+  ]
+}

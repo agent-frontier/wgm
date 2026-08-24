@@ -34,11 +34,12 @@ lint: ## ShellCheck + bash syntax for every script
 	shellcheck $(SCRIPTS)
 	for s in $(SCRIPTS); do bash -n "$$s"; done
 
-docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixture schema)
+docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixture schema, harness contract)
 	bash scripts/check-docs.sh
 	bash scripts/check-evals.sh
+	bash scripts/check-harnesses.sh
 
-test: ## Run the bash harnesses (install, loop, swarm, devcontainer, harvest-hive, grade-evals, check-evals, check-docs, check-trailers, check-doc-sync)
+test: ## Run the bash harnesses (install, loop, swarm, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync)
 	bash scripts/test-install.sh
 	bash scripts/test-loop.sh
 	bash scripts/test-swarm.sh
@@ -46,6 +47,7 @@ test: ## Run the bash harnesses (install, loop, swarm, devcontainer, harvest-hiv
 	bash scripts/test-harvest-hive.sh
 	bash scripts/test-grade-evals.sh
 	bash scripts/test-check-evals.sh
+	bash scripts/test-check-harnesses.sh
 	bash scripts/test-check-docs.sh
 	bash scripts/test-check-trailers.sh
 	bash scripts/test-check-doc-sync.sh

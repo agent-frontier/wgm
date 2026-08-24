@@ -2,9 +2,12 @@
 
 **An Agent Skill that turns a rough request into working software.**
 
-`wgm` is a portable [Agent Skill](https://agentskills.io) any compatible coding agent (GitHub
-Copilot, Claude Code, OpenAI Codex, VS Code agent mode) can load. Point it at a half-formed idea
-and it runs a disciplined lifecycle:
+`wgm` is a portable [Agent Skill](https://agentskills.io). It has been run end to end on **GitHub
+Copilot CLI**, and is contract-fit on the documented behavior of Claude Code, OpenAI Codex CLI,
+Gemini CLI, Cursor, and OpenCode — with Pi and Aider degrading in named ways. Which is which, and
+on what evidence, is recorded in [`compatibility/harnesses.json`](compatibility/harnesses.json) and
+explained in [harness portability](references/harness-portability.md). Point it at a half-formed
+idea and it runs a disciplined lifecycle:
 
 ```
 Triage → Grill → Plan → Preflight → Loop(Analyze → Implement → Validate → Review → Record) → Ship/Handoff
@@ -219,6 +222,12 @@ flowchart LR
   persona launch and report gate; the portable runner does not pretend to provide that host service.
   Every action item is labeled strictly **Agent action** or **Operator action** and the report is
   indexed with the docs corpus (`references/docs-audit.md`).
+- **Harness capability contract** — "runs on any compatible agent" was unfalsifiable, so wgm now
+  publishes a machine-checked record instead: one entry per harness with its skill-discovery paths,
+  non-interactive invocation contract, subagent capability, named fallback, adapter status, per-OS
+  evidence, and source URLs. Exactly four statuses exist — `Verified` (discovery **and** invocation
+  **and** an end-to-end journey are on record), `Expected`, `Degraded`, `Unknown` — and
+  `scripts/check-harnesses.sh` fails closed on anything else (`references/harness-portability.md`).
 - **Trigger eval** — a hand-curated should/should-not-trigger fixture that catches drift in
   `SKILL.md`'s mode-parsing rule and the "Use this when"/"Do NOT use this when" boundary
   (`references/trigger-eval.md`).
@@ -261,6 +270,7 @@ flowchart LR
 | Understand a repo wgm built me | [Companion skills](docs/companions/README.md) |
 | Look up an exact flag or path | [Reference](docs/reference/README.md) |
 | Fix something | [Troubleshooting](docs/operator/troubleshooting.md) |
+| Know which agents wgm actually runs on | [Harness portability](references/harness-portability.md) |
 | Contribute docs | [Style guide](docs/style-guide.md) |
 
 Full index: [`docs/`](docs/README.md).
@@ -323,9 +333,10 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · telemetry · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · PLUGIN_PROTOCOL · plugin-integration
+├── references/       # grilling · ralph-loop · telemetry · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · harness-portability · PLUGIN_PROTOCOL · plugin-integration
+├── compatibility/    # harnesses.json — the per-harness capability/evidence record (gated by scripts/check-harnesses.sh)
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
-├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · install.sh · install.ps1
+├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · check-harnesses.sh (harness contract) · install.sh · install.ps1
 ├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) · rugged (stress-test a design) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
 └── docs/             # get-started/ · operator/ · companions/ · agent/ · reference/ · style-guide · plans/ · audit/
