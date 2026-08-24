@@ -17,9 +17,21 @@
 #   3. Sanity-checks each bind from the Linux side, explicitly labeled `same-side` — never counted
 #      as Windows-origin evidence.
 #   4. Invokes scripts/test-wsl-reachability.ps1 as a Windows process against BOTH the Windows
-#      localhost endpoint and the WSL IPv4 endpoint for BOTH binds, and refuses any probe output
-#      that does not report a Windows origin platform.
-#   5. Prints a per-endpoint matrix with the observed result, then a verdict.
+#      localhost route and the WSL IPv4 route for BOTH binds, and refuses any probe output that
+#      does not report a Windows origin platform. Probe output is CRLF-normalized before parsing,
+#      because a genuine Windows process reports "origin-platform=Win32NT\r". Each invocation runs
+#      under a hard `timeout` when GNU coreutils is present; otherwise the probe's own -TimeoutSec
+#      bounds every network operation, so no leg can hang the run indefinitely.
+#   5. Prints a per-route matrix with the observed result, then a verdict.
+#
+# Which results are REQUIRED (a failure here is RED) vs OBSERVATIONAL (either answer is data):
+#   * REQUIRED — the all-interfaces bind over the wsl-ipv4 route: page, generated client asset AND
+#     the WebSocket leg. That is the documented working configuration; if it does not serve a
+#     Windows-origin consumer, the run is RED. A WebSocket `unsupported` counts only when the
+#     Windows host lacks the ClientWebSocket type and nothing else failed.
+#   * OBSERVATIONAL — the loopback bind (its failure over wsl-ipv4 IS the boundary from #101) and
+#     every windows-localhost route (localhost forwarding depends on the distro's networking mode).
+#     A missing/unknown observation is never reported as a confirmed boundary.
 #
 # Usage:
 #   scripts/test-wsl-windows-boundary.sh [--timeout SEC] [--keep] [-h|--help]
@@ -36,7 +48,7 @@
 #   WGM_WSL_PWSH                explicit Windows PowerShell executable (default: auto-detect)
 #   WGM_WSL_IPV4                explicit WSL IPv4 address             (default: auto-detect)
 #
-# Exit 0 = green (Windows-origin probe ran and the all-interfaces bind was reachable).
+# Exit 0 = green (a Windows-origin probe ran and every REQUIRED check above passed).
 # Exit 1 = red (a required probe failed, or a probe did not originate on Windows).
 # Exit 2 = usage error.
 # Exit 3 = unsupported host (not WSL, no Windows interop, or no usable Windows PowerShell).
@@ -297,51 +309,128 @@ stop_fixture() {
   SERVER_PID=""
 }
 
-probe_windows() {  # $1 = leg label, $2 = endpoint host, $3 = port, $4 = websocket (0|1)
-  local leg="$1" host="$2" port="$3" want_ws="$4"
+# Windows PowerShell writes CRLF and can block indefinitely if the interop path wedges. Both are
+# handled here, once, so every parse below sees clean LF text and no probe can hang the run.
+PWSH_TIMEOUT=()
+if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n1 | grep -qi 'coreutils'; then
+  PWSH_TIMEOUT=(timeout --preserve-status -k 5 "$((TIMEOUT * 3 + 15))")
+else
+  note "note: GNU timeout not available — falling back to the probe's own cooperative bound (-TimeoutSec $TIMEOUT per network operation, applied to the page, the asset, and the WebSocket). Install coreutils for a hard wall-clock kill."
+fi
+
+run_pwsh() {  # invoke the Windows probe under a hard timeout when one is available
+  ${PWSH_TIMEOUT[@]+"${PWSH_TIMEOUT[@]}"} "$PWSH" "$@"
+}
+
+parse_outcome() {  # $1 = probe output, $2 = endpoint — echoes that endpoint's outcome, or "none"
+  local v
+  v="$(printf '%s\n' "$1" | sed -n "s|^result endpoint=$2 .*outcome=\([a-z-]*\).*|\1|p" | head -n1)"
+  printf '%s' "${v:-none}"
+}
+
+parse_detail() {  # $1 = probe output, $2 = endpoint — echoes that endpoint's detail, or ""
+  printf '%s\n' "$1" | sed -n "s|^result endpoint=$2 .*detail=||p" | head -n1
+}
+
+probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=required(0|1)
+  local leg="$1" via="$2" host="$3" port="$4" want_ws="$5" required="$6"
   local url="http://$host:$port/"
-  local out rc origin http_outcome ws_outcome
+  local asset_url="http://$host:$port/assets/client.js"
+  local ws_url="ws://$host:$port/ws"
+  local out rc origin http_outcome asset_outcome ws_outcome ws_detail
   local -a args=(-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PROBE_WIN_PATH"
                  -Url "$url" -AssetPath "assets/client.js" -TimeoutSec "$TIMEOUT")
   if [[ "$want_ws" -eq 1 ]]; then
-    args+=(-WebSocketUrl "ws://$host:$port/ws")
+    args+=(-WebSocketUrl "$ws_url")
   fi
 
-  out="$("$PWSH" "${args[@]}" 2>&1)"; rc=$?
+  out="$(run_pwsh "${args[@]}" 2>&1)"; rc=$?
+  # Strip CR once, up front: a genuine Windows probe reports "origin-platform=Win32NT\r", and a
+  # comparison against the un-normalized string would reject real field evidence as non-Windows.
+  out="${out//$'\r'/}"
 
   origin="$(printf '%s\n' "$out" | sed -n 's/^origin-platform=//p' | head -n1)"
-  http_outcome="$(printf '%s\n' "$out" | sed -n "s|^result endpoint=$url .*outcome=\([a-z]*\).*|\1|p" | head -n1)"
-  ws_outcome="$(printf '%s\n' "$out" | sed -n 's|^result endpoint=ws://.* outcome=\([a-z]*\).*|\1|p' | head -n1)"
-  [[ -n "$http_outcome" ]] || http_outcome="none"
-  [[ -n "$ws_outcome" ]] || ws_outcome="not-requested"
-
-  if [[ "$origin" != "Win32NT" ]]; then
-    fail "probe for $leg $url did not originate on Windows (origin-platform='${origin:-missing}', rc=$rc). Refusing to record a same-side result as Windows-origin evidence."
-    printf '%s\n' "$out" | sed 's/^/      /' >&2
-    FAILED=1
-    RESULTS+=("$leg|$url|origin=NOT-WINDOWS|http=$http_outcome|ws=$ws_outcome|rc=$rc")
-    return 1
+  http_outcome="$(parse_outcome "$out" "$url")"
+  asset_outcome="$(parse_outcome "$out" "$asset_url")"
+  if [[ "$want_ws" -eq 1 ]]; then
+    ws_outcome="$(parse_outcome "$out" "$ws_url")"
+    ws_detail="$(parse_detail "$out" "$ws_url")"
+  else
+    ws_outcome="not-requested"
+    ws_detail=""
   fi
 
+  if [[ "$origin" != "Win32NT" ]]; then
+    fail "probe for $leg ($via) $url did not originate on Windows (origin-platform='${origin:-missing}', rc=$rc). Refusing to record a same-side result as Windows-origin evidence."
+    printf '%s\n' "$out" | sed 's/^/      /' >&2
+    FAILED=1
+    RESULTS+=("$leg|via=$via|$url|origin=NOT-WINDOWS|http=$http_outcome|asset=$asset_outcome|ws=$ws_outcome|rc=$rc|required=$required")
+    return 1
+  fi
   WINDOWS_ORIGIN_SEEN=1
-  RESULTS+=("$leg|$url|origin=windows|http=$http_outcome|ws=$ws_outcome|rc=$rc")
-  note "$(printf '%-19s' "$leg") endpoint=$url  windows-origin=yes  http=$http_outcome  websocket=$ws_outcome  probe-rc=$rc"
-  [[ "$rc" -eq 0 ]]
+
+  local -a problems=()
+
+  # A probe-error is a harness/input fault, never an observation: fatal on every leg, required or
+  # not, because it means the probe never actually measured anything.
+  if grep -q '^probe-error=' <<<"$out"; then
+    problems+=("probe reported an input error: $(printf '%s\n' "$out" | sed -n 's/^probe-error=//p' | head -n1)")
+  fi
+
+  # A WebSocket leg is allowed to come back `unsupported` ONLY when the client type is missing on
+  # the Windows host and nothing else failed. Any other unsupported/fail is a real failure.
+  local ws_allowed=0
+  if [[ "$want_ws" -eq 1 ]]; then
+    case "$ws_outcome" in
+      ok) ws_allowed=1 ;;
+      unsupported)
+        if [[ "$rc" -eq 0 ]] && [[ "$ws_detail" == *ClientWebSocket-type-unavailable* ]]; then
+          ws_allowed=1
+          note "$(printf '%-19s' "$leg") ($via) websocket check UNSUPPORTED on this Windows host (no ClientWebSocket type) — reported, not counted as a pass"
+        fi
+        ;;
+    esac
+  else
+    ws_allowed=1
+  fi
+
+  if [[ "$required" -eq 1 ]]; then
+    [[ "$http_outcome"  == "ok" ]] || problems+=("required page fetch failed: $url -> $http_outcome")
+    [[ "$asset_outcome" == "ok" ]] || problems+=("required client-asset fetch failed: $asset_url -> $asset_outcome")
+    [[ "$ws_allowed" -eq 1 ]]      || problems+=("required WebSocket leg failed: $ws_url -> $ws_outcome")
+    [[ "$rc" -eq 0 ]]              || problems+=("required probe exited $rc")
+  fi
+
+  RESULTS+=("$leg|via=$via|$url|origin=windows|http=$http_outcome|asset=$asset_outcome|ws=$ws_outcome|rc=$rc|required=$required")
+  note "$(printf '%-19s' "$leg") via=$(printf '%-16s' "$via") endpoint=$url  windows-origin=yes  http=$http_outcome  asset=$asset_outcome  websocket=$ws_outcome  probe-rc=$rc  required=$required"
+
+  if [[ "${#problems[@]}" -gt 0 ]]; then
+    local p
+    for p in "${problems[@]}"; do
+      fail "$leg ($via): $p"
+    done
+    FAILED=1
+    return 1
+  fi
+  return 0
 }
 
-outcome_for() {  # $1 = recorded row prefix — echoes that row's http outcome
-  local row
+field_for() {  # $1 = row prefix, $2 = field name — echoes the recorded value, or "unknown"
+  local row val
   for row in ${RESULTS[@]+"${RESULTS[@]}"}; do
     if [[ "$row" == "$1"* ]]; then
-      printf '%s' "$row" | sed -n 's/.*|http=\([a-z-]*\)|.*/\1/p'
+      val="$(printf '%s' "$row" | sed -n "s/.*|$2=\([a-z0-9-]*\).*/\1/p")"
+      printf '%s' "${val:-unknown}"
       return 0
     fi
   done
-  printf 'missing'
+  # No row at all means the probe never produced a recorded observation. That is an UNKNOWN, not a
+  # negative result — reporting it as a confirmed boundary would invent evidence.
+  printf 'unknown'
 }
 
-run_leg() {  # $1 = leg label, $2 = bind address
-  local leg="$1" bind="$2" port
+run_leg() {  # $1 = leg label, $2 = bind address, $3 = wsl-ipv4 route required (0|1)
+  local leg="$1" bind="$2" required="$3" port
   port="$(free_port)"
   if [[ -z "$port" ]]; then
     fail "could not allocate a free port for $leg"
@@ -366,19 +455,27 @@ run_leg() {  # $1 = leg label, $2 = bind address
     FAILED=1
   fi
 
-  probe_windows "$leg" "127.0.0.1" "$port" 0 || true
-  probe_windows "$leg" "$WSL_IPV4" "$port" 1 || true
+  # `via=` labels the ROUTE, not the literal address, so the two endpoints stay distinguishable even
+  # when they render identically (e.g. WGM_WSL_IPV4=127.0.0.1 on a lab host).
+  # The Windows-localhost route is observational on both legs: whether WSL's localhost forwarding
+  # covers it depends on the distro's networking mode, and either answer is informative.
+  probe_windows "$leg" "windows-localhost" "127.0.0.1" "$port" 0 0
+  # The WSL-IPv4 route on the ALL-INTERFACES bind is the documented working configuration, so its
+  # page, client asset, and WebSocket are REQUIRED. probe_windows raises FAILED itself, so no
+  # caller can `|| true` a required failure away. The same route on the LOOPBACK bind is the
+  # observation under test — its failure is the boundary, not a harness fault.
+  probe_windows "$leg" "wsl-ipv4" "$WSL_IPV4" "$port" 1 "$required"
 
   stop_fixture
 }
 
 note "fixture: stdlib HTTP+WebSocket service, disposable, bound only to this machine's interfaces"
-run_leg "loopback-bind" "127.0.0.1"
-run_leg "all-interfaces-bind" "0.0.0.0"
+run_leg "loopback-bind" "127.0.0.1" 0
+run_leg "all-interfaces-bind" "0.0.0.0" 1
 
 # ---- 3. verdict --------------------------------------------------------------------------------
 echo
-echo "wsl-boundary: observed matrix (leg | endpoint | probe origin | http | websocket | probe rc)"
+echo "wsl-boundary: observed matrix (leg | route | endpoint | probe origin | http | asset | websocket | probe rc | required)"
 for row in ${RESULTS[@]+"${RESULTS[@]}"}; do
   printf '  %s\n' "${row//|/ | }"
 done
@@ -390,22 +487,28 @@ if [[ "$WINDOWS_ORIGIN_SEEN" -eq 0 ]]; then
   exit 1
 fi
 
-LOOPBACK_WSLIP="$(outcome_for "loopback-bind|http://$WSL_IPV4:")"
-ALLIF_WSLIP="$(outcome_for "all-interfaces-bind|http://$WSL_IPV4:")"
+LOOPBACK_WSLIP="$(field_for "loopback-bind|via=wsl-ipv4|" http)"
+ALLIF_WSLIP="$(field_for "all-interfaces-bind|via=wsl-ipv4|" http)"
+ALLIF_ASSET="$(field_for "all-interfaces-bind|via=wsl-ipv4|" asset)"
+ALLIF_WS="$(field_for "all-interfaces-bind|via=wsl-ipv4|" ws)"
 
-note "loopback bind, probed from Windows at the WSL IPv4 address: http=${LOOPBACK_WSLIP:-missing}"
-note "all-interfaces bind, probed from Windows at the WSL IPv4 address: http=${ALLIF_WSLIP:-missing}"
+note "loopback bind      via=wsl-ipv4 (http://$WSL_IPV4/): http=$LOOPBACK_WSLIP"
+note "all-interfaces bind via=wsl-ipv4 (http://$WSL_IPV4/): http=$ALLIF_WSLIP asset=$ALLIF_ASSET websocket=$ALLIF_WS"
 
-if [[ "$ALLIF_WSLIP" != "ok" ]]; then
-  fail "the all-interfaces bind was NOT reachable from Windows at http://$WSL_IPV4/ — the documented working configuration is broken on this host (firewall, WSL networking mode, or the fixture)."
+if [[ "$ALLIF_WSLIP" != "ok" || "$ALLIF_ASSET" != "ok" ]] || [[ "$ALLIF_WS" != "ok" && "$ALLIF_WS" != "unsupported" ]]; then
+  fail "the all-interfaces bind did not fully serve a Windows-origin consumer at http://$WSL_IPV4/ (http=$ALLIF_WSLIP asset=$ALLIF_ASSET websocket=$ALLIF_WS) — the documented working configuration is broken on this host (firewall, WSL networking mode, or the fixture)."
   FAILED=1
 fi
 
-if [[ "$LOOPBACK_WSLIP" == "ok" ]]; then
-  note "note: the loopback bind was ALSO reachable at the WSL IPv4 address on this host — this distro is not using the NAT networking mode that produced [learn] #101 (mirrored networking, or a forwarder). The boundary caveat still applies to hosts that are."
-else
-  note "boundary confirmed: a WSL-loopback bind is invisible to a Windows-origin consumer at the WSL IPv4 address ([learn] agent-frontier/wgm#101). Publish on all interfaces and consume at the WSL IPv4 address."
-fi
+case "$LOOPBACK_WSLIP" in
+  ok)
+    note "note: the loopback bind was ALSO reachable at the WSL IPv4 address on this host — this distro is not using the NAT networking mode that produced [learn] #101 (mirrored networking, or a forwarder). The boundary caveat still applies to hosts that are." ;;
+  fail)
+    note "boundary confirmed: a WSL-loopback bind is invisible to a Windows-origin consumer at the WSL IPv4 address ([learn] agent-frontier/wgm#101). Publish on all interfaces and consume at the WSL IPv4 address." ;;
+  *)
+    fail "no usable observation for the loopback bind via wsl-ipv4 (http=$LOOPBACK_WSLIP) — the boundary is UNKNOWN on this host, not confirmed. Re-run once the probe can reach that endpoint."
+    FAILED=1 ;;
+esac
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "wsl-boundary: GREEN"

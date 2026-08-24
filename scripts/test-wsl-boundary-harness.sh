@@ -13,6 +13,18 @@
 #      a same-side simulation can never be relabeled as Windows-origin evidence ([learn] #101).
 #   E  scripts/test-wsl-reachability.ps1 rejects a bad URL (exit 2), reports an unreachable endpoint
 #      as a failure (exit 1), and fetches a live local fixture (exit 0) — skipped when no pwsh.
+#   F  the accept path and the required-failure path, driven by a SIMULATED Windows PowerShell that
+#      speaks the probe's output contract with CRLF line endings: a genuine `Win32NT\r` must be
+#      accepted as a Windows origin, a run where the page is 200 but the client asset or the
+#      WebSocket fails must end RED, and a probe that returns no observation must be reported as
+#      UNKNOWN rather than as a confirmed boundary.
+#
+# ON THE TEST DOUBLES IN SECTION F: they exist ONLY to exercise this orchestrator's parsing and
+# verdict logic, and they announce themselves (`origin-host=SIMULATED-...`). They reach the probe
+# path solely because this harness redirects WGM_WSL_WINDOWS_MOUNT_ROOT at a scratch directory —
+# something no real run does. A GREEN from a simulated double is a statement about the harness, and
+# NEVER field evidence about a real Windows -> WSL boundary; only a run on a real Windows+WSL host
+# can produce that (see [learn] issue agent-frontier/wgm#101, which remains open until one is).
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -164,6 +176,150 @@ if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
   fi
 else
   printf 'note: python3/curl missing — skipping the simulated-origin cases (D1-D3).\n'
+fi
+
+# ---- F: accept path and required-failure path (SIMULATED Windows PowerShell) --------------------
+# One env-driven double covers every case. It emits CRLF exactly like a real Windows process, and
+# counts its invocations so it can answer differently per leg: the orchestrator always probes the
+# loopback bind first (2 calls: windows-localhost, then wsl-ipv4) and the all-interfaces bind second.
+SIM_PWSH="$FAKE_MOUNT_ROOT/c/simulated-powershell.exe"
+cat >"$SIM_PWSH" <<'SIMEOF'
+#!/usr/bin/env bash
+# HARNESS TEST DOUBLE — a SIMULATED Windows PowerShell. Its output is never field evidence.
+url=""; ws=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -Url) url="$2"; shift 2 ;;
+    -WebSocketUrl) ws="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+n=1
+if [[ -n "${FAKE_COUNTER:-}" ]]; then
+  n=$(( $(cat "$FAKE_COUNTER" 2>/dev/null || echo 0) + 1 ))
+  printf '%s\n' "$n" >"$FAKE_COUNTER"
+fi
+
+crlf() { printf '%s\r\n' "$*"; }
+crlf "origin-platform=Win32NT"
+crlf "origin-host=SIMULATED-WINDOWS-DOUBLE"
+
+asset="${url}assets/client.js"
+rc=0
+case "${FAKE_MODE:-all-ok}" in
+  boundary)
+    # Calls 1-2 are the loopback bind: unreachable from "Windows", which IS the #101 observation.
+    if [[ "$n" -le 2 ]]; then
+      crlf "result endpoint=$url kind=http status=none outcome=fail detail=webexception:refused"
+      crlf "result endpoint=$asset kind=http status=none outcome=fail detail=webexception:refused"
+      [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=none outcome=fail detail=exception:refused"
+      rc=1
+    else
+      crlf "result endpoint=$url kind=http status=200 outcome=ok detail=bytes=60"
+      crlf "result endpoint=$asset kind=http status=200 outcome=ok detail=bytes=80"
+      [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=101 outcome=ok detail=echo=wgm-probe"
+    fi
+    ;;
+  asset-fail)
+    crlf "result endpoint=$url kind=http status=200 outcome=ok detail=bytes=60"
+    crlf "result endpoint=$asset kind=http status=404 outcome=fail detail=unexpected-status"
+    [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=101 outcome=ok detail=echo=wgm-probe"
+    rc=1
+    ;;
+  ws-fail)
+    crlf "result endpoint=$url kind=http status=200 outcome=ok detail=bytes=60"
+    crlf "result endpoint=$asset kind=http status=200 outcome=ok detail=bytes=80"
+    [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=none outcome=fail detail=exception:upgrade-refused"
+    [[ -n "$ws" ]] && rc=1
+    ;;
+  silent)
+    # Windows origin, but no observation at all: the orchestrator must call this UNKNOWN.
+    :
+    ;;
+  ws-unsupported)
+    crlf "result endpoint=$url kind=http status=200 outcome=ok detail=bytes=60"
+    crlf "result endpoint=$asset kind=http status=200 outcome=ok detail=bytes=80"
+    [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=none outcome=unsupported detail=ClientWebSocket-type-unavailable-on-this-host"
+    ;;
+  *)
+    crlf "result endpoint=$url kind=http status=200 outcome=ok detail=bytes=60"
+    crlf "result endpoint=$asset kind=http status=200 outcome=ok detail=bytes=80"
+    [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=101 outcome=ok detail=echo=wgm-probe"
+    ;;
+esac
+crlf "probe-exit=$rc"
+exit "$rc"
+SIMEOF
+chmod +x "$SIM_PWSH"
+
+sim_boundary() {  # $1 = FAKE_MODE — run the orchestrator against the simulated Windows double
+  : >"$TMP/fake-counter"
+  run_boundary "PATH=$TMP/shim:$PATH" "FAKE_MODE=$1" "FAKE_COUNTER=$TMP/fake-counter" \
+               "WGM_WSL_PROC_VERSION_FILE=$IS_WSL" "WGM_WSL_BINFMT_DIR=$BINFMT_OK" \
+               "WGM_WSL_WINDOWS_MOUNT_ROOT=$FAKE_MOUNT_ROOT" "WGM_WSL_PWSH=$SIM_PWSH" \
+               "WGM_WSL_IPV4=127.0.0.1"
+}
+
+if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
+  printf 'note: section F drives a SIMULATED Windows PowerShell — harness coverage only, never field evidence.\n'
+
+  # F1 accept path: CRLF Win32NT is accepted, the required all-interfaces leg passes, and the
+  # loopback leg's failure is reported as the boundary rather than as a harness fault.
+  sim_boundary boundary
+  if [[ "$RC" -eq 0 ]] && grep -q "wsl-boundary: GREEN" <<<"$OUT" && grep -q "origin=windows" <<<"$OUT"; then
+    pass "F1 a CRLF 'Win32NT' origin is accepted and the run completes (simulated double, not evidence)"
+  else
+    fail "F1 CRLF Windows origin was not accepted (rc=$RC): $OUT"
+  fi
+
+  if grep -q "boundary confirmed" <<<"$OUT" && ! grep -q "did not originate on Windows" <<<"$OUT"; then
+    pass "F2 an observational loopback failure is reported as the boundary, not as a harness failure"
+  else
+    fail "F2 the loopback observation was not reported as the boundary: $OUT"
+  fi
+
+  # WGM_WSL_IPV4=127.0.0.1 makes both endpoint URLs identical, so the route label is the only thing
+  # keeping them apart. Both routes must still be present for both legs (4 rows).
+  rows="$(grep -c '| via=' <<<"$OUT" || true)"
+  if [[ "$rows" -eq 4 ]] && grep -q "via=windows-localhost" <<<"$OUT" && grep -q "via=wsl-ipv4" <<<"$OUT"; then
+    pass "F3 routes stay unambiguous when the WSL IPv4 equals 127.0.0.1 (4 labeled rows)"
+  else
+    fail "F3 route labels were ambiguous or incomplete (rows=$rows): $OUT"
+  fi
+
+  # F4 required client asset fails while the page is 200 — a root-page-only verdict would miss it.
+  sim_boundary asset-fail
+  if [[ "$RC" -ne 0 ]] && grep -q "wsl-boundary: RED" <<<"$OUT" && grep -q "required client-asset fetch failed" <<<"$OUT"; then
+    pass "F4 a 200 page with a failing client asset ends RED"
+  else
+    fail "F4 a failing client asset did not end RED (rc=$RC): $OUT"
+  fi
+
+  # F5 required WebSocket leg fails while page and asset are fine.
+  sim_boundary ws-fail
+  if [[ "$RC" -ne 0 ]] && grep -q "wsl-boundary: RED" <<<"$OUT" && grep -q "required WebSocket leg failed" <<<"$OUT"; then
+    pass "F5 a failing WebSocket leg ends RED even when page and asset are ok"
+  else
+    fail "F5 a failing WebSocket leg did not end RED (rc=$RC): $OUT"
+  fi
+
+  # F6 `unsupported` is tolerated ONLY as "the Windows host has no ClientWebSocket type".
+  sim_boundary ws-unsupported
+  if [[ "$RC" -eq 0 ]] && grep -q "websocket check UNSUPPORTED" <<<"$OUT" && grep -q "not counted as a pass" <<<"$OUT"; then
+    pass "F6 an unavailable WebSocket client type is reported as unsupported, not as a pass"
+  else
+    fail "F6 unsupported WebSocket handling is wrong (rc=$RC): $OUT"
+  fi
+  # F7 a probe that returns no observation must never be read as a confirmed boundary.
+  sim_boundary silent
+  if [[ "$RC" -ne 0 ]] && grep -q "boundary is UNKNOWN" <<<"$OUT" && ! grep -q "boundary confirmed" <<<"$OUT"; then
+    pass "F7 a missing observation is reported UNKNOWN, never as a confirmed boundary"
+  else
+    fail "F7 a missing observation was not reported as UNKNOWN (rc=$RC): $OUT"
+  fi
+else
+  printf 'note: python3/curl missing — skipping the simulated accept/failure cases (F1-F7).\n'
 fi
 
 # ---- E: the Windows-origin probe itself ---------------------------------------------------------

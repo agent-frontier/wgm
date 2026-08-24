@@ -132,6 +132,15 @@ browser, editor, or CLI can connect.
   WebSocket, not just `/health`: an upgrade can fail where a plain GET succeeds. Where the WebSocket
   client type is unavailable, report that check as **unsupported** rather than folding it into a
   pass.
+- **Judge the whole consumer path, not the index page.** Require the page, the generated client
+  assets and the requested WebSocket to succeed on the configuration you claim works; a 200 on `/`
+  hides a broken asset route or a refused upgrade. Distinguish *required* legs (the documented
+  working configuration) from *observational* ones (the bind whose failure IS the boundary), and
+  report a missing observation as **unknown** rather than as a confirmed boundary.
+- **Normalize and bound the cross-OS subprocess.** Windows processes emit CRLF, so strip it once
+  before parsing or a real `Win32NT\r` gets rejected as a non-Windows origin; and wrap each interop
+  invocation in a wall-clock timeout (falling back to the probe's own per-operation bound) so a
+  wedged interop path cannot hang the run.
 - **Fail loudly on an unsupported host.** If the environment cannot host the real boundary (no WSL,
   no interop, no Windows PowerShell on a Windows mount), exit nonzero with the reason. A synthetic
   `wsl.exe`/`powershell.exe` shim on the guest filesystem is a test double for the harness's own

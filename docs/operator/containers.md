@@ -90,12 +90,23 @@ bash scripts/test-wsl-windows-boundary.sh
 ```
 
 It publishes a disposable service on loopback and then on all interfaces, drives
-`scripts/test-wsl-reachability.ps1` as a **real Windows process** (page + generated client asset +
-WebSocket), and prints the observed result per endpoint. On any other host it exits **3** with the
-reason instead of pretending to pass. The portable half —
-`bash scripts/test-wsl-boundary-harness.sh` — runs anywhere and covers the harness's own failure
-paths. Source of this caveat: `[learn]` issue
-[`agent-frontier/wgm#101`](https://github.com/agent-frontier/wgm/issues/101).
+`scripts/test-wsl-reachability.ps1` as a **real Windows process**, and prints the observed result per
+**route** (`via=windows-localhost` and `via=wsl-ipv4`), so the two binds are never conflated.
+
+Green requires the *documented working configuration* to work end to end: on the **all-interfaces**
+bind over the **wsl-ipv4** route, the page, the generated client asset **and** the WebSocket must all
+succeed — a 200 on the index page alone is not a pass. A WebSocket result of `unsupported` is
+tolerated only when the Windows host has no `ClientWebSocket` type, and it is reported as
+unsupported, never as a pass. The loopback bind is *observational*: its failure over `wsl-ipv4` is
+the boundary itself, and a missing observation is reported as **UNKNOWN**, never as a confirmed
+boundary. On any other host the script exits **3** with the reason instead of pretending to pass.
+
+The portable half — `bash scripts/test-wsl-boundary-harness.sh` — runs anywhere (and in CI) and
+covers the harness's own accept/failure paths. Hosted CI cannot run the real boundary: Linux runners
+have no Windows interop and Windows runners have no WSL distro, so treat the boundary as verified
+only after a run on a real Windows+WSL machine. Source of this caveat: `[learn]` issue
+[`agent-frontier/wgm#101`](https://github.com/agent-frontier/wgm/issues/101), which stays open until
+such a run is recorded.
 
 See also: [running-the-loop.md](running-the-loop.md) ·
 [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
