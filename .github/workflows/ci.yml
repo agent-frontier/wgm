@@ -54,6 +54,9 @@ jobs:
       - name: Evals fixture schema check
         run: bash scripts/check-evals.sh
 
+      - name: Harness contract check
+        run: bash scripts/check-harnesses.sh
+
       - name: Install harness (bash)
         run: bash scripts/test-install.sh
 
@@ -71,6 +74,9 @@ jobs:
 
       - name: Check-evals harness (bash)
         run: bash scripts/test-check-evals.sh
+
+      - name: Check-harnesses harness (bash)
+        run: bash scripts/test-check-harnesses.sh
 
       - name: Check-docs harness (bash)
         run: bash scripts/test-check-docs.sh
