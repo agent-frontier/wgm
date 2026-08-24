@@ -100,8 +100,13 @@ change a repository all leave `git status` spotless. The baseline therefore cove
 |---|---|
 | `HEAD` and the current branch | A role that **commits** its edit, amends, resets, or switches branch — the tree goes clean and the change moves into history. |
 | The stash ref and its depth | A role that **stashes** its edit — the tree goes clean and the work hides in `refs/stash`. |
-| Tracked, untracked, **and ignored** paths outside `.wgm/` | A role that writes a **gitignored** path, which never appears in a default `git status` at all. |
+| Tracked, untracked, **and ignored** paths outside `.wgm/` | A role that creates or deletes a **gitignored** path, which never appears in a default `git status` at all. |
+| A **content fingerprint of every ignored regular file** outside `.wgm/` | A role that *overwrites* an ignored file that already existed — `.env`, `.envrc`, a cached build artifact. The path list is identical before and after, so only the content betrays it. |
 | A content hash of the staged and unstaged diffs | An in-place edit to a file that was already modified, where the status line does not change. |
+
+Symlinks are recorded by their **target and never followed**, and FIFOs, sockets, and device nodes
+are recorded by name only — an ignored symlink pointing at `/dev/zero` would otherwise hang the
+snapshot on every attempt.
 
 Every git command is anchored at the worktree root, so `.wgm/` means the *root* scratch directory no
 matter which subdirectory the audit was launched from. That exclusion is deliberate: the lock and the
@@ -119,10 +124,12 @@ available for inspection.
 
 - A change made and then reverted *exactly* within one role's turn is invisible: this compares two
   states, and closing it needs continuous filesystem observation, which this script does not do.
-- A content-only rewrite of an *untracked or ignored* file leaves its status line identical, so
-  creation and deletion of such paths are caught but an in-place rewrite is not.
-- `--ignored` walks the ignored tree on every attempt; on a repository with a large vendored or build
-  directory, that walk is the cost of seeing ignored writes.
+- A content-only rewrite of an **untracked** (not ignored) file leaves its `??` status line identical,
+  so its creation and deletion are caught but an in-place rewrite is not.
+- The ignored-tree scan walks **and hashes** every ignored file on each role attempt. On a repository
+  with a large `node_modules/`, `.venv/`, or build directory this is the guard's dominant cost —
+  five roles means five passes. There is deliberately no size cap or skip threshold: a cap is exactly
+  the hole an agent writing into an ignored directory would fall through.
 
 ## The report contract
 

@@ -40,9 +40,11 @@ git config commit.gpgsign false
 mkdir -p docs
 printf '# readme\n' > README.md
 printf '# docs\n' > docs/README.md
-# An ignored path, so the harness can prove that "not in git status" is not the same as "not a
-# change": a role writing here is still writing to the operator's tree.
-printf 'build/\n' > .gitignore
+# Ignored paths, so the harness can prove that "not in git status" is not the same as "not a change":
+# a role writing here is still writing to the operator's tree. build/cache.bin is pre-created and
+# committed to nothing — it exists before the audit starts, which is the case a path-list-only guard
+# gets wrong: the path is there before AND after, so only its CONTENT can betray an overwrite.
+printf '/build/\n.env\n' > .gitignore
 
 # A holdout scenario with a canary string. audit.sh must never read, name, or modify it: holdout
 # scenarios belong to wgm-validator alone, and an audit that leaked them would contaminate the
@@ -53,6 +55,15 @@ SCEN_SUM="$(cksum scenarios/holdout.yaml)"
 
 git add -A && git commit -qm seed
 SEED="$(git rev-parse HEAD)"
+
+mkdir -p build
+printf 'ORIGINAL\n' > build/cache.bin
+printf 'SECRET=original\n' > .env
+restore_ignored() {  # put the pre-existing ignored files back after a case overwrites them
+  printf 'ORIGINAL\n' > build/cache.bin
+  printf 'SECRET=original\n' > .env
+  rm -f build/new-artifact.txt
+}
 
 # `scenarios/` exists now, but the default-placement rule keys off AGENTS.md / IMPLEMENTATION_PLAN.md
 # / specs/ only, so this repo still counts as greenfield until test 9 says otherwise.
@@ -66,7 +77,8 @@ SEED="$(git rev-parse HEAD)"
 #   FAKE_TABLELESS_ROLE this role emits a correct heading but no finding table
 #   FAKE_SLEEP_ROLE  this role sleeps FAKE_SLEEP_SECS seconds (for the timeout bound)
 #   FAKE_COMMIT_ROLE / FAKE_STASH_ROLE / FAKE_IGNORED_ROLE — three mutations that leave
-#                    `git status` clean: commit it, stash it, or write an ignored path
+#                    `git status` clean: commit it, stash it, or overwrite an existing
+#                    ignored file. FAKE_IGNORED_NEW_ROLE creates a new ignored file.
 #   FAKE_FLAKY_ROLE  this role fails its FIRST attempt only, then succeeds (for the retry path)
 #   FAKE_STDIN       read the prompt from stdin instead of "$1"
 # The writer emits the five markers the consolidation contract requires; FAKE_THIN_WRITER makes it
@@ -92,8 +104,13 @@ if [[ "${FAKE_STASH_ROLE:-}" == "$role" ]]; then
   git stash -q >/dev/null 2>&1
 fi
 if [[ "${FAKE_IGNORED_ROLE:-}" == "$role" ]]; then
+  # Overwrite an ignored file that ALREADY existed: the path list is identical before and after.
+  printf 'OVERWRITTEN by %s\n' "$role" > build/cache.bin
+  printf 'SECRET=exfiltrated-by-%s\n' "$role" > .env
+fi
+if [[ "${FAKE_IGNORED_NEW_ROLE:-}" == "$role" ]]; then
   mkdir -p build
-  printf 'written by %s\n' "$role" > build/artifact.txt
+  printf 'written by %s\n' "$role" > build/new-artifact.txt
 fi
 if [[ "${FAKE_FLAKY_ROLE:-}" == "$role" ]]; then
   # One transient failure, then success — the exact shape --retries exists for.
@@ -582,22 +599,46 @@ git stash drop -q >/dev/null 2>&1 || true
 git checkout -q -- . 2>/dev/null || true
 reset_runs
 
-# 15c) A role that writes an IGNORED path never appears in a default `git status` at all. It is still
-#      the operator's disk, and a reviewer that writes build output is not read-only.
-FAKE_IGNORED_ROLE=wgm-docs-principal run --scope "docs/" --slug roleignored --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+# 15c) A role that CREATES an ignored path never appears in a default `git status` at all. It is
+#      still the operator's disk, and a reviewer that writes build output is not read-only.
+FAKE_IGNORED_NEW_ROLE=wgm-docs-principal run --scope "docs/" --slug roleignored --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
 tries="$(count_role wgm-docs-principal)"
 if [[ "$RC" -ne 0 ]] \
    && [[ "$tries" -eq 1 ]] \
    && ! grep -q "attempt 2/" <<<"$OUT" \
    && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
-   && [[ -f build/artifact.txt ]] \
+   && [[ -f build/new-artifact.txt ]] \
    && [[ -z "$(git status --porcelain)" ]] \
    && [[ ! -d docs/audit ]]; then
-  pass "a role that writes a gitignored path is caught even though git status stays clean"
+  pass "a role that creates a gitignored path is caught even though git status stays clean"
 else
-  fail "an ignored-path write was not detected (rc=$RC, attempts=$tries)"
+  fail "an ignored-path creation was not detected (rc=$RC, attempts=$tries)"
 fi
-rm -rf build
+restore_ignored
+reset_runs
+
+# 15c-0) The harder half, and the one a path-list guard gets wrong: OVERWRITING an ignored file that
+#        already existed. `git status --ignored` says the same thing before and after — the path is
+#        there, it was there — so only a content fingerprint can see it. This is not academic:
+#        .env, .envrc, and cached build artifacts are all ignored, all present, and all worth
+#        overwriting from an agent's point of view.
+FAKE_IGNORED_ROLE=wgm-docs-senior run --scope "docs/" --slug ignoredoverwrite --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+tries="$(count_role wgm-docs-senior)"
+if [[ "$RC" -ne 0 ]] \
+   && [[ "$tries" -eq 1 ]] \
+   && ! grep -q "attempt 2/" <<<"$OUT" \
+   && grep -q "origin unknown" <<<"$OUT" \
+   && grep -qE '^[[:space:]]*\+ignored: .*(build/cache\.bin|\.env)' <<<"$OUT" \
+   && ! grep -q "wgm-docs-writer" "$FAKE_LOG" \
+   && grep -q "OVERWRITTEN by wgm-docs-senior" build/cache.bin \
+   && grep -q "exfiltrated-by-wgm-docs-senior" .env \
+   && [[ -z "$(git status --porcelain)" ]] \
+   && [[ ! -d docs/audit ]]; then
+  pass "overwriting an existing ignored file (.env, build cache) is caught by content, terminally"
+else
+  fail "an ignored-file overwrite was not detected (rc=$RC, attempts=$tries): $OUT"
+fi
+restore_ignored
 reset_runs
 
 # 15c-i) The message must be EVIDENCE, not an accusation. The dispatcher cannot distinguish a role's
