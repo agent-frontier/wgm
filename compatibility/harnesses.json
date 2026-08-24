@@ -64,7 +64,7 @@
           ".claude/skills/"
         ],
         "verification": "verified",
-        "notes": "scripts/install.sh installs into ~/.copilot/skills/wgm and ~/.agents/skills/wgm, and scripts/test-install.sh asserts that layout on every run."
+        "notes": "scripts/install.sh installs into ~/.copilot/skills/wgm (client target, evidenced by the installer source and wgm's published install docs) and into the shared ~/.agents/skills/wgm, which is the layout scripts/test-install.sh asserts on every run."
       },
       "invocation": {
         "command": "copilot -p \"PROMPT\" --allow-all-tools",
@@ -85,7 +85,7 @@
       "os_evidence": {
         "linux": "verified — wgm's own development, loop, and docs-audit runs execute here",
         "macos": "unverified — no recorded wgm run",
-        "windows": "unverified — native-Windows runs are not recorded; the WSL mirror path is exercised by scripts/test-install.sh"
+        "windows": "unverified — native-Windows runs are not recorded; the WSL mirror of the shared ~/.agents layout is exercised by scripts/test-install.sh"
       },
       "sources": [
         "https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli",
@@ -95,8 +95,8 @@
       "evidence": [
         {
           "kind": "discovery",
-          "ref": "scripts/install.sh, scripts/test-install.sh",
-          "detail": "The installer writes ~/.copilot/skills/wgm and the harness asserts the installed layout, including the companion skills and the uninstall path."
+          "ref": "scripts/install.sh, scripts/test-install.sh, docs/operator/installation.md",
+          "detail": "scripts/test-install.sh asserts the shared ~/.agents/skills/wgm layout (install, idempotent re-run, uninstall, WSL mirror, companions) that Copilot CLI also reads; the ~/.copilot/skills/wgm client target is evidenced by the installer source and the published install docs, not by that harness."
         },
         {
           "kind": "invocation",

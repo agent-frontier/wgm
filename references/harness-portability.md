@@ -68,6 +68,11 @@ claim implied nine.
 
 ### Reading the labels honestly
 
+- **Even the `Verified` entry is precise about what proves what.** Copilot CLI's discovery evidence
+  is the shared `~/.agents/skills/wgm` layout that
+  [`scripts/test-install.sh`](../scripts/test-install.sh) asserts on every run, plus the installer
+  source and the published install docs for the `~/.copilot/skills/wgm` client target — no harness
+  asserts that client path today. The journey evidence is what carries the status.
 - **Pi's headless details are documented, not executed.** Pi's README documents print, JSON, and RPC
   modes; wgm has never run [`scripts/loop.sh`](../scripts/loop.sh) against it, so the flags in the
   record may drift from the real CLI.
