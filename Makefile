@@ -34,13 +34,15 @@ lint: ## ShellCheck + bash syntax for every script
 	shellcheck $(SCRIPTS)
 	for s in $(SCRIPTS); do bash -n "$$s"; done
 
-docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixture schema, harness contract)
+docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixture schema, harness contract, role-adapter derivation)
 	bash scripts/check-docs.sh
 	bash scripts/check-evals.sh
 	bash scripts/check-harnesses.sh
+	bash scripts/sync-agent-adapters.sh --check
 
-test: ## Run the bash harnesses (install, loop, swarm, audit, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync, release-index, wsl-boundary)
+test: ## Run the bash harnesses (install, agent-adapters, loop, swarm, audit, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync, release-index, wsl-boundary)
 	bash scripts/test-install.sh
+	bash scripts/test-agent-adapters.sh
 	bash scripts/test-loop.sh
 	bash scripts/test-swarm.sh
 	bash scripts/test-audit.sh

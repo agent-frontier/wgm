@@ -20,7 +20,8 @@
   exists (~\.claude, ~\.copilot). all = agents + claude + copilot.
 
 .PARAMETER Dir
-  Install into <Dir>\wgm explicitly (overrides -User/-Project/-Client).
+  Install into <Dir>\wgm explicitly (overrides -User/-Project/-Client). Skill only: a bare path
+  names no host, so no role-agent scan path is guessed.
 
 .PARAMETER Method
   copy | symlink (default: copy). symlink uses a directory junction; falls back to copy if it fails.
@@ -36,6 +37,15 @@
 
 .PARAMETER NoCompanions
   Do NOT install the teach-me / quiz-me / rugged companion skills alongside wgm.
+
+.PARAMETER NoAgents
+  Do NOT install the role-agent adapters. wgm's twelve role subagents are authored once in the
+  Copilot custom-agent format and derived per host by scripts/sync-agent-adapters.sh
+  (compatibility\agent-adapters.json). When a host client is selected they are installed where that
+  host actually scans: copilot user -> ~\.copilot\agents, project -> .github\agents; claude user ->
+  ~\.claude\agents, project -> .claude\agents. The generic `.agents` client gets none, because the
+  Agent Skills standard defines skills, not subagents. Only files recorded in a per-directory
+  receipt (.wgm-adapters) are ever refreshed or removed.
 
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
@@ -82,6 +92,7 @@ param(
   [string]$Ref,
   [switch]$NoWsl,
   [switch]$NoCompanions,
+  [switch]$NoAgents,
   [string]$WslDistro
 )
 
@@ -126,6 +137,7 @@ function Invoke-WslDelegation {
   if ($Uninstall) { $bashArgs += '--uninstall' }
   if ($Force) { $bashArgs += '--force' }
   if ($NoCompanions) { $bashArgs += '--no-companions' }
+  if ($NoAgents) { $bashArgs += '--no-agents' }
 
   $distroArgs = @()
   if ($WslDistro) { $distroArgs = @('-d', $WslDistro) }
@@ -284,7 +296,43 @@ else {
     $targets.Add((Join-Path $base ".$c" 'skills' 'wgm'))
   }
 }
-if ($targets.Count -eq 0) { Write-Error 'No install targets resolved.'; exit 1 }
+# ----- compute role-adapter target dirs -------------------------------------
+# A role adapter only makes sense where a host actually scans for one. `agents` (the Agent Skills
+# standard) defines skills, not subagents, and -Dir names a bare path rather than a host, so neither
+# gets an adapter - they get the portable skill and wgm's explicit inline fallback instead.
+$agentTargets = [System.Collections.Generic.List[object]]::new()
+$agentNotes = [System.Collections.Generic.List[string]]::new()
+
+function Get-AdapterDir {
+  param([string]$ClientId, [string]$Base, [string]$Scope)
+  switch ("$ClientId/$Scope") {
+    'copilot/user' { return (Join-Path $Base '.copilot' 'agents') }
+    'copilot/project' { return (Join-Path $Base '.github' 'agents') }
+    'claude/user' { return (Join-Path $Base '.claude' 'agents') }
+    'claude/project' { return (Join-Path $Base '.claude' 'agents') }
+    default { return $null }
+  }
+}
+
+if (-not $NoAgents) {
+  if ($Dir) {
+    $agentNotes.Add("-Dir installs the skill only: a bare path names no host, so no agent scan path can be guessed. Re-run with -User or -Project and -Client copilot|claude|all to install the role adapters.")
+  }
+  else {
+    $agentBase = if ($scope -eq 'user') { $homeDir } else { (Get-Location).Path }
+    foreach ($c in $clients) {
+      $d = Get-AdapterDir -ClientId $c -Base $agentBase -Scope $scope
+      if ($d) { $agentTargets.Add([pscustomobject]@{ Host = $c; Dir = $d }) }
+      elseif ($c -eq 'agents') {
+        $agentNotes.Add("the .agents client gets no role adapters: the Agent Skills standard defines skills, not subagents. wgm falls back to scripts/audit.sh and inline sequential review passes there.")
+      }
+    }
+  }
+}
+
+# A skills target is not the only reason to run: -Project -Client copilot resolves no skills
+# directory (Copilot has none at project level) but still has real work to do in .github\agents.
+if ($targets.Count -eq 0 -and $agentTargets.Count -eq 0) { Write-Error 'No install targets resolved.'; exit 1 }
 
 # ----- helpers --------------------------------------------------------------
 function Copy-Tree {
@@ -356,6 +404,112 @@ function Uninstall-One {
   }
 }
 
+# ----- role-agent adapters --------------------------------------------------
+# Each host scans a flat directory of agent files that it does NOT own exclusively: a user's own
+# agents live there too. So wgm never treats the directory as its own - it installs individual files
+# and records exactly which ones it wrote in a per-directory receipt, and only those are ever
+# refreshed or removed. Nothing else in the directory is read, moved, or deleted.
+$adapterReceipt = '.wgm-adapters'
+
+function Get-AdapterSourceDir {
+  param([string]$HostId)
+  switch ($HostId) {
+    'copilot' { return (Join-Path (Join-Path $srcDir '.github') 'agents') }
+    'claude' { return (Join-Path (Join-Path (Join-Path $srcDir 'adapters') 'claude') 'agents') }
+    default { return $null }
+  }
+}
+
+function Get-AdapterFilter {
+  param([string]$HostId)
+  if ($HostId -eq 'copilot') { return '*.agent.md' } else { return '*.md' }
+}
+
+function Get-AgentName {
+  # The `name:` frontmatter value of an agent file (leading --- block only), or ''.
+  param([string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) { return '' }
+  $inFm = $false
+  foreach ($line in (Get-Content -LiteralPath $Path)) {
+    if (-not $inFm) { if ($line -eq '---') { $inFm = $true; continue } else { return '' } }
+    if ($line -eq '---') { return '' }
+    if ($line -match '^name:\s*(.*?)\s*$') { return $Matches[1] }
+  }
+  return ''
+}
+
+function Install-Agents {
+  param([string]$HostId, [string]$Dir)
+  $src = Get-AdapterSourceDir -HostId $HostId
+  if (-not $src -or -not (Test-Path $src)) {
+    Write-Host "  no $HostId role adapters in this source, skipping: $Dir"
+    return
+  }
+  # wgm's own checkout already IS the Copilot project agent dir; copying it onto itself is a no-op
+  # at best and a self-inflicted delete at worst.
+  $srcFull = (Resolve-Path $src).Path
+  $dstFull = if (Test-Path $Dir) { (Resolve-Path $Dir).Path } else { $Dir }
+  if ($srcFull -eq $dstFull) {
+    Write-Host "  already the canonical source, skipping: $Dir"
+    return
+  }
+  Write-Host "  role agents ($HostId): $Dir"
+  if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
+  # A prior receipt is wgm's own record of what it installed here last time. It is what lets a
+  # re-run refresh a file wgm owns even after the file was edited beyond recognition, without
+  # widening the claim to anything wgm never wrote.
+  $receiptPath = Join-Path $Dir $adapterReceipt
+  $prior = @()
+  if (Test-Path $receiptPath) {
+    $prior = @(Get-Content -LiteralPath $receiptPath | Where-Object { $_ -and -not $_.StartsWith('#') })
+  }
+  $written = [System.Collections.Generic.List[string]]::new()
+  $wrote = 0
+  foreach ($file in (Get-ChildItem -LiteralPath $src -Filter (Get-AdapterFilter -HostId $HostId) -File | Sort-Object Name)) {
+    $dest = Join-Path $Dir $file.Name
+    if ((Test-Path $dest) -and -not $Force) {
+      if (($prior -notcontains $file.Name) -and ((Get-AgentName -Path $dest) -ne (Get-AgentName -Path $file.FullName))) {
+        Write-Host "    exists and is not wgm's - skipping (use -Force to replace): $dest"
+        continue
+      }
+    }
+    $written.Add($file.Name)
+    if ($DryRun) { Write-Host "    would install: $dest"; continue }
+    Copy-Item -LiteralPath $file.FullName -Destination $dest -Force
+    $wrote++
+  }
+  if ($DryRun) { return }
+  # The receipt is what makes uninstall safe: it is the only list of files wgm claims to own here.
+  $lines = @("# wgm role-agent adapters - $HostId. Removing this file makes -Uninstall skip them.") + $written
+  Set-Content -LiteralPath $receiptPath -Value $lines
+  Write-Host "    installed $wrote file(s)"
+}
+
+function Uninstall-Agents {
+  param([string]$HostId, [string]$Dir)
+  if ($Dir -notmatch '[\\/]agents$') {
+    Write-Warning "  refusing to touch unexpected agent dir: $Dir"
+    return
+  }
+  $receiptPath = Join-Path $Dir $adapterReceipt
+  if (-not (Test-Path $receiptPath)) {
+    Write-Host "  no wgm adapter receipt, leaving untouched: $Dir"
+    return
+  }
+  $removed = 0
+  foreach ($base in (Get-Content -LiteralPath $receiptPath)) {
+    if (-not $base -or $base.StartsWith('#') -or $base -match '[\\/]') { continue }
+    $dest = Join-Path $Dir $base
+    if (-not (Test-Path $dest)) { continue }
+    if ($DryRun) { Write-Host "    would remove: $dest"; continue }
+    Remove-Item -LiteralPath $dest -Force
+    $removed++
+  }
+  if ($DryRun) { Write-Host "  would remove the $HostId adapter receipt: $receiptPath"; return }
+  Remove-Item -LiteralPath $receiptPath -Force
+  Write-Host "  removed $removed $HostId adapter file(s) from: $Dir"
+}
+
 # Companion skills ship beside wgm as their own sibling skill dirs, because a skills client
 # discovers one skill per directory: companions\teach-me -> <skills-dir>\teach-me.
 $companions = @('teach-me', 'quiz-me', 'rugged')
@@ -420,11 +574,14 @@ if ($Uninstall) {
     Uninstall-One -Target $t
     foreach ($ct in (Get-CompanionTargets -WgmTarget $t)) { Uninstall-One -Target $ct }
   }
+  foreach ($a in $agentTargets) { Uninstall-Agents -HostId $a.Host -Dir $a.Dir }
 }
 else {
   Write-Host "Installing wgm to:"
   foreach ($t in $targets) { Install-One -Target $t; Install-Companions -WgmTarget $t }
+  foreach ($a in $agentTargets) { Install-Agents -HostId $a.Host -Dir $a.Dir }
 }
+foreach ($n in $agentNotes) { Write-Host "  note: $n" }
 
 Write-Host ""
 Write-Host "Done. Targets:"
@@ -434,10 +591,17 @@ foreach ($t in $targets) {
     foreach ($ct in (Get-CompanionTargets -WgmTarget $t)) { Write-Host "  - $ct  (companion)" }
   }
 }
+foreach ($a in $agentTargets) { Write-Host "  - $($a.Dir)  ($($a.Host) role agents)" }
 Write-Host ""
 Write-Host "Verify your agent can see it (e.g. /skills), then invoke /wgm."
 if (-not $NoCompanions) {
   Write-Host "Companions: /teach-me to learn a repo, /quiz-me to be tested on it, /rugged to stress-test a design."
+}
+if ($NoAgents) {
+  Write-Host "Role agents: skipped (-NoAgents). wgm runs the review passes inline and sequentially instead."
+}
+elseif ($agentTargets.Count -eq 0) {
+  Write-Host "Role agents: none installed - no host with a subagent format was selected. wgm falls back to scripts/audit.sh and inline sequential review passes."
 }
 }
 finally {

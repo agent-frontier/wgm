@@ -57,8 +57,14 @@ jobs:
       - name: Harness contract check
         run: bash scripts/check-harnesses.sh
 
+      - name: Role-adapter derivation check
+        run: bash scripts/sync-agent-adapters.sh --check
+
       - name: Install harness (bash)
         run: bash scripts/test-install.sh
+
+      - name: Agent-adapter harness (bash)
+        run: bash scripts/test-agent-adapters.sh
 
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh

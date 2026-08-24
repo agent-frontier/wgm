@@ -36,7 +36,7 @@
       "fallback": "Run the two review passes inline and sequentially in one context, as references/subagents.md's no-subagent fallback prescribes, and record the dissent explicitly. For the docs-audit swarm the intended fallback is scripts/audit.sh, which is designed to dispatch all five roles through Pi's documented headless command (invocation.command above) instead of a host subagent primitive. wgm has not executed that dispatch against Pi — invocation.verification is unverified — so this is design intent matching a documented interface, not an observed run, and the flag set may drift. Where it does work it would buy independence of context and lens only, never of model or tooling. The portable kernel (grill, plan, loop, deterministic gates) is unaffected.",
       "adapter": {
         "status": "adapter-needed",
-        "notes": "A Pi extension or pi package could dispatch role subagents; none is written. Until one exists, Pi runs the portable kernel only."
+        "notes": "A Pi extension or pi package could dispatch role subagents; none is written, and Pi ships no subagent primitive by design, so compatibility/agent-adapters.json records no Pi target. Until one exists, Pi runs the portable kernel plus the named fallback: scripts/audit.sh for the docs-audit swarm and inline sequential review passes."
       },
       "os_evidence": {
         "linux": "unverified — no recorded wgm run",
@@ -80,7 +80,7 @@
       "fallback": "If the host session cannot dispatch custom agents, run both review passes inline and sequentially preserving dissent, and dispatch the docs-audit swarm with scripts/audit.sh's opaque-command runner.",
       "adapter": {
         "status": "adapter-shipped",
-        "notes": "wgm ships the host-format role agents this harness dispatches (.github/agents/*.agent.md), checked structurally by scripts/check-docs.sh."
+        "notes": "wgm ships the host-format role agents this harness dispatches (.github/agents/*.agent.md), checked structurally by scripts/check-docs.sh and mapped in compatibility/agent-adapters.json. scripts/install.sh and scripts/install.ps1 place them in the directories Copilot scans (~/.copilot/agents for a user install, .github/agents for a project install); scripts/test-agent-adapters.sh asserts both paths."
       },
       "os_evidence": {
         "linux": "verified — wgm's own development, loop, and docs-audit runs execute here",
@@ -136,8 +136,8 @@
       "missing_capability": "",
       "fallback": "Inline sequential two-pass review per references/subagents.md when no host-format agent definitions are installed.",
       "adapter": {
-        "status": "adapter-needed",
-        "notes": "Translating .github/agents/*.agent.md into Claude subagent definitions is unwritten work."
+        "status": "adapter-shipped",
+        "notes": "wgm ships Claude subagent definitions at adapters/claude/agents/*.md, derived from the canonical Copilot files by scripts/sync-agent-adapters.sh and installed into ~/.claude/agents (user) or .claude/agents (project). The translation follows Claude Code's documented subagent format and has never been dispatched from a live Claude Code run, which is why this entry stays Expected: the adapter ships, the journey does not exist."
       },
       "os_evidence": {
         "linux": "unverified — no recorded wgm journey",

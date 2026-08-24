@@ -5,8 +5,8 @@ them is "swarm" mode: the orchestrator is the **sheepdog**, each subagent a focu
 brief. This is wgm's take on per-task subagent dispatch with two-stage review.
 
 ## The roles
-wgm ships these archetypes in `.github/agents/` (Copilot custom-agent format; portable to any host
-that supports custom agents):
+wgm authors these archetypes once, in `.github/agents/` (Copilot custom-agent format), and derives
+every other host's copy from them — see [Host adapters and where they install](#host-adapters-and-where-they-install):
 
 | Archetype | Phase | Job |
 |---|---|---|
@@ -302,9 +302,38 @@ grep exposed them. So before integrating:
 4. Treat `status=ok, commits=0` as a hard lane failure. A successful process with no reachable
    commit, diff, or explicitly documented spike artifact did not complete its assigned work.
 
+## Host adapters and where they install
+A role definition only works if it sits where the host scans, and **a host scans for subagents in a
+different place than it scans for skills**. Copying `.github/agents/` inside the installed skill
+folder — which is what wgm used to do — ships the swarm and hides it in the same move.
+
+So the canonical file is authored once and translated deterministically:
+
+<!-- wgm: complete-table -->
+
+| Host | Source in this repo | Installed to (user) | Installed to (project) | Status |
+|---|---|---|---|---|
+| Copilot CLI | `.github/agents/*.agent.md` (canonical) | `~/.copilot/agents/` | `.github/agents/` | shipped and dispatched |
+| Claude Code | `adapters/claude/agents/*.md` | `~/.claude/agents/` | `.claude/agents/` | shipped, `Expected` — never dispatched from a live run |
+| Generic `.agents` client | none | none | none | no adapter: the standard defines skills, not subagents |
+
+- `scripts/sync-agent-adapters.sh` derives `adapters/claude/agents/*.md` from the canonical files;
+  `--check` fails on drift, so the Claude copy is never hand-maintained. The mapping itself lives in
+  [`../compatibility/agent-adapters.json`](../compatibility/agent-adapters.json).
+- The names differ on purpose: Copilot uses the display name (`WGM Implementer`), Claude uses a slug
+  (`wgm-implementer`). The dispatch handles in this document are the slugs.
+- `scripts/install.sh` and `scripts/install.ps1` write those directories when a host client is
+  selected, claim only the files listed in a per-directory `.wgm-adapters` receipt, and take
+  `--no-agents` / `-NoAgents` to skip adapters entirely.
+- The Claude translation is conservative — name, description, and the canonical body, no invented
+  tool or model keys — because it is a documented-format prediction, not an observed run. Raising it
+  to a stronger claim means recording a journey, not editing an adjective.
+- `scripts/test-agent-adapters.sh` is the gate for all of the above.
+
 ## Portability & the external loop
-- **In-session:** dispatch via the host's subagent mechanism. Copilot reads `.github/agents/*.agent.md`;
-  for other hosts copy them into the agent dir they scan (e.g. `.claude/agents/`).
+- **In-session:** dispatch via the host's subagent mechanism, from the directories above. Copilot
+  reads `.github/agents/*.agent.md` in a repo and `~/.copilot/agents/` for a user install; Claude
+  Code reads `.claude/agents/` and `~/.claude/agents/`.
 - **No subagent mechanism at all:** the docs-audit swarm still has a dispatch path — `scripts/audit.sh`'s
   opaque-command runner (above) — provided the host's headless command is configured as its agent.
   That is a fallback with weaker independence, and it says so; whether it has been exercised on a
@@ -318,4 +347,5 @@ grep exposed them. So before integrating:
 prove) · `references/stall-recovery.md` (escalation) · `references/docs-audit.md` (the docs-audit
 swarm's own discipline) · `references/self-improvement.md` (`wgm-hermes`'s Hive Growth Loop) ·
 `references/issue-intake.md` (the GitHub-Issues source `wgm-hermes` also draws from) · the archetype
-files in `.github/agents/`.
+files in `.github/agents/` and their host adapters in `adapters/` ·
+`docs/reference/cli-install.md` (where each host's adapters install).

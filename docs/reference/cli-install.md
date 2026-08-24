@@ -5,6 +5,8 @@ wgm ships two installers with matching behavior: `scripts/install.sh` for Linux,
 
 Both place the skill folder where a skills-compatible agent scans for it, and both install the
 **companion skills** (`teach-me`, `quiz-me`, `rugged`) alongside it as sibling skill directories.
+When you select a host client, they also install that host's **role-agent adapters** into the
+directory the host really scans — see [Role-agent adapters](#role-agent-adapters).
 
 ## Syntax
 
@@ -23,12 +25,13 @@ scripts/install.ps1 [PARAMETERS]
 | `--user` | `-User` (implied) | **default** | Install into your home directory, available in every project. |
 | `--project` | `-Project` | — | Install into the current project only. |
 | `--client NAME` | `-Client NAME` | `auto` | `agents`, `claude`, `copilot`, `all`, or `auto`. `auto` = `agents` plus any client whose home directory exists. |
-| `--dir PATH` | `-Dir PATH` | — | Install into `PATH/wgm` explicitly. Overrides scope and client. |
+| `--dir PATH` | `-Dir PATH` | — | Install into `PATH/wgm` explicitly. Overrides scope and client. Skill only: a bare path names no host, so no agent directory is guessed. |
 | `--method M` | `-Method M` | `copy` | `copy` or `symlink`. |
 | `--dry-run` | `-DryRun` | off | Print what would happen; change nothing. |
 | `--uninstall` | `-Uninstall` | off | Remove wgm and its companions from the resolved targets. |
 | `--force` | `-Force` | off | Overwrite or replace an existing install. |
 | `--no-companions` | `-NoCompanions` | off | Install wgm alone, without `teach-me`, `quiz-me`, and `rugged`. |
+| `--no-agents` | `-NoAgents` | off | Do not install the role-agent adapters. The portable skill and its inline fallback still install. |
 | `--no-windows` | — | off | WSL only: do not mirror into your Windows home. |
 | `--windows-home P` | — | auto-detect | WSL only: mirror into Windows home `P`. |
 | — | `-NoWsl` | off | Windows only: force a native install instead of delegating to WSL. |
@@ -38,7 +41,7 @@ scripts/install.ps1 [PARAMETERS]
 
 ## Install targets
 
-The resolved target is always `SKILLS_DIR/wgm`, with companions as siblings:
+The resolved skill target is always `SKILLS_DIR/wgm`, with companions as siblings:
 
 | Scope and client | Path |
 |---|---|
@@ -50,6 +53,55 @@ The resolved target is always `SKILLS_DIR/wgm`, with companions as siblings:
 
 **Note:** The directory name must be exactly `wgm`, because it has to match the `name:` field in
 `SKILL.md` frontmatter. The same rule applies to each companion.
+
+## Role-agent adapters
+
+wgm's twelve role subagents (the swarm in [subagents](../../references/subagents.md)) are authored
+once in the Copilot custom-agent format under `.github/agents/*.agent.md` and derived per host by
+`scripts/sync-agent-adapters.sh`. The canonical-to-host mapping is recorded in
+[`compatibility/agent-adapters.json`](../../compatibility/agent-adapters.json).
+
+Skills and subagents are **different loading mechanisms**, so they go to different places. A role
+file inside the installed skill folder is invisible to every host; these are the directories hosts
+actually scan:
+
+<!-- wgm: complete-table -->
+
+| Host client | Scope | Directory | Format |
+|---|---|---|---|
+| `copilot` | user | `~/.copilot/agents` | `wgm-*.agent.md`, `name: WGM …` |
+| `copilot` | project | `.github/agents` | `wgm-*.agent.md`, `name: WGM …` |
+| `claude` | user | `~/.claude/agents` | `wgm-*.md`, `name: wgm-…` |
+| `claude` | project | `.claude/agents` | `wgm-*.md`, `name: wgm-…` |
+| `agents` | either | none — no adapter exists | The Agent Skills standard defines skills, not subagents |
+
+Three rules keep this honest:
+
+- **Evidence, not optimism.** The Copilot adapter is shipped and dispatched; the Claude adapter is
+  `Expected` — written to Claude Code's documented subagent format and never dispatched from a live
+  Claude Code run. Each Claude file says so in its own header comment. See
+  [harness portability](../../references/harness-portability.md) for the evidence tiers.
+- **No adapter is a named fallback, not a failure.** A generic `.agents` client, Pi, and any host
+  with no subagent primitive get the portable skill and run the docs-audit swarm through
+  `scripts/audit.sh`, or the two review passes inline and sequentially with dissent recorded.
+- **`--dir` guesses nothing.** It names a path, not a host, so it installs the skill only and says
+  so. Pass `--user` or `--project` with `--client copilot|claude|all` to get adapters.
+
+Opt out entirely with `--no-agents` / `-NoAgents`.
+
+### Ownership: what the installer will and will not touch
+
+A host agent directory is shared property — your own agents live there too. So wgm never claims the
+directory, only individual files, and records exactly which ones it wrote in a per-directory receipt
+named `.wgm-adapters`.
+
+- A re-run refreshes the files in that receipt, even if you edited one beyond recognition.
+- A file wgm did not install is skipped, and the installer says `exists and is not wgm's` — including
+  a file that merely shares one of wgm's role names. Pass `--force` to replace it deliberately.
+- `--uninstall` removes only the receipt-listed files and the receipt. Unrelated agents, and the
+  directory itself, survive. With no receipt, uninstall removes nothing.
+- Running a project install from inside wgm's own checkout is refused for the Copilot target,
+  because `.github/agents` there *is* the canonical source.
 
 ## Environment variables
 
@@ -80,7 +132,8 @@ the repo itself.
 
 **Caution:** `--uninstall` only removes paths ending in `skills/wgm`, `skills/teach-me`,
 `skills/quiz-me`, or `skills/rugged`. It refuses any other path. A `--dir` install outside a
-`skills/` directory therefore cannot be uninstalled automatically; remove it by hand.
+`skills/` directory therefore cannot be uninstalled automatically; remove it by hand. Role adapters
+are removed by receipt, not by path pattern, and only from a directory ending in `agents`.
 
 ## Verifying an install
 
@@ -102,6 +155,13 @@ To confirm the skill is visible:
 
 4. Ask your client to list skills (for example `/skills` in VS Code or Copilot CLI), and confirm
    `wgm`, `teach-me`, `quiz-me`, and `rugged` all appear.
+
+5. If you selected a host client, confirm its role agents landed too:
+
+   ```bash
+   ls ~/.copilot/agents/wgm-*.agent.md    # Copilot
+   ls ~/.claude/agents/wgm-*.md           # Claude Code
+   ```
 
 ## Release channel and integrity
 

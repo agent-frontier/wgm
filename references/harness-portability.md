@@ -17,7 +17,7 @@ wgm is two things wearing one name, and the difference is exactly what portabili
 | Layer | What it is | What it needs from a harness |
 |---|---|---|
 | **Portable kernel** | The protocol itself — Triage, Grill, Plan, Preflight, and the loop (Analyze → Implement → Validate → Review → Record), plus the artifacts on disk and the deterministic gates | A model that can read `SKILL.md` and run shell commands. Skill *discovery* is a convenience; a host without it can still be handed the protocol explicitly. |
-| **Host adapters** | Everything the protocol delegates to the host: role-subagent dispatch (the two-stage review and the five-role docs-audit swarm), custom-agent formats, host-specific permission flags | A host primitive wgm does not implement — and, for the swarm, agent definitions in that host's format. wgm ships them for one host today (`.github/agents/*.agent.md`). |
+| **Host adapters** | Everything the protocol delegates to the host: role-subagent dispatch (the two-stage review and the five-role docs-audit swarm), custom-agent formats, host-specific permission flags | A host primitive wgm does not implement — and, for the swarm, agent definitions in that host's format, installed where that host scans. wgm ships two formats today: the canonical Copilot files (`.github/agents/*.agent.md`) and a derived Claude set (`adapters/claude/agents/*.md`), mapped in [`../compatibility/agent-adapters.json`](../compatibility/agent-adapters.json). |
 
 A harness that lacks an adapter capability is not incompatible; it is **degraded in a named way**,
 with a named fallback (usually: run the passes inline and sequentially, preserving dissent — see
@@ -59,8 +59,8 @@ any disagreement, and the gate fails if an entry here is deleted from it.
 
 | Harness | Status | Skill discovery | Non-interactive invocation | Subagents | wgm adapter |
 |---|---|---|---|---|---|
-| GitHub Copilot CLI | `Verified` | `~/.copilot/skills/`, `~/.agents/skills/`, `.github/skills/` | `copilot -p "…" --allow-all-tools` | host-dispatched | shipped (`.github/agents/`) |
-| Claude Code | `Expected` | `~/.claude/skills/`, `.claude/skills/` | `claude -p "…" --dangerously-skip-permissions` | native, unwired | needed |
+| GitHub Copilot CLI | `Verified` | `~/.copilot/skills/`, `~/.agents/skills/`, `.github/skills/` | `copilot -p "…" --allow-all-tools` | host-dispatched | shipped (`~/.copilot/agents/`, `.github/agents/`) |
+| Claude Code | `Expected` | `~/.claude/skills/`, `.claude/skills/` | `claude -p "…" --dangerously-skip-permissions` | native, unwired | shipped, unverified (`~/.claude/agents/`, `.claude/agents/`) |
 | OpenAI Codex CLI | `Expected` | `~/.agents/skills/`, repo `.agents/skills/`, `/etc/codex/skills/` | `codex exec "…"` | unknown | needed |
 | Gemini CLI | `Expected` | `~/.gemini/skills/`, `~/.agents/skills/`, `.agents/skills/` | `gemini -p "…"` | unknown | needed |
 | Cursor CLI | `Expected` | `.agents/skills/`, `.cursor/skills/`, user equivalents | `agent -p "…"` | native, unwired | needed |
@@ -71,6 +71,26 @@ any disagreement, and the gate fails if an entry here is deleted from it.
 
 One harness is `Verified`. That is the honest number, and publishing it is the point: the previous
 claim implied nine.
+
+### Adapters ship on evidence, not on hope
+
+Two adapter formats now install, and they are not equally proven:
+
+- **Copilot is shipped and dispatched.** The canonical `.github/agents/*.agent.md` files are the ones
+  wgm's own runs use, and the installer now puts them in `~/.copilot/agents/` for a user install
+  rather than inside the skill folder, where no host looked.
+- **Claude is shipped and unverified.** `adapters/claude/agents/*.md` is derived from the canonical
+  files by `scripts/sync-agent-adapters.sh` and matches Claude Code's documented subagent format, but
+  wgm has never dispatched one from a live Claude Code session. Each file carries that caveat in its
+  own header, and the entry stays `Expected`: shipping an adapter is not journey evidence. Raise it
+  by recording a run, not by editing a word.
+- **Hosts with no subagent primitive get no adapter at all.** Pi, a generic `.agents` client, and any
+  harness whose format wgm has not translated fall back explicitly: `scripts/audit.sh` for the
+  docs-audit swarm, inline sequential review passes for the two-stage review, with the weaker
+  independence recorded. The installers refuse to invent a directory such a host does not read.
+
+`scripts/test-agent-adapters.sh` is the deterministic gate for the mapping, the install paths, and
+the ownership rules.
 
 ### Reading the labels honestly
 
@@ -100,7 +120,8 @@ Pi is deliberately the next harness to actually run, not the next one to describ
   [`scripts/install.sh`](../scripts/install.sh) puts wgm — so the install step needs no new code.
 - It ships **no sub-agent primitive on purpose**, which makes it the sharpest available test of the
   kernel/adapter split: everything except role dispatch has to work, and role dispatch has to fall
-  back cleanly to inline sequential passes with dissent preserved.
+  back cleanly to inline sequential passes with dissent preserved. The installers make that explicit
+  rather than silent — no agent directory is created for a host that reads none.
 - A single recorded journey there converts three claims from documented to verified, or produces a
   concrete defect list — either outcome is worth more than another Expected row.
 

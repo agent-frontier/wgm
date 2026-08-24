@@ -15,6 +15,8 @@
 #   T9  live resolver (WSL)    -> on a real WSL host, autodetect resolves a Windows home under /mnt.
 #   T10 source-URL resolver    -> latest/tag resolve to the release asset; a branch to codeload (dry-run).
 #   T11 release-tarball install-> a flat (release-style) file:// tarball installs end to end.
+#   T15 role adapters        -> selecting a host client also installs its role agents (+ receipt).
+#   T16 --no-agents          -> the skill installs, the adapters do not.
 #
 # Testing/advanced override seams honoured by install.sh:
 #   WGM_FORCE_WSL=0|1      force the WSL detection result (so we can simulate non-WSL on a WSL host).
@@ -190,6 +192,28 @@ if [[ -f "$n_base/$WGM/SKILL.md" && ! -e "$n_base/teach-me" && ! -e "$n_base/qui
   ok "T14 --no-companions installs wgm without the companion skills"
 else
   bad "T14 --no-companions still installed companions into $n_base"
+fi
+
+# ---- T15/T16: role-agent adapters ride along with a host client ------------------
+# Depth lives in scripts/test-agent-adapters.sh; these two keep the installer's own harness honest
+# about the fact that selecting a host now installs role files outside the skills tree.
+a_home="$WORK/t15"; mkdir -p "$a_home"
+HOME="$a_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client all --force >/dev/null 2>&1
+if [[ -f "$a_home/.copilot/agents/wgm-implementer.agent.md" \
+   && -f "$a_home/.claude/agents/wgm-implementer.md" \
+   && -f "$a_home/.copilot/agents/.wgm-adapters" \
+   && ! -e "$a_home/.agents/agents" ]]; then
+  ok "T15 host clients also get their role adapters, and the generic .agents client gets none"
+else
+  bad "T15 expected copilot/claude role adapters (with receipts) and no .agents adapter dir"
+fi
+
+b_home="$WORK/t16"; mkdir -p "$b_home"
+HOME="$b_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client all --force --no-agents >/dev/null 2>&1
+if [[ -f "$b_home/.agents/skills/$WGM/SKILL.md" && ! -e "$b_home/.copilot/agents" && ! -e "$b_home/.claude/agents" ]]; then
+  ok "T16 --no-agents installs the portable skill with no role adapters"
+else
+  bad "T16 --no-agents still produced adapter directories under $b_home"
 fi
 
 echo ""

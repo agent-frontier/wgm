@@ -15,12 +15,15 @@
 #   --client NAME     agents | claude | copilot | all | auto   (default: auto)
 #                       auto = agents + any client whose home dir exists (~/.claude, ~/.copilot)
 #                       all  = agents + claude + copilot
-#   --dir PATH        install into PATH/wgm explicitly (overrides --user/--project/--client)
+#   --dir PATH        install into PATH/wgm explicitly (overrides --user/--project/--client).
+#                       Skill only — a bare path names no host, so no role adapters are installed.
 #   --method M        copy | symlink   (default: copy)
 #   --dry-run         print what would happen; change nothing
 #   --uninstall       remove the wgm skill from the resolved targets
 #   --force           overwrite/replace an existing install
 #   --no-companions   do NOT install the teach-me / quiz-me / rugged companion skills alongside wgm
+#   --no-agents       do NOT install the role-agent adapters (.github/agents, .claude/agents); the
+#                       portable skill and its explicit inline fallback still install
 #   --no-windows      (WSL only) do NOT mirror into your Windows home
 #   --windows-home P  (WSL only) mirror into Windows home P (default: auto-detect via /mnt)
 #   --ref REF         ref to self-fetch when piped: a branch/tag/sha, or "latest" for the newest
@@ -41,6 +44,17 @@
 # place (no --force needed) and adds the mirror. Disable with --no-windows. Advanced/testing
 # overrides: WGM_FORCE_WSL=0|1 (force WSL detection) and WGM_WIN_AUTODETECT=0|1 (toggle Windows-home
 # autodetect).
+#
+# Role-agent adapters: wgm's twelve role subagents are authored once in the Copilot custom-agent
+# format and derived per host by scripts/sync-agent-adapters.sh (see compatibility/agent-adapters.json).
+# When a host client is selected, this installer also drops that host's role files where the host
+# actually scans for them:
+#   copilot  user -> ~/.copilot/agents/     project -> .github/agents/
+#   claude   user -> ~/.claude/agents/      project -> .claude/agents/
+# The generic `.agents` client gets NO adapters: the Agent Skills standard defines skills, not
+# subagents, so wgm falls back to scripts/audit.sh and inline sequential review passes there.
+# Only files wgm recorded in a per-directory receipt (.wgm-adapters) are ever refreshed or removed;
+# an unrelated agent in the same directory is left alone.
 #
 # Supported OS: Linux, macOS, and WSL. On native Windows PowerShell, use scripts/install.ps1.
 
@@ -69,6 +83,7 @@ UNINSTALL=0
 FORCE=0
 NO_WINDOWS=0
 NO_COMPANIONS=0
+NO_AGENTS=0
 WINDOWS_HOME="${WGM_WINDOWS_HOME:-}"
 WIN_UNRESOLVED=0
 WGM_REPO="${WGM_REPO:-agent-frontier/wgm}"
@@ -87,6 +102,7 @@ while [[ $# -gt 0 ]]; do
     --uninstall) UNINSTALL=1; shift ;;
     --force)     FORCE=1; shift ;;
     --no-companions) NO_COMPANIONS=1; shift ;;
+    --no-agents) NO_AGENTS=1; shift ;;
     --no-windows)   NO_WINDOWS=1; shift ;;
     --windows-home) [[ $# -ge 2 ]] || { echo "--windows-home requires a path" >&2; exit 2; }; WINDOWS_HOME="$2"; shift 2 ;;
     --ref)       [[ $# -ge 2 ]] || { echo "--ref requires a value" >&2; exit 2; }; WGM_REF="$2"; shift 2 ;;
@@ -267,7 +283,52 @@ else
   done
 fi
 
-if [[ ${#TARGETS[@]} -eq 0 ]]; then
+# ----- compute role-adapter target dirs -------------------------------------
+# A role adapter only makes sense where a host actually scans for one. `agents` (the Agent Skills
+# standard) has no subagent format, and `--dir` names a bare path rather than a host, so neither
+# gets an adapter — they get the portable skill and wgm's explicit inline fallback instead.
+AGENT_HOSTS=()
+AGENT_DIRS=()
+AGENT_NOTES=()
+
+adapter_dir_for() {
+  # $1 = client id, $2 = base dir, $3 = scope. Echoes the host's agent dir, or nothing.
+  case "$1:$3" in
+    copilot:user)    printf '%s\n' "$2/.copilot/agents" ;;
+    copilot:project) printf '%s\n' "$2/.github/agents" ;;
+    claude:user)     printf '%s\n' "$2/.claude/agents" ;;
+    claude:project)  printf '%s\n' "$2/.claude/agents" ;;
+  esac
+}
+
+collect_agent_targets() {
+  # $1 = base dir, $2 = scope, then the client ids. Appends to AGENT_HOSTS/AGENT_DIRS.
+  local base="$1" scope="$2"; shift 2
+  local c d
+  for c in "$@"; do
+    d="$(adapter_dir_for "$c" "$base" "$scope")"
+    [[ -n "$d" ]] || continue
+    AGENT_HOSTS+=("$c")
+    AGENT_DIRS+=("$d")
+  done
+}
+
+if [[ "$NO_AGENTS" -eq 0 ]]; then
+  if [[ -n "$EXPLICIT_DIR" ]]; then
+    AGENT_NOTES+=("--dir installs the skill only: a bare path names no host, so no agent scan path can be guessed. Re-run with --user or --project and --client copilot|claude|all to install the role adapters.")
+  else
+    if [[ "$SCOPE" == "user" ]]; then AGENT_BASE="$HOME_DIR"; else AGENT_BASE="$(pwd)"; fi
+    collect_agent_targets "$AGENT_BASE" "$SCOPE" "${CLIENTS[@]}"
+    for c in "${CLIENTS[@]}"; do
+      [[ "$c" == "agents" ]] || continue
+      AGENT_NOTES+=("the .agents client gets no role adapters: the Agent Skills standard defines skills, not subagents. wgm falls back to scripts/audit.sh and inline sequential review passes there.")
+    done
+  fi
+fi
+
+# A skills target is not the only reason to run: `--project --client copilot` resolves no skills
+# directory (Copilot has none at project level) but still has real work to do in .github/agents.
+if [[ ${#TARGETS[@]} -eq 0 && ${#AGENT_DIRS[@]} -eq 0 ]]; then
   echo "No install targets resolved." >&2
   exit 1
 fi
@@ -293,6 +354,9 @@ if [[ -z "$EXPLICIT_DIR" && "$SCOPE" == "user" && "$IS_WSL" -eq 1 && "$NO_WINDOW
     for c in "${WIN_CLIENTS[@]}"; do
       WIN_TARGETS+=("$WIN_HOME/.$c/skills/wgm")
     done
+    if [[ "$NO_AGENTS" -eq 0 ]]; then
+      collect_agent_targets "$WIN_HOME" user "${WIN_CLIENTS[@]}"
+    fi
   else
     WIN_UNRESOLVED=1
   fi
@@ -410,6 +474,100 @@ uninstall_one() {
   fi
 }
 
+# ----- role-agent adapters --------------------------------------------------
+# Each host scans a flat directory of agent files that it does NOT own exclusively: a user's own
+# agents live there too. So wgm never treats the directory as its own — it installs individual files
+# and records exactly which ones it wrote in a per-directory receipt, and only those are ever
+# refreshed or removed. Nothing else in the directory is read, moved, or deleted.
+ADAPTER_RECEIPT=".wgm-adapters"
+
+adapter_source_dir() {  # $1 = host id
+  case "$1" in
+    copilot) printf '%s\n' "$SRC_DIR/.github/agents" ;;
+    claude)  printf '%s\n' "$SRC_DIR/adapters/claude/agents" ;;
+  esac
+}
+
+adapter_glob_suffix() { case "$1" in copilot) printf '%s\n' ".agent.md" ;; claude) printf '%s\n' ".md" ;; esac; }
+
+agent_name_of() {
+  # Echo the `name:` frontmatter value of file $1 (leading --- block only), or nothing.
+  [[ -f "$1" ]] || return 0
+  awk 'NR==1 && $0=="---" {infm=1; next} infm && $0=="---" {exit}
+       infm && index($0,"name:")==1 { v=substr($0,6); sub(/^[[:space:]]+/,"",v); print v; exit }' "$1"
+}
+
+install_agents_into() {
+  # $1 = host id, $2 = target dir. Copies that host's role files, recording what it wrote.
+  local host="$1" dir="$2" src_dir file base dest expected wrote=0 prior=""
+  src_dir="$(adapter_source_dir "$host")"
+  if [[ -z "$src_dir" || ! -d "$src_dir" ]]; then
+    say "  no $host role adapters in this source, skipping: $dir"
+    return 0
+  fi
+  # wgm's own checkout already IS the Copilot project agent dir; copying it onto itself is a no-op
+  # at best and a self-inflicted delete at worst.
+  if [[ "$(cd "$src_dir" && pwd)" == "$(cd "$dir" 2>/dev/null && pwd || printf '%s' "$dir")" ]]; then
+    say "  already the canonical source, skipping: $dir"
+    return 0
+  fi
+  say "  role agents ($host): $dir"
+  [[ "$DRY_RUN" -eq 1 ]] || mkdir -p "$dir"
+  # A prior receipt is wgm's own record of what it installed here last time. It is what lets a
+  # re-run refresh a file wgm owns even after the file was edited beyond recognition, without
+  # widening the claim to anything wgm never wrote.
+  [[ -f "$dir/$ADAPTER_RECEIPT" ]] && prior="$(grep -v '^#' "$dir/$ADAPTER_RECEIPT" 2>/dev/null || true)"
+  local written=()
+  for file in "$src_dir"/*"$(adapter_glob_suffix "$host")"; do
+    [[ -f "$file" ]] || continue
+    base="$(basename "$file")"
+    dest="$dir/$base"
+    expected="$(agent_name_of "$file")"
+    if [[ -e "$dest" && "$FORCE" -eq 0 ]]; then
+      if ! printf '%s\n' "$prior" | grep -qxF -- "$base" && [[ "$(agent_name_of "$dest")" != "$expected" ]]; then
+        say "    exists and is not wgm's — skipping (use --force to replace): $dest"
+        continue
+      fi
+    fi
+    written+=("$base")
+    if [[ "$DRY_RUN" -eq 1 ]]; then say "    would install: $dest"; continue; fi
+    cp -f "$file" "$dest"
+    wrote=$((wrote + 1))
+  done
+  if [[ "$DRY_RUN" -eq 1 ]]; then return 0; fi
+  # The receipt is what makes uninstall safe: it is the only list of files wgm claims to own here.
+  {
+    printf '# wgm role-agent adapters — %s. Removing this file makes --uninstall skip them.\n' "$host"
+    for base in ${written[@]+"${written[@]}"}; do printf '%s\n' "$base"; done
+  } > "$dir/$ADAPTER_RECEIPT"
+  say "    installed $wrote file(s)"
+}
+
+uninstall_agents_from() {
+  # $1 = host id, $2 = target dir. Removes ONLY the files named in this directory's wgm receipt.
+  local host="$1" dir="$2" receipt base dest removed=0
+  receipt="$dir/$ADAPTER_RECEIPT"
+  case "$dir" in
+    */agents) ;;
+    *) echo "  refusing to touch unexpected agent dir: $dir" >&2; return 0 ;;
+  esac
+  if [[ ! -f "$receipt" ]]; then
+    say "  no wgm adapter receipt, leaving untouched: $dir"
+    return 0
+  fi
+  while IFS= read -r base; do
+    [[ -n "$base" ]] || continue
+    case "$base" in \#*|*/*|..*) continue ;; esac
+    dest="$dir/$base"
+    [[ -f "$dest" ]] || continue
+    if [[ "$DRY_RUN" -eq 1 ]]; then say "    would remove: $dest"; continue; fi
+    rm -f "$dest"; removed=$((removed + 1))
+  done < "$receipt"
+  if [[ "$DRY_RUN" -eq 1 ]]; then say "  would remove the $host adapter receipt: $receipt"; return 0; fi
+  rm -f "$receipt"
+  say "  removed $removed $host adapter file(s) from: $dir"
+}
+
 # ----- run ------------------------------------------------------------------
 say "wgm installer"
 if [[ -n "$SRC_DIR" ]]; then say "  source : $SRC_DIR"; else say "  source : (none — uninstall)"; fi
@@ -431,7 +589,7 @@ say ""
 
 if [[ "$UNINSTALL" -eq 1 ]]; then
   say "Uninstalling wgm from:"
-  for t in "${TARGETS[@]}"; do
+  for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
     uninstall_one "$t"
     while IFS= read -r ct; do uninstall_one "$ct"; done < <(companion_targets_for "$t")
   done
@@ -441,17 +599,24 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
       while IFS= read -r ct; do uninstall_one "$ct"; done < <(companion_targets_for "$t")
     done
   fi
+  if [[ ${#AGENT_DIRS[@]} -gt 0 ]]; then
+    for i in "${!AGENT_DIRS[@]}"; do uninstall_agents_from "${AGENT_HOSTS[$i]}" "${AGENT_DIRS[$i]}"; done
+  fi
 else
   say "Installing wgm to:"
-  for t in "${TARGETS[@]}"; do install_one "$t" "$METHOD"; install_companions "$t" "$METHOD"; done
+  for t in ${TARGETS[@]+"${TARGETS[@]}"}; do install_one "$t" "$METHOD"; install_companions "$t" "$METHOD"; done
   if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
     for t in "${WIN_TARGETS[@]}"; do install_one "$t" copy; install_companions "$t" copy; done
   fi
+  if [[ ${#AGENT_DIRS[@]} -gt 0 ]]; then
+    for i in "${!AGENT_DIRS[@]}"; do install_agents_into "${AGENT_HOSTS[$i]}" "${AGENT_DIRS[$i]}"; done
+  fi
 fi
+for n in ${AGENT_NOTES[@]+"${AGENT_NOTES[@]}"}; do say "  note: $n"; done
 
 say ""
 say "Done. Targets:"
-for t in "${TARGETS[@]}"; do
+for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
   say "  - $t"
   if [[ "$NO_COMPANIONS" -eq 0 ]]; then
     while IFS= read -r ct; do say "  - $ct  (companion)"; done < <(companion_targets_for "$t")
@@ -460,8 +625,16 @@ done
 if [[ ${#WIN_TARGETS[@]} -gt 0 ]]; then
   for t in "${WIN_TARGETS[@]}"; do say "  - $t  (windows mirror)"; done
 fi
+if [[ ${#AGENT_DIRS[@]} -gt 0 ]]; then
+  for i in "${!AGENT_DIRS[@]}"; do say "  - ${AGENT_DIRS[$i]}  (${AGENT_HOSTS[$i]} role agents)"; done
+fi
 say ""
 say "Verify your agent can see it (e.g. /skills in VS Code or Copilot CLI), then invoke /wgm."
 if [[ "$NO_COMPANIONS" -eq 0 ]]; then
   say "Companions: /teach-me to learn a repo, /quiz-me to be tested on it, /rugged to stress-test a design."
+fi
+if [[ "$NO_AGENTS" -eq 1 ]]; then
+  say "Role agents: skipped (--no-agents). wgm runs the review passes inline and sequentially instead."
+elif [[ ${#AGENT_DIRS[@]} -eq 0 ]]; then
+  say "Role agents: none installed — no host with a subagent format was selected. wgm falls back to scripts/audit.sh and inline sequential review passes."
 fi

@@ -1,0 +1,69 @@
+{
+  "_see": "references/subagents.md (dispatch protocol) and references/harness-portability.md (evidence tiers). scripts/test-agent-adapters.sh checks this file against the tree and the installers.",
+  "manifest_version": "1",
+  "receipt_file": ".wgm-adapters",
+  "canonical": {
+    "source_dir": ".github/agents",
+    "file_suffix": ".agent.md",
+    "format": "copilot-agent-md",
+    "notes": "The Copilot custom-agent format is wgm's canonical role definition. Every other host adapter is derived from it by scripts/sync-agent-adapters.sh; nothing else is hand-authored."
+  },
+  "hosts": [
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot CLI",
+      "format": "copilot-agent-md",
+      "status": "shipped",
+      "source_dir": ".github/agents",
+      "file_suffix": ".agent.md",
+      "name_style": "title-case",
+      "user_dir": "~/.copilot/agents",
+      "project_dir": ".github/agents",
+      "notes": "Canonical format, installed verbatim. The user-scope path is the one an install has to create; the project-scope path is the repository directory Copilot already scans, which is why wgm's own checkout is never installed onto itself."
+    },
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "format": "claude-subagent-md",
+      "status": "expected",
+      "source_dir": "adapters/claude/agents",
+      "file_suffix": ".md",
+      "name_style": "slug",
+      "user_dir": "~/.claude/agents",
+      "project_dir": ".claude/agents",
+      "notes": "Written to Claude Code's documented subagent format (frontmatter name/description, body as the system prompt, slug identifiers). Expected, not Verified: wgm has never dispatched these files from a live Claude Code run, so the translation stays conservative — name, description, and the canonical body, no host-specific tool or model keys."
+    },
+    {
+      "id": "agents",
+      "name": "Generic .agents / Agent Skills client",
+      "format": "none",
+      "status": "no-adapter",
+      "source_dir": null,
+      "file_suffix": null,
+      "name_style": null,
+      "user_dir": null,
+      "project_dir": null,
+      "notes": "The Agent Skills standard defines skills, not subagents, so there is no directory to install a role definition into and wgm invents none. These clients get the portable skill plus the explicit fallback: scripts/audit.sh for the docs-audit swarm, and inline sequential review passes with dissent preserved (references/subagents.md)."
+    }
+  ],
+  "fallback": {
+    "when": "The host has no subagent primitive, or wgm ships no adapter for its format.",
+    "docs_audit": "scripts/audit.sh — dispatches all five docs-audit roles through the host's documented headless command.",
+    "review": "Run the two review passes inline and sequentially in one context and record that independence was weaker, as references/subagents.md prescribes.",
+    "notes": "A missing adapter is a named degradation with a named fallback, never a claim that wgm does not run there."
+  },
+  "roles": [
+    { "id": "wgm-diagnostician", "canonical_file": "wgm-diagnostician.agent.md", "copilot_name": "WGM Diagnostician", "claude_file": "wgm-diagnostician.md", "claude_name": "wgm-diagnostician" },
+    { "id": "wgm-docs-junior", "canonical_file": "wgm-docs-junior.agent.md", "copilot_name": "WGM Docs Reviewer — Junior Developer", "claude_file": "wgm-docs-junior.md", "claude_name": "wgm-docs-junior" },
+    { "id": "wgm-docs-pm", "canonical_file": "wgm-docs-pm.agent.md", "copilot_name": "WGM Docs Reviewer — Project Manager", "claude_file": "wgm-docs-pm.md", "claude_name": "wgm-docs-pm" },
+    { "id": "wgm-docs-principal", "canonical_file": "wgm-docs-principal.agent.md", "copilot_name": "WGM Docs Reviewer — Principal Developer", "claude_file": "wgm-docs-principal.md", "claude_name": "wgm-docs-principal" },
+    { "id": "wgm-docs-senior", "canonical_file": "wgm-docs-senior.agent.md", "copilot_name": "WGM Docs Reviewer — Senior Developer", "claude_file": "wgm-docs-senior.md", "claude_name": "wgm-docs-senior" },
+    { "id": "wgm-docs-writer", "canonical_file": "wgm-docs-writer.agent.md", "copilot_name": "WGM Docs Writer", "claude_file": "wgm-docs-writer.md", "claude_name": "wgm-docs-writer" },
+    { "id": "wgm-griller", "canonical_file": "wgm-griller.agent.md", "copilot_name": "WGM Griller", "claude_file": "wgm-griller.md", "claude_name": "wgm-griller" },
+    { "id": "wgm-hermes", "canonical_file": "wgm-hermes.agent.md", "copilot_name": "WGM Hermes", "claude_file": "wgm-hermes.md", "claude_name": "wgm-hermes" },
+    { "id": "wgm-implementer", "canonical_file": "wgm-implementer.agent.md", "copilot_name": "WGM Implementer", "claude_file": "wgm-implementer.md", "claude_name": "wgm-implementer" },
+    { "id": "wgm-quality-reviewer", "canonical_file": "wgm-quality-reviewer.agent.md", "copilot_name": "WGM Quality Reviewer", "claude_file": "wgm-quality-reviewer.md", "claude_name": "wgm-quality-reviewer" },
+    { "id": "wgm-spec-reviewer", "canonical_file": "wgm-spec-reviewer.agent.md", "copilot_name": "WGM Spec Reviewer", "claude_file": "wgm-spec-reviewer.md", "claude_name": "wgm-spec-reviewer" },
+    { "id": "wgm-validator", "canonical_file": "wgm-validator.agent.md", "copilot_name": "WGM Validator", "claude_file": "wgm-validator.md", "claude_name": "wgm-validator" }
+  ]
+}

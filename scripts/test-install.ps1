@@ -11,6 +11,9 @@
 #   E  bootstrap source-URL resolver: latest/tag -> release asset, a branch -> codeload (dry-run).
 #   F  companion skills install as siblings with matching names, uninstall cleanly, and honor
 #      -NoCompanions.
+#   G  role-agent adapters land in ~/.copilot/agents and ~/.claude/agents, refresh only what wgm
+#      recorded as its own, uninstall by receipt, and honor -NoAgents.
+#   H  -Dir installs the skill alone: a bare path names no host, so no agent dir is guessed.
 #
 # Exit 0 = green, 1 = red.
 
@@ -168,6 +171,84 @@ esac
     Ok 'F3 user-scope companions have matching names and uninstall cleanly'
   }
   else { Bad 'F3 expected matching companion names and complete user-scope uninstall' }
+
+  # ---- G: role-agent adapters land in the host dirs that are actually scanned ----
+  # The canonical .github/agents tree used to be copied inside SKILLS_DIR/wgm, where no host looks.
+  # These checks pin the real scan paths, the opt-out, and the receipt-scoped ownership rule.
+  $sandboxG = Join-Path $work 'homeG'
+  New-Item -ItemType Directory -Force -Path $sandboxG | Out-Null
+  $env:HOME = $sandboxG
+  $env:USERPROFILE = $sandboxG
+  try {
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client all *> $null
+    $copilotG = Join-Path $sandboxG '.copilot/agents'
+    $claudeG = Join-Path $sandboxG '.claude/agents'
+    $g1 =
+      (Test-Path (Join-Path $copilotG 'wgm-implementer.agent.md')) -and
+      (Test-Path (Join-Path $claudeG 'wgm-implementer.md')) -and
+      ((Get-Content -Raw (Join-Path $copilotG 'wgm-implementer.agent.md')) -match '(?m)^name:\s*WGM Implementer\s*$') -and
+      ((Get-Content -Raw (Join-Path $claudeG 'wgm-implementer.md')) -match '(?m)^name:\s*wgm-implementer\s*$')
+    if ($g1) { Ok 'G1 role adapters land in ~/.copilot/agents and ~/.claude/agents with host-correct names' }
+    else { Bad 'G1 expected host-format role adapters in the user-scope agent dirs' }
+
+    # A host agent directory is shared property: an unrelated agent, and even a foreign file that
+    # happens to share a wgm role name, can predate wgm. Seed both BEFORE wgm installs here.
+    $sandboxG2 = Join-Path $work 'homeG2'
+    $copilotG2 = Join-Path $sandboxG2 '.copilot/agents'
+    New-Item -ItemType Directory -Force -Path $copilotG2 | Out-Null
+    Set-Content -Path (Join-Path $copilotG2 'my-team.agent.md') -Value "---`nname: My Own Agent`ndescription: not wgm`n---`nkeep me"
+    Set-Content -Path (Join-Path $copilotG2 'wgm-validator.agent.md') -Value "---`nname: Someone Elses Validator`ndescription: not wgm`n---`nkeep me too"
+    $env:HOME = $sandboxG2
+    $env:USERPROFILE = $sandboxG2
+    $outG = (& pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot 2>&1 | Out-String)
+    # Then tamper with a file wgm DOES own: the receipt is what makes it recoverable on a re-run.
+    Set-Content -Path (Join-Path $copilotG2 'wgm-implementer.agent.md') -Value 'tampered'
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot *> $null
+    $canonImpl = Get-Content -Raw (Join-Path $root '.github/agents/wgm-implementer.agent.md')
+    $g2 =
+      ((Get-Content -Raw (Join-Path $copilotG2 'wgm-implementer.agent.md')) -eq $canonImpl) -and
+      ((Get-Content -Raw (Join-Path $copilotG2 'my-team.agent.md')) -match 'keep me') -and
+      ((Get-Content -Raw (Join-Path $copilotG2 'wgm-validator.agent.md')) -match 'Someone Elses Validator') -and
+      ($outG -match "exists and is not wgm's")
+    if ($g2) { Ok 'G2 a re-run refreshes wgm-owned adapters and clobbers no one else' }
+    else { Bad 'G2 re-run must refresh only the files wgm recorded as its own' }
+
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client copilot -Uninstall *> $null
+    $g3 =
+      -not (Test-Path (Join-Path $copilotG2 'wgm-implementer.agent.md')) -and
+      -not (Test-Path (Join-Path $copilotG2 '.wgm-adapters')) -and
+      (Test-Path (Join-Path $copilotG2 'my-team.agent.md')) -and
+      (Test-Path (Join-Path $copilotG2 'wgm-validator.agent.md'))
+    if ($g3) { Ok 'G3 uninstall removes only the receipt-listed adapters' }
+    else { Bad 'G3 uninstall removed files it had no receipt for, or missed its own' }
+
+    $sandboxH = Join-Path $work 'homeH'
+    New-Item -ItemType Directory -Force -Path $sandboxH | Out-Null
+    $env:HOME = $sandboxH
+    $env:USERPROFILE = $sandboxH
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client all -NoAgents *> $null
+    $g4 =
+      (Test-Path (Join-Path $sandboxH '.copilot/skills/wgm/SKILL.md')) -and
+      -not (Test-Path (Join-Path $sandboxH '.copilot/agents')) -and
+      -not (Test-Path (Join-Path $sandboxH '.claude/agents'))
+    if ($g4) { Ok 'G4 -NoAgents installs the portable skill and no adapters' }
+    else { Bad 'G4 -NoAgents still produced adapter directories' }
+  }
+  finally {
+    $env:HOME = $savedHome
+    $env:USERPROFILE = $savedUserProfile
+  }
+
+  # ---- H: -Dir names no host, so it guesses no agent path -------------------
+  $dirH = Join-Path $work 'h'
+  New-Item -ItemType Directory -Force -Path $dirH | Out-Null
+  $outH = (& pwsh -NoProfile -File $installPs -NoWsl -Dir $dirH -Client all 2>&1 | Out-String)
+  if ((Test-Path (Join-Path $dirH 'wgm/SKILL.md')) -and
+      -not (Test-Path (Join-Path $dirH 'agents')) -and
+      ($outH -match '-Dir installs the skill only')) {
+    Ok 'H -Dir installs the skill only and reports that no host agent path can be guessed'
+  }
+  else { Bad 'H -Dir should install the skill alone and explain the limit' }
 }
 finally {
   $env:WSL_FAKE_LOG = $null

@@ -98,6 +98,40 @@ and reinstalls in one step.
 | **Cause** | The source tree or tarball has no `companions/` directory — an older release. |
 | **Resolution** | Install from a newer ref: `--ref main`, or `--ref latest` for the newest published release. |
 
+## Role agents (the swarm)
+
+### The wgm roles do not appear in my host's agent list
+
+| | |
+|---|---|
+| **Symptom** | `/wgm` works, but the host offers no `wgm-implementer`, `wgm-spec-reviewer`, or docs-audit personas. |
+| **Cause** | Role subagents load from the host's own agent directory, never from inside the skill folder. Either no host client was selected, `--no-agents` / `-NoAgents` was passed, the host has no subagent primitive at all, or the session has not re-scanned. |
+| **Resolution** | Re-run with a host selected — `--client copilot`, `--client claude`, or `--client all` — then restart the session. Confirm the files: `ls ~/.copilot/agents/wgm-*.agent.md` or `ls ~/.claude/agents/wgm-*.md` for a user install; `.github/agents/` or `.claude/agents/` for a project install. If your host has no subagent mechanism, that is expected: see the next entry. |
+
+### My host has no agent directory at all
+
+| | |
+|---|---|
+| **Symptom** | The installer prints that the `.agents` client gets no role adapters, or the host is Pi and nothing was written. |
+| **Cause** | Not a failure. The Agent Skills standard defines skills, not subagents, and Pi ships without a subagent primitive by design, so wgm refuses to invent a directory no host reads. |
+| **Resolution** | Use the named fallback: run the docs-audit swarm with `bash scripts/audit.sh`, and run the two review passes inline and sequentially in one context, recording that independence was weaker. The deterministic gate is unchanged. Which host supports what is recorded in `compatibility/harnesses.json`. |
+
+### The installer says "exists and is not wgm's"
+
+| | |
+|---|---|
+| **Symptom** | One or more role files were skipped during install. |
+| **Cause** | A file of that name already exists in the agent directory and wgm did not install it — usually one of your own agents that shares a wgm role name. wgm refuses to overwrite files it has no receipt for. |
+| **Resolution** | Rename your file, or pass `--force` / `-Force` to replace it deliberately. |
+
+### Uninstall left wgm role files behind
+
+| | |
+|---|---|
+| **Symptom** | After `--uninstall`, `wgm-*.agent.md` or `wgm-*.md` files remain in an agent directory, and the installer said "no wgm adapter receipt". |
+| **Cause** | Removal is driven by the per-directory `.wgm-adapters` receipt, which is the only list of files wgm claims to own. If the receipt was deleted, or the files were placed there by hand, wgm will not delete them. |
+| **Resolution** | Remove them by hand, or re-run the installer once (which rewrites the receipt) and then uninstall. |
+
 ## Running the loop
 
 ### "No agent configured."

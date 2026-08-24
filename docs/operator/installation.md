@@ -6,7 +6,8 @@
 - **You'll get:** wgm placed where your agent scans for skills — user-level (global) by default.
 - **Fastest path:** the one-line installer (`curl … | bash`, or `irm … | iex` on Windows).
 - **Mental model:** a skill is just a `wgm/` folder containing `SKILL.md`; "installing" only copies
-  that folder into a skills directory your client reads.
+  that folder into a skills directory your client reads. Role subagents load differently, so they
+  are installed separately into your host's own agent directory.
 - **Watch out:** WSL and Windows have separate homes (install in each); the piped one-liner needs the
   repo to be public.
 - **Next:** [running-the-loop.md](running-the-loop.md) to drive it ·
@@ -109,6 +110,7 @@ rescan skills on startup or workspace reload.
 | `--uninstall` / `-Uninstall` | Remove the installed skill. |
 | `--force` / `-Force` | Overwrite an existing install. |
 | `--ref REF` / `-Ref REF` | Git ref (branch/tag/sha) to self-fetch when piped (default `main`). |
+| `--no-agents` / `-NoAgents` | Skip the role-agent adapters; install the portable skill only. |
 | `--no-windows` / — | (WSL) skip mirroring into your Windows home. |
 | `--windows-home PATH` / — | (WSL) mirror into the Windows home `PATH` (default: auto-detect via `/mnt`). |
 | — / `-NoWsl` | (Windows) do not delegate to WSL; install natively. |
@@ -134,6 +136,31 @@ toggles Windows-home auto-detection.
 
 The `.agents/skills/` path is the cross-client convention: skills installed there are visible to any
 compliant client, so it is the safest default.
+
+### Role agents land somewhere else
+
+wgm's twelve role subagents are not skills, and no host finds them inside the skill folder. When you
+select a host client, the installer also writes that host's role files where the host scans:
+
+| Scope | Copilot CLI | Claude Code | Cross-client `agents` |
+|---|---|---|---|
+| **User** | `~/.copilot/agents` | `~/.claude/agents` | none |
+| **Project** | `./.github/agents` | `./.claude/agents` | none |
+
+The cross-client column is empty on purpose: the Agent Skills standard defines skills, not
+subagents, so there is no directory to write to and wgm invents none. Those clients — and any host
+without a subagent primitive, such as Pi — get the portable skill plus wgm's explicit fallback:
+`scripts/audit.sh` for the docs-audit swarm, and the two review passes run inline and sequentially
+with the weaker independence recorded. The Copilot adapter is the one wgm dispatches today; the
+Claude adapter matches Claude Code's documented format but has not been dispatched from a live run,
+and each file says so.
+
+wgm claims only the files it wrote. Each agent directory gets a `.wgm-adapters` receipt, a re-run
+refreshes exactly those files, an agent of your own is never touched, and `--uninstall` removes only
+what the receipt lists. Skip adapters entirely with `--no-agents` / `-NoAgents`.
+
+`--dir` / `-Dir` installs the skill only. A bare path names no host, so the installer refuses to
+guess an agent directory and tells you what it skipped.
 
 **In WSL**, a user-scope install also lands a copy under your Windows home — e.g.
 `/mnt/c/Users/you/.agents/skills/wgm` (shown on Windows as `%USERPROFILE%\.agents\skills\wgm`) — for
@@ -165,7 +192,8 @@ flowchart TD
 
 **Updating:** just re-run the installer. A directory wgm recognizes as its own (its `SKILL.md` says
 `name: wgm`) is refreshed in place — no `--force` — and a missing Windows mirror is added. Unrelated
-directories are left untouched unless you pass `--force`.
+directories are left untouched unless you pass `--force`. Role adapters follow the same rule at file
+granularity, driven by the `.wgm-adapters` receipt in each agent directory.
 
 ## Verify & uninstall
 
