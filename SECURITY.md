@@ -23,9 +23,9 @@ report stays confidential.
 wgm is distributed as an Agent Skill and is rolling-released from `main`. Security fixes land on
 `main`; re-running the installer updates an existing install in place.
 
-Tagged releases are cut from `main` and published to GitHub Releases on the `stable` channel. A tag
-is the only immutable thing in this distribution, so `stable` is always pinned to a tag and a full
-commit sha — never to a moving branch.
+Tagged releases are cut from `main` and published to GitHub Releases on the `stable` channel. The
+`stable` channel is always pinned to a tag and a full commit sha — never to a moving branch — so a
+given release always names one specific version of the tree.
 
 ## Release integrity (what is and is not proven)
 
@@ -34,7 +34,7 @@ every release publishes its own integrity evidence as static assets:
 
 - `SHA256SUMS` — SHA-256 of `wgm-vX.Y.tar.gz` and `wgm.tar.gz`, in `sha256sum -c` format.
 - `release.json` — a schema-versioned release record naming the channel, version, tag, commit sha,
-  publication time, and each asset's immutable URL, size, and SHA-256. Its full field list is in
+  publication time, and each asset's per-tag URL, size, and SHA-256. Its full field list is in
   [docs/reference/cli-install.md](docs/reference/cli-install.md).
 
 Verify a download before trusting it:
@@ -47,22 +47,33 @@ curl -fsSLO "${base}/SHA256SUMS"
 sha256sum --ignore-missing -c SHA256SUMS
 ```
 
-**What this proves.** That the archive you hold is byte-for-byte the archive that release published,
-and that it is the release the record claims: right version, right tag, right commit, complete skill
-tree including all three companion skills.
+**What this proves.** That the archive you hold is byte-for-byte what the release's own checksums
+name, and that the release describes itself consistently: right version, right tag, right commit, a
+complete skill tree including all three companion skills, and a `wgm.tar.gz` identical to
+`wgm-vX.Y.tar.gz` — so `WGM_REF=latest` and `WGM_REF=vX.Y` cannot install different code.
 
 **What this does not prove.** SHA-256 is a checksum, not a signature. It carries no cryptographic
-proof of *who* produced the bytes, and an attacker who could rewrite the release could rewrite the
-checksums with it. wgm publishes **no cryptographic signatures** today, and **no build attestation**
-is configured — `release.json` says so explicitly (`provenance.signatures: "none"`,
+proof of *who* produced the bytes. It also does not make a release tamper-proof: GitHub lets whoever
+controls the repository delete or re-upload a release asset, move a tag, or delete a release, and an
+actor who could do that could rewrite `SHA256SUMS` and `release.json` in the same breath. A per-tag
+URL is a *stable reference by intent*, not a frozen object. What the checksums give you is detection
+over time — a hash you recorded at install, a copy of the record held elsewhere, or two people
+comparing what they downloaded. wgm publishes **no cryptographic signatures** today, and **no build
+attestation** is configured — `release.json` says so explicitly (`provenance.signatures: "none"`,
 `provenance.attestation: "unavailable"`). The release workflow rejects any record that claims
 otherwise, so the field cannot quietly start overstating what exists. If signing or GitHub artifact
 attestation is added later, the record will name it and the validator will require the evidence to
 back it.
 
+**If verification fails.** A mismatch between a download and `SHA256SUMS`, or between a hash you
+recorded earlier and the one a release now advertises, should be treated as a security event, not a
+flaky download. Do not extract or install the archive. Keep the file and the checksums you fetched,
+confirm you compared the same tag, and report it through the private channel above.
+
 The release workflow fails closed before anything is published: malformed metadata, a missing asset,
 a checksum mismatch, a tag that disagrees with `SKILL.md`'s version, a stable record pinned to a
-moving ref, or an archive missing `SKILL.md` or a companion all stop the release. The same checks run
+moving ref, a stable `wgm.tar.gz` that is not a byte-identical copy of the versioned archive, or an
+archive missing a root `SKILL.md` or a companion all stop the release. The same checks run
 offline via `scripts/build-release-index.sh --validate` and `scripts/test-release-index.sh`, so you
 can reproduce them without credentials.
 

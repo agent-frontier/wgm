@@ -105,11 +105,19 @@ To confirm the skill is visible:
 
 ## Release channel and integrity
 
-wgm has no marketplace, no update service, and no account to hold. **GitHub Releases is the source
-of truth.** A tag and its assets are immutable once published, and nothing sits between you and the
-bytes that could later start serving something else. Trading a hosted registry for a static,
-release-backed contract removes the whole class of "the server changed its mind" problems, at the
-cost of doing version discovery by reading one file.
+wgm has no marketplace, no update service, and no account to hold. **GitHub Releases is the source of
+truth.** Every release is addressed by a per-tag URL that is meant never to change, and the release
+record points only at those URLs — so an install resolves to one named version rather than to
+whatever `main` holds today. Trading a hosted registry for a static, release-backed contract removes
+the whole class of "the server changed its mind" problems, at the cost of doing version discovery by
+reading one file.
+
+That is stability *of reference*, not a cryptographic guarantee about bytes. GitHub does not freeze a
+published release: a maintainer — or anyone who compromises the account — can delete or re-upload an
+asset, move a tag, or delete a release outright. What the record and `SHA256SUMS` add is
+**detection**: pin a version, keep the SHA-256 you verified, and re-verify every download. If a hash
+you have verified before stops matching, do not install it — see
+[SECURITY.md](../../SECURITY.md#release-integrity-what-is-and-is-not-proven).
 
 Every tagged release on the `stable` channel publishes four assets:
 
@@ -128,12 +136,18 @@ Two URL shapes exist, and they are not interchangeable:
 
 | URL | Moves? | Used by |
 |---|---|---|
-| `https://github.com/agent-frontier/wgm/releases/download/vX.Y/wgm-vX.Y.tar.gz` | Never. Pinned to one tag. | `--ref vX.Y` / `WGM_REF=vX.Y`, and every URL inside `release.json`. |
-| `https://github.com/agent-frontier/wgm/releases/latest/download/wgm.tar.gz` | Yes. Follows the newest release. | `--ref latest` / `WGM_REF=latest`, as a convenience alias. |
+| `https://github.com/agent-frontier/wgm/releases/download/vX.Y/wgm-vX.Y.tar.gz` | By design, no: it names one tag and one version. | `--ref vX.Y` / `WGM_REF=vX.Y`, and every URL inside `release.json`. |
+| `https://github.com/agent-frontier/wgm/releases/latest/download/wgm.tar.gz` | Yes, by design: it follows the newest release. | `--ref latest` / `WGM_REF=latest`, as a convenience alias. |
 
-The `latest` alias is a fetch convenience only. It never appears inside a release record: the record
-always names immutable per-tag URLs, and the release workflow fails closed if it does not. The stable
-channel therefore can never resolve to a moving `main`.
+The `latest` alias is a fetch convenience only, and it keeps working exactly as before. It never
+appears inside a release record: the record always names per-tag URLs, and the release workflow fails
+closed if it does not. The stable channel therefore can never resolve to a moving `main`. The asset
+behind a per-tag URL can still be replaced by whoever controls the repository, which is why the
+checksum step below is the part that actually protects you.
+
+`wgm.tar.gz` is published as a byte-identical copy of `wgm-vX.Y.tar.gz`, and the release record must
+state the same hash and size for both — otherwise `--ref latest` and `--ref vX.Y` could install
+different code from one release while each checksum verified on its own.
 
 ### Verifying a download
 
@@ -145,9 +159,15 @@ curl -fsSLO "${base}/SHA256SUMS"
 sha256sum --ignore-missing -c SHA256SUMS
 ```
 
-SHA-256 proves the bytes you got are the bytes that release published. It is a checksum, not a
-signature: it says nothing about *who* built them. See [SECURITY.md](../../SECURITY.md) for what the
-`provenance` block does and does not claim.
+SHA-256 proves the bytes you got are the bytes `SHA256SUMS` names. It is a checksum, not a
+signature: it says nothing about *who* built them, and if the release itself were rewritten the
+checksums would be rewritten with it. Its real strength is comparison over time — a hash you recorded
+at install time, or one an independent copy of the release record carries.
+
+**If a hash does not match:** stop. Do not extract or install the archive, keep the downloaded file
+and the `SHA256SUMS` you fetched, re-check that you compared the same tag, and report it through the
+private channel in [SECURITY.md](../../SECURITY.md). A mismatch is either a corrupted download or a
+replaced asset, and both are worth a report.
 
 ### The release record (`release.json`)
 
@@ -161,10 +181,10 @@ signature: it says nothing about *who* built them. See [SECURITY.md](../../SECUR
 | `schema_version` | Shape of this record. Bumped whenever fields change, so an old reader refuses rather than guesses. |
 | `channel` | `stable` today. `edge` is reserved and must be set explicitly if it is ever used. |
 | `version` / `tag` | The skill version (`0.3`) and its tag (`v0.3`). The workflow fails if they disagree with `SKILL.md`. |
-| `commit` | The full 40-character commit sha the tag points at — the immutable anchor of the release. |
+| `commit` | The full 40-character commit sha the tag points at — the content-addressed anchor of the release. |
 | `published_at` / `generated_at` | RFC 3339 UTC timestamps for publication and record generation. |
 | `minimum_updater_schema` | The lowest updater implementation able to read this record. |
-| `assets[]` | Each asset's `name`, `role`, `sha256`, `size_bytes`, and immutable download `url`. |
+| `assets[]` | Each asset's `name`, `role`, `sha256`, `size_bytes`, and per-tag download `url`. |
 | `contents` | What the archive must contain: `SKILL.md` plus every companion skill. |
 | `provenance` | Honest labelling of the integrity evidence: checksums, attestation state, signature state. |
 
@@ -173,9 +193,9 @@ Fetch the newest record with
 `https://github.com/agent-frontier/wgm/releases/download/vX.Y/release.json`.
 
 **How the updater will use it.** A self-update command reads the stable record, compares `version`
-against the installed `SKILL.md` version, downloads the `versioned-archive` asset by its immutable
-`url`, re-hashes it against the recorded `sha256`, and installs only on a match — refusing outright
-if `schema_version` exceeds what it understands. That is the entire protocol: one static file, no
+against the installed `SKILL.md` version, downloads the `versioned-archive` asset by its per-tag
+`url`, re-hashes it against the recorded `sha256` and `size_bytes`, and installs only on a match —
+refusing outright if `schema_version` exceeds what it understands. That is the entire protocol: one static file, no
 service, no credentials. Until then, `--ref latest` remains the supported way to update.
 
 To reproduce the metadata for a tag locally:

@@ -18,8 +18,9 @@
 #
 # It is also the validator for that record (`--validate`), and the workflow runs it in that mode
 # BEFORE `gh release create`. Everything here fails closed: malformed JSON, a missing field, a
-# tag/version mismatch, a missing asset, a hash mismatch, a mutable stable ref, or an archive that
-# does not carry SKILL.md plus every companion is RED, never a warning.
+# tag/version mismatch, a missing asset, a hash or size mismatch, a mutable stable ref, a stable
+# archive that is not a byte-identical copy of the versioned one, or an archive that does not carry a
+# root SKILL.md plus exactly the shipped companions is RED, never a warning.
 #
 # Usage:
 #   scripts/build-release-index.sh --tag vX.Y --commit SHA [options]   # build
@@ -176,8 +177,16 @@ def ts: ne and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
       ( ($r.contents | keycheck(contents_allowed; "contents"))
       , (if ($r.contents.skill // "") != "SKILL.md" then "contents.skill must be 'SKILL.md'" else empty end)
       , (if ($r.contents.companions | type) != "array" then "contents.companions must be an array" else
-          ( ($companions | split(",")) - $r.contents.companions
-            | map("contents.companions is missing the companion skill '\(.)'") | .[] ) end)
+          ( ($companions | split(",")) as $req
+            | ( (($req - $r.contents.companions)
+                 | map("contents.companions is missing the companion skill '\(.)'") | .[])
+              , (($r.contents.companions - $req)
+                 | map("contents.companions claims a companion skill this release does not ship: '\(.)'") | .[])
+              # Exactly the required set, not merely a superset or a set with duplicates: the archive
+              # ships three companions and the record must say three, no more and no fewer.
+              , (if ($r.contents.companions | length) != ($req | length)
+                 then "contents.companions must list exactly the \($req | length) required companion skills, got \($r.contents.companions | length)"
+                 else empty end) ) ) end)
       ) end)
 
   , (if ($r.provenance | type) != "object" then "provenance must be an object" else
@@ -224,6 +233,18 @@ def ts: ne and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
       , ( [ $r.assets[] | select(.role == "checksums") ] as $c
           | if ($c | length) != 1 then "exactly one checksums asset is required"
             elif ($c[0].name != "SHA256SUMS") then "the checksum file must be named 'SHA256SUMS', got '\($c[0].name)'"
+            else empty end )
+      # wgm.tar.gz is defined as a byte-identical copy of the versioned archive under a stable name.
+      # If the two ever diverge, `WGM_REF=latest` and `WGM_REF=vX.Y` install DIFFERENT code from the
+      # same release while every individual checksum still verifies — an integrity hole a per-asset
+      # hash cannot see, so the record must state that they are the same bytes.
+      , ( ( [ $r.assets[] | select(.role == "versioned-archive") ] | first ) as $v
+          | ( [ $r.assets[] | select(.role == "stable-archive") ] | first ) as $s
+          | if ($v == null) or ($s == null) then empty
+            elif ($v.sha256 != $s.sha256)
+              then "the stable archive must be a byte-identical copy of the versioned archive: sha256 \($s.sha256 // "?") != \($v.sha256 // "?")"
+            elif ($v.size_bytes != $s.size_bytes)
+              then "the stable archive must be a byte-identical copy of the versioned archive: size \($s.size_bytes // "?") != \($v.size_bytes // "?")"
             else empty end )
       ) end)
 
@@ -280,8 +301,8 @@ validate_record() {
 # the only way this diverges is a real bug (wrong file copied, archive rebuilt after hashing) — which
 # is exactly the case that must not reach `gh release create`.
 verify_assets() {
-  local file="$1" rc=0 name expected actual path
-  while IFS=$'\t' read -r name expected; do
+  local file="$1" rc=0 name expected size actual actual_size path
+  while IFS=$'\t' read -r name expected size; do
     [[ -n "$name" ]] || continue
     path="$ASSETS_DIR/$name"
     if [[ ! -f "$path" ]]; then
@@ -294,29 +315,66 @@ verify_assets() {
       note "asset '$name' hash mismatch: record says $expected, file is $actual"
       rc=1
     fi
-  done < <(jq -r '.assets[]? | [.name, .sha256] | @tsv' "$file" 2>/dev/null)
+    # Size is cheap, independent corroboration: a truncated upload or a swapped asset shows up here
+    # even when the hash field was updated to match the wrong file.
+    actual_size="$(wc -c < "$path" | tr -d ' ')"
+    if [[ "$actual_size" != "$size" ]]; then
+      note "asset '$name' size mismatch: record says ${size} bytes, file is ${actual_size}"
+      rc=1
+    fi
+  done < <(jq -r '.assets[]? | [.name, .sha256, (.size_bytes | tostring)] | @tsv' "$file" 2>/dev/null)
 
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     verify_archive_contents "$ASSETS_DIR/$name" || rc=1
   done < <(jq -r '.assets[]? | select(.role == "versioned-archive" or .role == "stable-archive") | .name' "$file" 2>/dev/null)
 
+  verify_stable_is_copy "$file" || rc=1
+
   return "$rc"
+}
+
+# The stable-named archive exists so `…/releases/latest/download/wgm.tar.gz` resolves. It is only
+# safe if it is the SAME BYTES as the versioned archive; otherwise WGM_REF=latest and WGM_REF=vX.Y
+# install different code from one release. Checked on the real files, not just on the record.
+verify_stable_is_copy() {
+  local file="$1" versioned stable vpath spath vsum ssum
+  versioned="$(jq -r '[.assets[]? | select(.role == "versioned-archive") | .name] | first // ""' "$file" 2>/dev/null)"
+  stable="$(jq -r '[.assets[]? | select(.role == "stable-archive") | .name] | first // ""' "$file" 2>/dev/null)"
+  [[ -n "$versioned" && -n "$stable" ]] || return 0
+  vpath="$ASSETS_DIR/$versioned"
+  spath="$ASSETS_DIR/$stable"
+  [[ -f "$vpath" && -f "$spath" ]] || return 0
+
+  vsum="$(sha256_of "$vpath")"
+  ssum="$(sha256_of "$spath")"
+  if [[ "$vsum" != "$ssum" ]]; then
+    note "'$stable' is not a byte-identical copy of '$versioned' (${ssum:0:12}… != ${vsum:0:12}…); WGM_REF=latest and WGM_REF=vX.Y would install different code"
+    return 1
+  fi
+  if [[ "$(wc -c < "$vpath" | tr -d ' ')" != "$(wc -c < "$spath" | tr -d ' ')" ]]; then
+    note "'$stable' and '$versioned' differ in size despite matching hashes"
+    return 1
+  fi
+  return 0
 }
 
 # A release that omits SKILL.md or a companion is a broken install for every user who fetches it, and
 # no checksum would notice — the archive would hash perfectly. So the contents are a gate too.
+#
+# The skill manifest must be at the ARCHIVE ROOT. A loose `SKILL.md` match would be satisfied by
+# companions/teach-me/SKILL.md, so an archive containing only companions — no wgm at all — would pass.
 verify_archive_contents() {
   local archive="$1" listing rc=0 c
   [[ -f "$archive" ]] || { note "archive '$archive' is missing"; return 1; }
   listing="$(tar -tzf "$archive" 2>/dev/null)" || { note "archive '$archive' is not a readable gzip tarball"; return 1; }
 
-  if ! grep -qE '(^|/)SKILL\.md$' <<<"$listing"; then
-    note "archive '$(basename "$archive")' does not contain SKILL.md"
+  if ! grep -qE '^(\./)?SKILL\.md$' <<<"$listing"; then
+    note "archive '$(basename "$archive")' does not contain SKILL.md at its root"
     rc=1
   fi
   for c in "${COMPANIONS[@]}"; do
-    if ! grep -qE "(^|/)companions/${c}/SKILL\.md$" <<<"$listing"; then
+    if ! grep -qE "^(\./)?companions/${c}/SKILL\.md$" <<<"$listing"; then
       note "archive '$(basename "$archive")' does not contain the companion skill '$c'"
       rc=1
     fi

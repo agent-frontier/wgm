@@ -21,6 +21,10 @@
 #   7. a release missing SKILL.md or a companion is rejected even though its checksum is perfect
 #   8. false provenance claims (signatures, unbacked attestation) are rejected
 #   9. unknown/extra keys and unknown schema versions are rejected, so drift can't creep in silently
+#  10. the stable archive must be a byte-identical copy of the versioned one, or WGM_REF=latest and
+#      WGM_REF=vX.Y would install different code from the same release with both hashes "valid"
+#  11. a declared size_bytes that disagrees with the file on disk is rejected
+#  12. contents.companions must be EXACTLY the shipped set — extra claims fail too, not just missing
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -277,6 +281,93 @@ if [[ "$RC" -ne 0 ]] && grep -q "missing the companion skill" <<<"$OUT"; then
   pass "a record that stops claiming a companion is rejected"
 else
   fail "a dropped companion claim was accepted (rc=$RC): $OUT"
+fi
+
+# "Contains the required set" is not enough: a record advertising a companion the archive does not
+# ship is a promise the install cannot keep, so the claim must be exactly the shipped set.
+jq '.contents.companions += ["ghost-me"]' "$GOOD" > extracompanion.json
+validate extracompanion.json
+if [[ "$RC" -ne 0 ]] && grep -q "does not ship: 'ghost-me'" <<<"$OUT"; then
+  pass "a record claiming a companion the release does not ship is rejected"
+else
+  fail "an extra companion claim was accepted (rc=$RC): $OUT"
+fi
+
+jq '.contents.companions += ["rugged"]' "$GOOD" > dupcompanion.json
+validate dupcompanion.json
+if [[ "$RC" -ne 0 ]] && grep -q "exactly the 3 required companion skills" <<<"$OUT"; then
+  pass "a duplicated companion entry is rejected (exact set, not superset)"
+else
+  fail "a duplicated companion entry was accepted (rc=$RC): $OUT"
+fi
+
+# --- 7b) SKILL.md must be at the ARCHIVE ROOT ---------------------------------------------------
+# A loose match on "any path ending in SKILL.md" is satisfied by companions/teach-me/SKILL.md, so an
+# archive carrying only the companions — no wgm skill at all — would pass a naive contents check.
+mkdir -p rootless/dist rootless/tree/companions
+for c in teach-me quiz-me rugged; do
+  mkdir -p "rootless/pack/companions/$c"
+  cp "tree/companions/$c/SKILL.md" "rootless/pack/companions/$c/SKILL.md"
+  mkdir -p "rootless/tree/companions/$c"
+  cp "tree/companions/$c/SKILL.md" "rootless/tree/companions/$c/SKILL.md"
+done
+cp tree/SKILL.md rootless/tree/SKILL.md   # the source tree is complete …
+( cd rootless/pack && tar -czf "../dist/wgm-${TAG}.tar.gz" . ) || exit 2   # … but the ARCHIVE is not
+cp "rootless/dist/wgm-${TAG}.tar.gz" rootless/dist/wgm.tar.gz
+run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist rootless/dist --root rootless/tree --out rootless/dist/release.json
+if [[ "$RC" -ne 0 ]] && grep -q "does not contain SKILL.md at its root" <<<"$OUT"; then
+  pass "an archive with companion SKILL.md files but no root SKILL.md is rejected"
+else
+  fail "a rootless archive passed the contents gate (rc=$RC): $OUT"
+fi
+
+# --- 10) the stable archive must be the versioned archive's bytes -------------------------------
+# The subtlest hole in a per-asset checksum scheme: wgm.tar.gz and wgm-vX.Y.tar.gz each hash
+# correctly, but they are DIFFERENT builds. WGM_REF=latest and WGM_REF=vX.Y then install different
+# code from one release and every checksum still verifies. Both must be the same bytes.
+mkdir -p divergent/dist
+cp -r tree divergent/tree
+( cd divergent/tree && tar -czf "../dist/wgm-${TAG}.tar.gz" . ) || exit 2
+printf '\n# drifted stable build\n' >> divergent/tree/SKILL.md
+( cd divergent/tree && tar -czf ../dist/wgm.tar.gz . ) || exit 2
+run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist divergent/dist --root divergent/tree --out divergent/dist/release.json
+if [[ "$RC" -ne 0 ]] && grep -q "byte-identical copy" <<<"$OUT"; then
+  pass "a stable archive whose contents differ from the versioned archive is rejected, though both hashes are valid"
+else
+  fail "a divergent stable archive was accepted (rc=$RC): $OUT"
+fi
+
+# Same defect reached from the other side: a record that simply declares two different hashes.
+jq '(.assets[] | select(.role == "stable-archive") | .sha256) = "1111111111111111111111111111111111111111111111111111111111111111"' "$GOOD" > splithash.json
+validate splithash.json
+if [[ "$RC" -ne 0 ]] && grep -q "byte-identical copy" <<<"$OUT"; then
+  pass "a record declaring different hashes for the stable and versioned archives is rejected"
+else
+  fail "a record with divergent declared hashes was accepted (rc=$RC): $OUT"
+fi
+
+# And from the disk side: a record claiming they match while the files on disk do not.
+mkdir -p swapped
+cp dist/SHA256SUMS "dist/wgm-${TAG}.tar.gz" swapped/
+cp -r tree other-tree
+printf '\n# other build\n' >> other-tree/SKILL.md
+( cd other-tree && tar -czf ../swapped/wgm.tar.gz . ) || exit 2
+validate "$GOOD" --assets-dir swapped
+if [[ "$RC" -ne 0 ]] && grep -qE "byte-identical copy|hash mismatch" <<<"$OUT"; then
+  pass "archives on disk that disagree with each other are rejected during re-validation"
+else
+  fail "divergent archives on disk were accepted (rc=$RC): $OUT"
+fi
+
+# --- 11) declared size must match the file ------------------------------------------------------
+# Independent corroboration of the hash: a truncated upload or a swapped asset shows up in the size
+# even when someone updates the hash field to match the wrong file.
+jq '(.assets[] | select(.role == "checksums") | .size_bytes) = 999999' "$GOOD" > size.json
+validate size.json --assets-dir dist
+if [[ "$RC" -ne 0 ]] && grep -q "size mismatch" <<<"$OUT"; then
+  pass "a declared size_bytes that disagrees with the file on disk is rejected"
+else
+  fail "a wrong size_bytes was accepted (rc=$RC): $OUT"
 fi
 
 # --- 8) honest provenance -----------------------------------------------------------------------
