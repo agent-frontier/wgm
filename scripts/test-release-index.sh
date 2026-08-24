@@ -48,26 +48,57 @@ VERSION="9.9"
 SHA="0123456789abcdef0123456789abcdef01234567"
 REPO="agent-frontier/wgm"
 
-# A minimal but structurally honest skill tree: the record's contents gate only cares that SKILL.md
-# and every companion are really in the archive.
-mkdir -p tree/companions/teach-me tree/companions/quiz-me tree/companions/rugged
-cat > tree/SKILL.md <<EOF
+# A minimal but structurally honest skill tree: the contents gate cares that a root SKILL.md, every
+# companion, and the references/ tree are really in the archive.
+make_tree() {
+  local dir="$1"; shift
+  local version="${1:-$VERSION}"; shift || true
+  local skip="${1:-}"
+  local c
+  mkdir -p "$dir/references"
+  cat > "$dir/SKILL.md" <<EOF
 ---
 name: wgm
 metadata:
-  version: "${VERSION}"
+  version: "${version}"
 ---
 EOF
-for c in teach-me quiz-me rugged; do
-  printf -- '---\nname: %s\n---\n' "$c" > "tree/companions/$c/SKILL.md"
-done
+  printf '# ralph loop\n' > "$dir/references/ralph-loop.md"
+  for c in teach-me quiz-me rugged; do
+    [[ "$c" == "$skip" ]] && continue
+    mkdir -p "$dir/companions/$c"
+    printf -- '---\nname: %s\n---\n' "$c" > "$dir/companions/$c/SKILL.md"
+  done
+}
 
-mkdir -p dist
-( cd tree && tar -czf "../dist/wgm-${TAG}.tar.gz" . ) || exit 2
-cp "dist/wgm-${TAG}.tar.gz" dist/wgm.tar.gz
+# Package a tree the way the release workflow does: a versioned archive plus a byte-identical
+# stable-named copy.
+pack() {
+  local tree="$1" dest="$2" tag="$3" abs
+  mkdir -p "$dest"
+  abs="$(cd "$dest" && pwd)" || return 1
+  ( cd "$tree" && tar -czf "$abs/wgm-${tag}.tar.gz" . ) || return 1
+  cp "$abs/wgm-${tag}.tar.gz" "$abs/wgm.tar.gz"
+}
+
+make_tree tree
+pack tree dist "$TAG" || exit 2
 
 OUT=""; RC=0
-run() { set +e; OUT="$(bash "$BUILD" "$@" 2>&1)"; RC=$?; set -e; }
+# The build script is EXPECTED to exit non-zero in most cases here, so its status must be captured,
+# never allowed to abort the harness before the assertion that names the case. This harness runs
+# without errexit; the save/restore keeps that true even if a future edit turns errexit on, so a
+# probe can never leave it enabled behind itself.
+capture() {
+  local had_errexit=0
+  [[ $- == *e* ]] && had_errexit=1
+  set +e
+  OUT="$("$@" 2>&1)"
+  RC=$?
+  (( had_errexit )) && set -e
+  return 0
+}
+run() { capture bash "$BUILD" "$@"; }
 
 # --- 1) the honest case -----------------------------------------------------------------------
 run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist dist --root tree --out dist/release.json
@@ -109,7 +140,7 @@ else
   fail "the record points at a moving URL: $(jq -c '[.assets[].url]' "$GOOD")"
 fi
 
-validate() { set +e; OUT="$(bash "$BUILD" --validate "$1" "${@:2}" 2>&1)"; RC=$?; set -e; }
+validate() { local f="$1"; shift; capture bash "$BUILD" --validate "$f" "$@"; }
 
 validate "$GOOD" --assets-dir dist --expect-tag "$TAG"
 if [[ "$RC" -eq 0 ]]; then
@@ -147,12 +178,18 @@ else
   fail "the --expect-tag cross-check did not fire (rc=$RC): $OUT"
 fi
 
-# The generator refuses the same mismatch at source, so a local reproduction can't produce it.
-run --tag v1.2 --commit "$SHA" --repo "$REPO" --dist dist --root tree --out dist/bad.json
-if [[ "$RC" -ne 0 ]] && grep -q "does not match SKILL.md version" <<<"$OUT"; then
-  pass "the generator refuses a tag that disagrees with SKILL.md"
+# The generator refuses the same mismatch at source. The fixture is deliberately complete for the tag
+# being built — correctly named `wgm-v1.2.tar.gz` and `wgm.tar.gz`, both carrying the full tree — so
+# the ONLY thing wrong is that the source SKILL.md says 9.9. A missing archive must not be able to
+# masquerade as this assertion passing.
+pack tree v12dist v1.2 || exit 2
+run --tag v1.2 --commit "$SHA" --repo "$REPO" --dist v12dist --root tree --out v12dist/bad.json
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "tag 'v1.2' does not match SKILL.md version '9.9'" <<<"$OUT" \
+   && ! grep -q "is missing from" <<<"$OUT"; then
+  pass "the generator refuses a tag that disagrees with SKILL.md, with the archives all present"
 else
-  fail "the generator built a record for a mismatched tag (rc=$RC): $OUT"
+  fail "the generator built a record for a mismatched tag, or failed for another reason (rc=$RC): $OUT"
 fi
 
 # --- 4) malformed record ----------------------------------------------------------------------
@@ -248,28 +285,43 @@ fi
 
 # --- 7) incomplete skill tree -------------------------------------------------------------------
 # A perfectly-hashed archive can still be a broken install. Checksums say nothing about contents.
-mkdir -p partial/dist partial/tree/companions/teach-me partial/tree/companions/quiz-me
-cp tree/SKILL.md partial/tree/SKILL.md
-cp tree/companions/teach-me/SKILL.md partial/tree/companions/teach-me/SKILL.md
-cp tree/companions/quiz-me/SKILL.md partial/tree/companions/quiz-me/SKILL.md
-( cd partial/tree && tar -czf "../dist/wgm-${TAG}.tar.gz" . ) || exit 2
-cp "partial/dist/wgm-${TAG}.tar.gz" partial/dist/wgm.tar.gz
+#
+# The SOURCE tree here is complete — SKILL.md, references/, and all three companions — so the
+# generator's preflight over --root passes cleanly. Only the packaged archives omit `rugged`. That
+# isolates the assertion to verify_archive_contents: if the tree were also incomplete, this case
+# would pass on the preflight's error message while the archive gate silently rotted.
+make_tree partial/tree
+make_tree partial/pack "$VERSION" rugged
+pack partial/pack partial/dist "$TAG" || exit 2
+[[ -f "partial/dist/wgm-${TAG}.tar.gz" && -f partial/dist/wgm.tar.gz ]] \
+  || fail "the companion-omission fixture did not produce both archives"
 run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist partial/dist --root partial/tree --out partial/dist/release.json
-if [[ "$RC" -ne 0 ]] && grep -q "rugged" <<<"$OUT"; then
-  pass "a release whose archive omits a companion skill is rejected despite a valid checksum"
+if [[ "$RC" -ne 0 ]] \
+   && grep -q "does not contain the companion skill 'rugged'" <<<"$OUT" \
+   && ! grep -q "is missing from partial/tree" <<<"$OUT"; then
+  pass "an archive that omits a companion is rejected by the archive gate, though the source tree is complete"
 else
-  fail "a companion-less release was accepted (rc=$RC): $OUT"
+  fail "a companion-less archive was accepted, or failed for another reason (rc=$RC): $OUT"
 fi
 
-mkdir -p noskill/dist noskill/tree/companions
-( cd noskill && mkdir -p empty && cd empty && printf 'x\n' > x.txt && tar -czf "../dist/wgm-${TAG}.tar.gz" . ) || exit 2
-cp "noskill/dist/wgm-${TAG}.tar.gz" noskill/dist/wgm.tar.gz
-cp tree/SKILL.md noskill/tree/SKILL.md
-for c in teach-me quiz-me rugged; do
-  mkdir -p "noskill/tree/companions/$c" && cp "tree/companions/$c/SKILL.md" "noskill/tree/companions/$c/SKILL.md"
-done
+# Same discipline for the references/ tree: SKILL.md loads references/*.md every iteration, so an
+# archive without them installs cleanly and dead-ends on first use.
+make_tree norefs/tree
+make_tree norefs/pack
+rm -rf norefs/pack/references
+pack norefs/pack norefs/dist "$TAG" || exit 2
+run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist norefs/dist --root norefs/tree --out norefs/dist/release.json
+if [[ "$RC" -ne 0 ]] && grep -q "does not contain the references/ tree" <<<"$OUT"; then
+  pass "an archive missing the references/ tree is rejected, though SKILL.md and every companion are present"
+else
+  fail "an archive without references/ was accepted (rc=$RC): $OUT"
+fi
+
+make_tree noskill/tree
+mkdir -p noskill/pack && printf 'x\n' > noskill/pack/x.txt
+pack noskill/pack noskill/dist "$TAG" || exit 2
 run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist noskill/dist --root noskill/tree --out noskill/dist/release.json
-if [[ "$RC" -ne 0 ]] && grep -q "does not contain SKILL.md" <<<"$OUT"; then
+if [[ "$RC" -ne 0 ]] && grep -q "does not contain SKILL.md at its root" <<<"$OUT"; then
   pass "an archive with no SKILL.md is rejected before publication"
 else
   fail "an archive without SKILL.md was accepted (rc=$RC): $OUT"
@@ -304,16 +356,10 @@ fi
 # --- 7b) SKILL.md must be at the ARCHIVE ROOT ---------------------------------------------------
 # A loose match on "any path ending in SKILL.md" is satisfied by companions/teach-me/SKILL.md, so an
 # archive carrying only the companions — no wgm skill at all — would pass a naive contents check.
-mkdir -p rootless/dist rootless/tree/companions
-for c in teach-me quiz-me rugged; do
-  mkdir -p "rootless/pack/companions/$c"
-  cp "tree/companions/$c/SKILL.md" "rootless/pack/companions/$c/SKILL.md"
-  mkdir -p "rootless/tree/companions/$c"
-  cp "tree/companions/$c/SKILL.md" "rootless/tree/companions/$c/SKILL.md"
-done
-cp tree/SKILL.md rootless/tree/SKILL.md   # the source tree is complete …
-( cd rootless/pack && tar -czf "../dist/wgm-${TAG}.tar.gz" . ) || exit 2   # … but the ARCHIVE is not
-cp "rootless/dist/wgm-${TAG}.tar.gz" rootless/dist/wgm.tar.gz
+make_tree rootless/tree                  # the source tree is complete …
+make_tree rootless/pack
+rm -f rootless/pack/SKILL.md             # … but the ARCHIVE keeps only the companions' manifests
+pack rootless/pack rootless/dist "$TAG" || exit 2
 run --tag "$TAG" --commit "$SHA" --repo "$REPO" --dist rootless/dist --root rootless/tree --out rootless/dist/release.json
 if [[ "$RC" -ne 0 ]] && grep -q "does not contain SKILL.md at its root" <<<"$OUT"; then
   pass "an archive with companion SKILL.md files but no root SKILL.md is rejected"

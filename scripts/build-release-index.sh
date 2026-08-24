@@ -20,7 +20,7 @@
 # BEFORE `gh release create`. Everything here fails closed: malformed JSON, a missing field, a
 # tag/version mismatch, a missing asset, a hash or size mismatch, a mutable stable ref, a stable
 # archive that is not a byte-identical copy of the versioned one, or an archive that does not carry a
-# root SKILL.md plus exactly the shipped companions is RED, never a warning.
+# root SKILL.md plus exactly the shipped companions and a references/ tree is RED, never a warning.
 #
 # Usage:
 #   scripts/build-release-index.sh --tag vX.Y --commit SHA [options]   # build
@@ -359,8 +359,9 @@ verify_stable_is_copy() {
   return 0
 }
 
-# A release that omits SKILL.md or a companion is a broken install for every user who fetches it, and
-# no checksum would notice — the archive would hash perfectly. So the contents are a gate too.
+# A release that omits SKILL.md, a companion, or the references/ tree is a broken install for every
+# user who fetches it, and no checksum would notice — the archive would hash perfectly. So the
+# contents are a gate too.
 #
 # The skill manifest must be at the ARCHIVE ROOT. A loose `SKILL.md` match would be satisfied by
 # companions/teach-me/SKILL.md, so an archive containing only companions — no wgm at all — would pass.
@@ -379,6 +380,13 @@ verify_archive_contents() {
       rc=1
     fi
   done
+  # SKILL.md is a router: it tells the agent to load references/*.md every iteration. An archive with
+  # a manifest and no references/ installs cleanly and then dead-ends at the first load, so the
+  # "complete skill tree" the release claims has to include them.
+  if ! grep -qE '^(\./)?references/[^/]+\.md$' <<<"$listing"; then
+    note "archive '$(basename "$archive")' does not contain the references/ tree that SKILL.md loads"
+    rc=1
+  fi
   return "$rc"
 }
 

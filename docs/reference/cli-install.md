@@ -125,7 +125,7 @@ Every tagged release on the `stable` channel publishes four assets:
 
 | Asset | What it is |
 |---|---|
-| `wgm-vX.Y.tar.gz` | The complete skill tree for that version: `SKILL.md`, `references/`, `scripts/`, and all three companion skills. |
+| `wgm-vX.Y.tar.gz` | The complete skill tree for that version: `SKILL.md`, `references/`, `scripts/`, and all three companion skills. The release fails if the archive is missing the root `SKILL.md`, the `references/` tree, or any companion. |
 | `wgm.tar.gz` | A byte-identical copy under a stable name, so `…/releases/latest/download/wgm.tar.gz` always resolves. |
 | `SHA256SUMS` | SHA-256 of both archives in `sha256sum -c` format. |
 | `release.json` | The machine-readable release record described below. |
@@ -185,8 +185,13 @@ replaced asset, and both are worth a report.
 | `published_at` / `generated_at` | RFC 3339 UTC timestamps for publication and record generation. |
 | `minimum_updater_schema` | The lowest updater implementation able to read this record. |
 | `assets[]` | Each asset's `name`, `role`, `sha256`, `size_bytes`, and per-tag download `url`. |
-| `contents` | What the archive must contain: `SKILL.md` plus every companion skill. |
+| `contents` | The skill manifest and companion set the archive must carry. The validator additionally requires a root `SKILL.md` and a non-empty `references/` tree inside the archive itself. |
 | `provenance` | Honest labelling of the integrity evidence: checksums, attestation state, signature state. |
+
+`assets[]` lists three entries — the versioned archive, the stable archive, and `SHA256SUMS`.
+`release.json` is the fourth published asset but deliberately does **not** appear in its own
+`assets[]`: a record cannot contain its own hash. Verify it by the release it came from, and compare
+the archive hashes it names against `SHA256SUMS`, which it does cover.
 
 Fetch the newest record with
 `https://github.com/agent-frontier/wgm/releases/latest/download/release.json`, or a specific one with
@@ -198,12 +203,25 @@ against the installed `SKILL.md` version, downloads the `versioned-archive` asse
 refusing outright if `schema_version` exceeds what it understands. That is the entire protocol: one static file, no
 service, no credentials. Until then, `--ref latest` remains the supported way to update.
 
-To reproduce the metadata for a tag locally:
+To reproduce a release's metadata locally, build the archives first — the generator reads them, and
+fails if they are not there (exit 2 when `--dist` does not exist at all, exit 1 when it exists but
+holds no archives):
 
 ```bash
-bash scripts/build-release-index.sh --tag vX.Y --commit "$(git rev-parse vX.Y^{commit})" --dist dist
-bash scripts/build-release-index.sh --validate dist/release.json --assets-dir dist --expect-tag vX.Y
+tag=v0.3
+git checkout "${tag}"          # generate from the tagged tree, not from your working branch
+mkdir -p dist
+tar --exclude-vcs --exclude=./dist -czf "dist/wgm-${tag}.tar.gz" .
+cp "dist/wgm-${tag}.tar.gz" dist/wgm.tar.gz
+
+bash scripts/build-release-index.sh --tag "${tag}" --commit "$(git rev-parse "${tag}^{commit}")" --dist dist
+bash scripts/build-release-index.sh --validate dist/release.json --assets-dir dist --expect-tag "${tag}"
 ```
+
+`dist/` is gitignored. Compression is not byte-reproducible across tar/gzip versions, so a locally
+built archive may hash differently from the published one; what this reproduces is the record's
+*shape and self-consistency*, not the published hashes. To check those, download the release assets
+and run the validator with `--assets-dir` pointed at them.
 
 ## What to do next
 

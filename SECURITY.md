@@ -49,8 +49,9 @@ sha256sum --ignore-missing -c SHA256SUMS
 
 **What this proves.** That the archive you hold is byte-for-byte what the release's own checksums
 name, and that the release describes itself consistently: right version, right tag, right commit, a
-complete skill tree including all three companion skills, and a `wgm.tar.gz` identical to
-`wgm-vX.Y.tar.gz` — so `WGM_REF=latest` and `WGM_REF=vX.Y` cannot install different code.
+complete skill tree (root `SKILL.md`, `references/`, all three companion skills), and a `wgm.tar.gz`
+identical to `wgm-vX.Y.tar.gz` — so `WGM_REF=latest` and `WGM_REF=vX.Y` cannot install different
+code.
 
 **What this does not prove.** SHA-256 is a checksum, not a signature. It carries no cryptographic
 proof of *who* produced the bytes. It also does not make a release tamper-proof: GitHub lets whoever
@@ -73,7 +74,7 @@ confirm you compared the same tag, and report it through the private channel abo
 The release workflow fails closed before anything is published: malformed metadata, a missing asset,
 a checksum mismatch, a tag that disagrees with `SKILL.md`'s version, a stable record pinned to a
 moving ref, a stable `wgm.tar.gz` that is not a byte-identical copy of the versioned archive, or an
-archive missing a root `SKILL.md` or a companion all stop the release. The same checks run
+archive missing a root `SKILL.md`, the `references/` tree, or any companion all stop the release. The same checks run
 offline via `scripts/build-release-index.sh --validate` and `scripts/test-release-index.sh`, so you
 can reproduce them without credentials.
 
