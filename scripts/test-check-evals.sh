@@ -5,11 +5,13 @@
 # A schema gate that never fails is indistinguishable from no gate, so this harness proves
 # check-evals.sh actually fails closed on each drift class it claims to catch:
 #   1. the real fixture still passes (no false positive);
-#   2. an unexpected top-level key fails — including one containing punctuation;
-#   3. an unexpected per-case key fails — including one containing a digit;
-#   4. a missing required field still fails.
+#   2. default discovery reaches the rugged companion fixture;
+#   3. an unexpected top-level key fails — including one containing punctuation;
+#   4. an unexpected per-case key fails — including one containing a digit;
+#   5. a missing required field still fails;
+#   6. assertions must actually be an array.
 #
-# (2) and (3) are the [learn] issue #86 class: an identifier-shaped regex would skip exactly those
+# (3) and (4) are the [learn] issue #86 class: an identifier-shaped regex would skip exactly those
 # keys, so the gate must read the key set structurally instead.
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
@@ -37,6 +39,10 @@ run_on() {  # $1 = fixture path; sets OUT/RC without tripping set -e
   OUT="$(WGM_EVALS_FIXTURE="$1" bash "$CHECK" 2>&1)"; RC=$?
 }
 
+run_all() {  # exercise the real repository-discovery branch
+  OUT="$(cd "$ROOT" && env -u WGM_EVALS_FIXTURE bash "$CHECK" 2>&1)"; RC=$?
+}
+
 # 1) the shipped fixture is green
 run_on "$FIXTURE"
 if [[ "$RC" -eq 0 ]]; then
@@ -45,7 +51,15 @@ else
   fail "the shipped fixture unexpectedly failed the gate: $OUT"
 fi
 
-# 2) an unexpected top-level key with punctuation is rejected
+# 2) default discovery reaches the rugged companion fixture
+run_all
+if [[ "$RC" -eq 0 ]] && grep -q "companions/rugged/evals/evals.json schema valid" <<<"$OUT"; then
+  pass "default discovery validates the rugged companion fixture"
+else
+  fail "default discovery skipped or failed the rugged companion fixture (rc=$RC): $OUT"
+fi
+
+# 3) an unexpected top-level key with punctuation is rejected
 jq '. + {"x-drift": 1}' "$FIXTURE" > "$TMP/top.json"
 run_on "$TMP/top.json"
 if [[ "$RC" -ne 0 ]] && grep -q "unexpected top-level key: 'x-drift'" <<<"$OUT"; then
@@ -54,7 +68,7 @@ else
   fail "punctuation-bearing top-level drift was not rejected (rc=$RC): $OUT"
 fi
 
-# 3) an unexpected per-case key containing a digit is rejected
+# 4) an unexpected per-case key containing a digit is rejected
 jq '.evals[0] += {"expected_output2": "drift"}' "$FIXTURE" > "$TMP/case.json"
 run_on "$TMP/case.json"
 if [[ "$RC" -ne 0 ]] && grep -q "unexpected key: 'expected_output2'" <<<"$OUT"; then
@@ -63,13 +77,22 @@ else
   fail "digit-bearing per-case drift was not rejected (rc=$RC): $OUT"
 fi
 
-# 4) a missing required field is still rejected (the gate's original job)
+# 5) a missing required field is still rejected (the gate's original job)
 jq 'del(.evals[0].prompt)' "$FIXTURE" > "$TMP/missing.json"
 run_on "$TMP/missing.json"
 if [[ "$RC" -ne 0 ]] && grep -q "missing 'prompt'" <<<"$OUT"; then
   pass "a missing required field is rejected"
 else
   fail "a missing required field was not rejected (rc=$RC): $OUT"
+fi
+
+# 6) assertions must be a non-empty array, not merely a value with a length
+jq '.evals[0].assertions = "not-an-array"' "$FIXTURE" > "$TMP/assertions-type.json"
+run_on "$TMP/assertions-type.json"
+if [[ "$RC" -ne 0 ]] && grep -q "'assertions' must be a non-empty array" <<<"$OUT"; then
+  pass "a non-array assertions value is rejected"
+else
+  fail "a non-array assertions value was not rejected (rc=$RC): $OUT"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then
