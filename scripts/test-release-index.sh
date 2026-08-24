@@ -140,6 +140,40 @@ else
   fail "SHA256SUMS is missing, malformed, or does not match the archives: $(cat dist/SHA256SUMS 2>&1)"
 fi
 
+# The docs hand readers a copy-pasteable verification recipe. If the manifest format and that recipe
+# drift apart — or the recipe stops being portable — a user's check silently stops meaning anything.
+# So the harness runs the documented shape against the manifest the generator just wrote, and proves
+# it carries an exit code in both directions.
+# shellcheck disable=SC2016  # this is doc TEXT to match literally, not a command to expand
+DOC_RECIPE='grep "wgm-${tag}.tar.gz" SHA256SUMS | shasum -a 256 -c -'
+docs_ok=1
+for doc in "$ROOT/docs/reference/cli-install.md" "$ROOT/SECURITY.md"; do
+  grep -Fq "$DOC_RECIPE" "$doc" || { docs_ok=0; fail "the portable verification recipe is missing from ${doc##*/}"; }
+  # `shasum` does support -c; saying otherwise sends macOS readers down a worse path.
+  # shellcheck disable=SC2016  # literal doc text, backticks included
+  grep -Fq 'no `-c` mode' "$doc" && { docs_ok=0; fail "${doc##*/} still claims shasum has no -c mode"; }
+done
+[[ "$docs_ok" -eq 1 ]] && pass "both docs carry the portable 'grep … | shasum -a 256 -c -' recipe"
+
+# Run the documented shape with whichever checker exists here, on a good and a tampered manifest.
+checker=(shasum -a 256 -c -)
+command -v shasum >/dev/null 2>&1 || checker=(sha256sum -c -)
+capture bash -c 'cd dist && grep "wgm-'"${TAG}"'.tar.gz" SHA256SUMS | '"${checker[*]}"
+if [[ "$RC" -eq 0 ]] && grep -q "OK" <<<"$OUT"; then
+  pass "the documented recipe verifies the generated SHA256SUMS and exits 0"
+else
+  fail "the documented verification recipe failed on an honest manifest (rc=$RC): $OUT"
+fi
+
+mkdir -p reciperr && cp "dist/wgm-${TAG}.tar.gz" reciperr/
+printf '%s  wgm-%s.tar.gz\n' "1111111111111111111111111111111111111111111111111111111111111111" "$TAG" > reciperr/SHA256SUMS
+capture bash -c 'cd reciperr && grep "wgm-'"${TAG}"'.tar.gz" SHA256SUMS | '"${checker[*]}"
+if [[ "$RC" -ne 0 ]]; then
+  pass "the documented recipe exits non-zero when the archive does not match the manifest"
+else
+  fail "the documented recipe reported success on a tampered manifest: $OUT"
+fi
+
 GOOD="$TMP/good.json"
 cp dist/release.json "$GOOD"
 

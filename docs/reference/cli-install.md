@@ -160,16 +160,22 @@ curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
 ```
 
-Then compare, with whatever your platform ships:
+Then check it. This recipe is the portable one — it feeds the manifest line for the file you actually
+downloaded to the checker on stdin, so it works with GNU coreutils and with the `shasum` that ships
+on macOS, and it exits non-zero on a mismatch:
 
 ```bash
-# Linux (GNU coreutils)
-sha256sum --ignore-missing -c SHA256SUMS
+# macOS, and anywhere shasum exists
+grep "wgm-${tag}.tar.gz" SHA256SUMS | shasum -a 256 -c -
 
-# macOS — no `-c` mode; print the hash and compare it to the manifest line
-shasum -a 256 "wgm-${tag}.tar.gz"
-grep "wgm-${tag}.tar.gz" SHA256SUMS
+# Linux (GNU coreutils) — same shape
+grep "wgm-${tag}.tar.gz" SHA256SUMS | sha256sum -c -
 ```
+
+Both print `wgm-vX.Y.tar.gz: OK` and exit 0 when the bytes match. Piping one line in keeps the check
+from failing over the *other* archive you did not download; GNU coreutils can do the same across the
+whole manifest with `sha256sum --ignore-missing -c SHA256SUMS`, but `--ignore-missing` is a GNU
+extension and is absent from the `shasum` on older macOS.
 
 ```powershell
 # Windows PowerShell
@@ -178,16 +184,19 @@ $tag = 'v0.3'
 Select-String -Path SHA256SUMS -Pattern "wgm-$tag.tar.gz"
 ```
 
-The two strings must be identical, character for character. `SHA256SUMS` itself is covered by
-`release.json`, and the release workflow refuses to publish a manifest whose lines disagree with the
-record or the archives — so a manifest that verifies the wrong bytes cannot be released.
+On Windows compare the two strings yourself: they must be identical, character for character.
+
+`SHA256SUMS` itself is covered by `release.json`, and the release workflow refuses to publish a
+manifest whose lines disagree with the record or the archives — so a manifest that verifies the wrong
+bytes cannot be released.
 
 SHA-256 proves the bytes you got are the bytes `SHA256SUMS` names. It is a checksum, not a
 signature: it says nothing about *who* built them, and if the release itself were rewritten the
 checksums would be rewritten with it. Its real strength is comparison over time — a hash you recorded
 at install time, or one an independent copy of the release record carries.
 
-**If a hash does not match:** stop — do not extract, install, or run the archive. Keep the downloaded
+**If the check does not say `OK` (or the tool exits non-zero):** stop — do not extract, install, or
+run the archive. Keep the downloaded
 file and the `SHA256SUMS` you fetched, confirm you compared the same tag and the same file name, and
 re-download once to rule out a truncated transfer. If it still differs, report it through the private
 channel in [SECURITY.md](../../SECURITY.md) and do not install from that copy. A mismatch is either a

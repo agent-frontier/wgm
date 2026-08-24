@@ -49,9 +49,13 @@ base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
 curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
 
-sha256sum --ignore-missing -c SHA256SUMS   # Linux (GNU coreutils)
-shasum -a 256 "wgm-${tag}.tar.gz"          # macOS: compare this hash to the SHA256SUMS line
+# Portable: pipe the one manifest line you care about to the checker. Exits non-zero on a mismatch.
+grep "wgm-${tag}.tar.gz" SHA256SUMS | shasum -a 256 -c -    # macOS, and anywhere shasum exists
+grep "wgm-${tag}.tar.gz" SHA256SUMS | sha256sum -c -        # Linux (GNU coreutils)
 ```
+
+`shasum` does support `-c`; what it may lack on older macOS is GNU's `--ignore-missing`, which is why
+the recipe above pipes a single line instead of checking the whole manifest.
 
 ```powershell
 # Windows PowerShell
@@ -78,8 +82,9 @@ otherwise, so the field cannot quietly start overstating what exists. If signing
 attestation is added later, the record will name it and the validator will require the evidence to
 back it.
 
-**If verification fails.** A mismatch between a download and `SHA256SUMS`, or between a hash you
-recorded earlier and the one a release now advertises, should be treated as a security event, not a
+**If verification fails.** Anything other than `OK` and a zero exit status — or a mismatch between a
+hash you recorded earlier and the one a release now advertises — should be treated as a security
+event, not a
 flaky download. Do not extract, install, or run the archive. Keep the file and the checksums you
 fetched, confirm you compared the same tag and file name, and re-download once to rule out a
 truncated transfer. If it still differs, report it through the private channel above and install
