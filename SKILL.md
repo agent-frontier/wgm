@@ -65,13 +65,19 @@ implement / prototype something from rough intent.
 
 ## Related Skills & Plugins
 
-**[teach-me](companions/teach-me/SKILL.md) / [quiz-me](companions/quiz-me/SKILL.md)** — the two
-companion skills that ship with wgm and install beside it. wgm can build software faster than its
-operator can understand it, which leaves a human owning code they cannot explain. `teach-me` makes
-a repo legible (a cited map, a tour in execution order, one validated first change); `quiz-me`
+**[teach-me](companions/teach-me/SKILL.md) / [quiz-me](companions/quiz-me/SKILL.md)** — two of the
+three companion skills that ship with wgm and install beside it. wgm can build software faster than
+its operator can understand it, which leaves a human owning code they cannot explain. `teach-me`
+makes a repo legible (a cited map, a tour in execution order, one validated first change); `quiz-me`
 proves the learning landed (one question at a time, graded against the code, scored by tier). At
 **Ship/Handoff**, when a build was largely autonomous or the operator is new to the codebase, offer
 `/teach-me` — a handoff summary the operator cannot act on is not a handoff.
+
+**[rugged](companions/rugged/SKILL.md)** — the third companion skill, a read-only reviewer that
+stress-tests a request, spec, plan, diff, or system against its *actual* operators and environment,
+ending in one unhedged verdict (RUGGED, FRAGILE, or UNKNOWN). It is not wired into any wgm phase
+gate; an operator invokes it directly when they want a second opinion on whether a design holds up
+or is over-built for conditions that don't exist (`companions/rugged/SKILL.md`).
 
 **sofaking** — Stack Overflow for Agents knowledge integration. When installed, a compatible host
 adapter may invoke sofaking at:

@@ -46,6 +46,7 @@ jobs:
           cd companions
           skills-ref validate teach-me
           skills-ref validate quiz-me
+          skills-ref validate rugged
 
       - name: Docs backpressure check
         run: bash scripts/check-docs.sh

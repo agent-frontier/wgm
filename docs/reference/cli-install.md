@@ -4,7 +4,7 @@ wgm ships two installers with matching behavior: `scripts/install.sh` for Linux,
 `scripts/install.ps1` for native Windows PowerShell.
 
 Both place the skill folder where a skills-compatible agent scans for it, and both install the
-**companion skills** (`teach-me`, `quiz-me`) alongside it as sibling skill directories.
+**companion skills** (`teach-me`, `quiz-me`, `rugged`) alongside it as sibling skill directories.
 
 ## Syntax
 
@@ -28,7 +28,7 @@ scripts/install.ps1 [PARAMETERS]
 | `--dry-run` | `-DryRun` | off | Print what would happen; change nothing. |
 | `--uninstall` | `-Uninstall` | off | Remove wgm and its companions from the resolved targets. |
 | `--force` | `-Force` | off | Overwrite or replace an existing install. |
-| `--no-companions` | `-NoCompanions` | off | Install wgm alone, without `teach-me` and `quiz-me`. |
+| `--no-companions` | `-NoCompanions` | off | Install wgm alone, without `teach-me`, `quiz-me`, and `rugged`. |
 | `--no-windows` | — | off | WSL only: do not mirror into your Windows home. |
 | `--windows-home P` | — | auto-detect | WSL only: mirror into Windows home `P`. |
 | — | `-NoWsl` | off | Windows only: force a native install instead of delegating to WSL. |
@@ -46,7 +46,7 @@ The resolved target is always `SKILLS_DIR/wgm`, with companions as siblings:
 | User, `claude` | `~/.claude/skills/wgm` |
 | User, `copilot` | `~/.copilot/skills/wgm` |
 | Project | `./.agents/skills/wgm` and `./.claude/skills/wgm` |
-| Companions | `SKILLS_DIR/teach-me`, `SKILLS_DIR/quiz-me` |
+| Companions | `SKILLS_DIR/teach-me`, `SKILLS_DIR/quiz-me`, `SKILLS_DIR/rugged` |
 
 **Note:** The directory name must be exactly `wgm`, because it has to match the `name:` field in
 `SKILL.md` frontmatter. The same rule applies to each companion.
@@ -78,9 +78,9 @@ a native-Windows install.
 **Self-fetch when piped.** Run via `curl … | bash` with no local checkout and the script downloads
 the repo itself.
 
-**Caution:** `--uninstall` only removes paths ending in `skills/wgm`, `skills/teach-me`, or
-`skills/quiz-me`. It refuses any other path. A `--dir` install outside a `skills/` directory
-therefore cannot be uninstalled automatically; remove it by hand.
+**Caution:** `--uninstall` only removes paths ending in `skills/wgm`, `skills/teach-me`,
+`skills/quiz-me`, or `skills/rugged`. It refuses any other path. A `--dir` install outside a
+`skills/` directory therefore cannot be uninstalled automatically; remove it by hand.
 
 ## Verifying an install
 
@@ -101,7 +101,7 @@ To confirm the skill is visible:
 3. Restart your agent session so it re-scans skills.
 
 4. Ask your client to list skills (for example `/skills` in VS Code or Copilot CLI), and confirm
-   `wgm`, `teach-me`, and `quiz-me` all appear.
+   `wgm`, `teach-me`, `quiz-me`, and `rugged` all appear.
 
 ## What to do next
 

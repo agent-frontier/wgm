@@ -24,8 +24,8 @@ steps instead of one hopeful mega-edit.
 ## Install
 
 A skill is just a folder containing `SKILL.md`. Install it **once for your user** (global — the
-default) or **per project**, on Linux, macOS, Windows, or WSL. This also installs the two companion
-skills, `teach-me` and `quiz-me` (opt out with `--no-companions`).
+default) or **per project**, on Linux, macOS, Windows, or WSL. This also installs the three
+companion skills, `teach-me`, `quiz-me`, and `rugged` (opt out with `--no-companions`).
 
 > **New to wgm?** [Get started](docs/get-started/README.md) walks install through a first validated
 > build in eight steps.
@@ -115,12 +115,12 @@ treated as a request, not `build` mode.
 3. **Build** — it advances **one task per iteration**, running your checks after each, until the plan
    is done *and* an LLM judge is satisfied — then hands back a clean, buildable repo.
 
-## Companion skills: `/teach-me` and `/quiz-me`
+## Companion skills: `/teach-me`, `/quiz-me`, and `/rugged`
 
 wgm can build software faster than its operator can understand it. You take delivery of a working
-repo and own code you cannot explain. Two companion skills close that gap — they install alongside
-wgm automatically (opt out with `--no-companions` / `-NoCompanions`) and work on **any** repo, not
-just one wgm built.
+repo and own code you cannot explain. Three companion skills close that gap and stress-test the
+result — they install alongside wgm automatically (opt out with `--no-companions` /
+`-NoCompanions`) and work on **any** repo, not just one wgm built.
 
 | Invocation | What happens |
 |---|---|
@@ -128,9 +128,11 @@ just one wgm built.
 | `/teach-me deep: <area>` | One area down to its invariants, failure modes, and the tests that pin it |
 | `/quiz-me` | Grills you one question at a time, grades each answer **against the code**, scores by tier, and drills what you got wrong |
 | `/quiz-me drill: <area>` | Repeated questions on one weak area until it converges |
+| `/rugged` | Read-only review that stress-tests a request, spec, plan, diff, or system against its *actual* operators and environment, ending in one unhedged verdict: RUGGED, FRAGILE, or UNKNOWN |
 
-They are deliberately a pair. `teach-me` produces the *feeling* of understanding; only `quiz-me`
-tells you whether it was real. Two rules make the score mean something:
+`teach-me` and `quiz-me` are deliberately a pair: `teach-me` produces the *feeling* of
+understanding; only `quiz-me` tells you whether it was real. Two rules make the score mean
+something:
 
 - **Cite or don't claim** — every statement `teach-me` makes about your repo carries a `path:line`
   citation, and it *runs* the build rather than repeating what the README claims. No citation, no claim.
@@ -139,9 +141,13 @@ tells you whether it was real. Two rules make the score mean something:
   **confidently wrong** about separately from "I don't know" — the first is a future incident, the
   second is just a gap.
 
-Artifacts land in `.wgm/learning/` (map, progress, quiz log), so a later session resumes instead of
-re-surveying. Neither skill modifies your code — except `teach-me`'s one first-change exercise,
-which is reverted by default.
+`rugged` is a different kind of companion: it never edits anything, and it judges robustness, not
+comprehension. See [Companion skills](docs/companions/README.md) for its full lifecycle and the
+development-practice metaphor its name comes from.
+
+Artifacts land in `.wgm/learning/` (teach-me/quiz-me) and `.wgm/rugged/` (rugged), so a later
+session resumes instead of re-surveying. None of the three modify your code — except `teach-me`'s
+one first-change exercise, which is reverted by default.
 
 ## What it writes (and how it stays safe)
 
@@ -319,7 +325,7 @@ wgm/
 ├── references/       # grilling · ralph-loop · telemetry · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · PLUGIN_PROTOCOL · plugin-integration
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
 ├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · install.sh · install.ps1
-├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) — installed as sibling skills
+├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) · rugged (stress-test a design) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes
 └── docs/             # get-started/ · operator/ · companions/ · agent/ · reference/ · style-guide · plans/ · audit/
 ```

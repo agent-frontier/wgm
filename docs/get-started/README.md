@@ -65,8 +65,9 @@ On native Windows PowerShell:
 irm https://raw.githubusercontent.com/agent-frontier/wgm/main/scripts/install.ps1 | iex
 ```
 
-The installer also places two **companion skills** beside wgm: `teach-me` and `quiz-me`. Skip them
-with `--no-companions` if you prefer.
+The installer also places three **companion skills** beside wgm: `teach-me` and `quiz-me` for
+learning and testing on a repo, plus `rugged`, a read-only reviewer. Skip all three with
+`--no-companions` if you prefer.
 
 **Note:** Full flag list in the [installers reference](../reference/cli-install.md); scope choice and
 platform detail in [Installation](../operator/installation.md).
@@ -77,7 +78,7 @@ To confirm your agent can see wgm:
 
 1. Restart your agent session so it re-scans its skills directory.
 2. Ask the client to list skills — for example, `/skills` in VS Code or Copilot CLI.
-3. Confirm `wgm`, `teach-me`, and `quiz-me` all appear.
+3. Confirm `wgm`, `teach-me`, `quiz-me`, and `rugged` all appear.
 
 If wgm is missing, see [Troubleshooting](../operator/troubleshooting.md#the-agent-does-not-list-wgm).
 

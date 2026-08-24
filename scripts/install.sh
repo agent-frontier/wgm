@@ -20,7 +20,7 @@
 #   --dry-run         print what would happen; change nothing
 #   --uninstall       remove the wgm skill from the resolved targets
 #   --force           overwrite/replace an existing install
-#   --no-companions   do NOT install the teach-me / quiz-me companion skills alongside wgm
+#   --no-companions   do NOT install the teach-me / quiz-me / rugged companion skills alongside wgm
 #   --no-windows      (WSL only) do NOT mirror into your Windows home
 #   --windows-home P  (WSL only) mirror into Windows home P (default: auto-detect via /mnt)
 #   --ref REF         ref to self-fetch when piped: a branch/tag/sha, or "latest" for the newest
@@ -320,7 +320,7 @@ is_wgm_install() {
 
 # Companion skills ship beside wgm as their own sibling skill dirs, because a skills client
 # discovers one skill per directory: companions/teach-me -> <skills-dir>/teach-me.
-COMPANIONS=(teach-me quiz-me)
+COMPANIONS=(teach-me quiz-me rugged)
 
 is_companion_install() {  # $1 = dir, $2 = companion name
   [[ -f "$1/SKILL.md" ]] || return 1
@@ -399,7 +399,7 @@ install_one() {
 uninstall_one() {
   local target="$1"
   case "$target" in
-    */skills/wgm|*/skills/teach-me|*/skills/quiz-me) ;;
+    */skills/wgm|*/skills/teach-me|*/skills/quiz-me|*/skills/rugged) ;;
     *) echo "  refusing to remove unexpected path: $target" >&2; return 0 ;;
   esac
   if [[ -e "$target" || -L "$target" ]]; then
@@ -463,5 +463,5 @@ fi
 say ""
 say "Verify your agent can see it (e.g. /skills in VS Code or Copilot CLI), then invoke /wgm."
 if [[ "$NO_COMPANIONS" -eq 0 ]]; then
-  say "Companions: /teach-me to learn a repo, /quiz-me to be tested on it."
+  say "Companions: /teach-me to learn a repo, /quiz-me to be tested on it, /rugged to stress-test a design."
 fi

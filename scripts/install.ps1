@@ -35,7 +35,7 @@
   Overwrite/replace an existing install.
 
 .PARAMETER NoCompanions
-  Do NOT install the teach-me / quiz-me companion skills alongside wgm.
+  Do NOT install the teach-me / quiz-me / rugged companion skills alongside wgm.
 
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
@@ -343,7 +343,7 @@ function Install-One {
 
 function Uninstall-One {
   param([string]$Target)
-  if ($Target -notmatch '[\\/]skills[\\/](wgm|teach-me|quiz-me)$') {
+  if ($Target -notmatch '[\\/]skills[\\/](wgm|teach-me|quiz-me|rugged)$') {
     Write-Warning "  refusing to remove unexpected path: $Target"
     return
   }
@@ -358,7 +358,7 @@ function Uninstall-One {
 
 # Companion skills ship beside wgm as their own sibling skill dirs, because a skills client
 # discovers one skill per directory: companions\teach-me -> <skills-dir>\teach-me.
-$companions = @('teach-me', 'quiz-me')
+$companions = @('teach-me', 'quiz-me', 'rugged')
 
 function Get-CompanionTargets {
   param([string]$WgmTarget)
@@ -437,7 +437,7 @@ foreach ($t in $targets) {
 Write-Host ""
 Write-Host "Verify your agent can see it (e.g. /skills), then invoke /wgm."
 if (-not $NoCompanions) {
-  Write-Host "Companions: /teach-me to learn a repo, /quiz-me to be tested on it."
+  Write-Host "Companions: /teach-me to learn a repo, /quiz-me to be tested on it, /rugged to stress-test a design."
 }
 }
 finally {

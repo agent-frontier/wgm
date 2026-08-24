@@ -26,7 +26,7 @@ New here? Start with **[Get started](get-started/README.md)**.
 |---|---|---|
 | **[Get started](get-started/README.md)** | Journey | First-time setup, end to end |
 | **[Operator guide](operator/README.md)** | Tasks | Running, validating, and troubleshooting wgm |
-| **[Companion skills](companions/README.md)** | Tasks | `teach-me` and `quiz-me` |
+| **[Companion skills](companions/README.md)** | Tasks | `teach-me`, `quiz-me`, and `rugged` |
 | **[Concepts](agent/lifecycle.md)** | Concepts | How the protocol thinks — written for the agent, readable by you |
 | **[Reference](reference/README.md)** | Reference | Exact flags, defaults, paths, exit codes |
 

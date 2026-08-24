@@ -9,7 +9,8 @@
 #   C  when WSL is "available" (fake wsl.exe), a user-scope install delegates to bash inside WSL.
 #   D  -NoWsl forces a native install even when WSL is available.
 #   E  bootstrap source-URL resolver: latest/tag -> release asset, a branch -> codeload (dry-run).
-#   F  companion skills (teach-me / quiz-me) install as siblings; -NoCompanions opts out.
+#   F  companion skills install as siblings with matching names, uninstall cleanly, and honor
+#      -NoCompanions.
 #
 # Exit 0 = green, 1 = red.
 
@@ -123,20 +124,50 @@ esac
   $dirF = Join-Path $work 'f'
   New-Item -ItemType Directory -Force -Path $dirF | Out-Null
   & pwsh -NoProfile -File $installPs -NoWsl -Dir $dirF -Client agents -Force *> $null
-  if ((Test-Path (Join-Path $dirF 'teach-me/SKILL.md')) -and (Test-Path (Join-Path $dirF 'quiz-me/SKILL.md'))) {
+  if ((Test-Path (Join-Path $dirF 'teach-me/SKILL.md')) -and (Test-Path (Join-Path $dirF 'quiz-me/SKILL.md')) -and (Test-Path (Join-Path $dirF 'rugged/SKILL.md'))) {
     Ok 'F1 companions install as sibling skill dirs next to wgm'
   }
-  else { Bad 'F1 expected teach-me/ and quiz-me/ beside wgm under the -Dir target' }
+  else { Bad 'F1 expected teach-me/, quiz-me/, and rugged/ beside wgm under the -Dir target' }
 
   $dirG = Join-Path $work 'g'
   New-Item -ItemType Directory -Force -Path $dirG | Out-Null
   & pwsh -NoProfile -File $installPs -NoWsl -Dir $dirG -Client agents -Force -NoCompanions *> $null
   if ((Test-Path (Join-Path $dirG 'wgm/SKILL.md')) -and
       -not (Test-Path (Join-Path $dirG 'teach-me')) -and
-      -not (Test-Path (Join-Path $dirG 'quiz-me'))) {
+      -not (Test-Path (Join-Path $dirG 'quiz-me')) -and
+      -not (Test-Path (Join-Path $dirG 'rugged'))) {
     Ok 'F2 -NoCompanions installs wgm without the companion skills'
   }
   else { Bad 'F2 -NoCompanions still installed companion skills' }
+
+  # -Dir intentionally cannot be uninstalled because it may sit outside a skills/ path. Exercise
+  # companion names and the uninstall allow-list through a sandboxed native user-scope install.
+  $sandboxF = Join-Path $work 'homeF'
+  New-Item -ItemType Directory -Force -Path $sandboxF | Out-Null
+  $env:HOME = $sandboxF
+  $env:USERPROFILE = $sandboxF
+  try {
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client agents -Force *> $null
+    $skillsF = Join-Path $sandboxF '.agents/skills'
+    $namesMatch =
+      ((Get-Content -Raw (Join-Path $skillsF 'teach-me/SKILL.md')) -match '(?m)^name:\s*teach-me\s*$') -and
+      ((Get-Content -Raw (Join-Path $skillsF 'quiz-me/SKILL.md')) -match '(?m)^name:\s*quiz-me\s*$') -and
+      ((Get-Content -Raw (Join-Path $skillsF 'rugged/SKILL.md')) -match '(?m)^name:\s*rugged\s*$')
+    & pwsh -NoProfile -File $installPs -NoWsl -User -Client agents -Uninstall *> $null
+    $allRemoved =
+      -not (Test-Path (Join-Path $skillsF 'wgm')) -and
+      -not (Test-Path (Join-Path $skillsF 'teach-me')) -and
+      -not (Test-Path (Join-Path $skillsF 'quiz-me')) -and
+      -not (Test-Path (Join-Path $skillsF 'rugged'))
+  }
+  finally {
+    $env:HOME = $savedHome
+    $env:USERPROFILE = $savedUserProfile
+  }
+  if ($namesMatch -and $allRemoved) {
+    Ok 'F3 user-scope companions have matching names and uninstall cleanly'
+  }
+  else { Bad 'F3 expected matching companion names and complete user-scope uninstall' }
 }
 finally {
   $env:WSL_FAKE_LOG = $null

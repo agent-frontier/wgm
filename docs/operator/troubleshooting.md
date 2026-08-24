@@ -22,7 +22,7 @@ Three checks resolve most reports:
 2. **Restart the agent session.** Skills are scanned at session start, so a freshly installed skill
    is invisible to an already-running session.
 3. **Confirm the directory name.** The skill folder must be named exactly `wgm`, matching the `name:`
-   field in its `SKILL.md` frontmatter. The same rule applies to `teach-me` and `quiz-me`.
+   field in its `SKILL.md` frontmatter. The same rule applies to `teach-me`, `quiz-me`, and `rugged`.
 
 ## Install
 
@@ -82,13 +82,13 @@ and reinstalls in one step.
 
 ## Companion skills
 
-### teach-me or quiz-me is missing
+### teach-me, quiz-me, or rugged is missing
 
 | | |
 |---|---|
-| **Symptom** | `/wgm` works but `/teach-me` or `/quiz-me` is not offered. |
-| **Cause** | The install used `--no-companions` or `-NoCompanions`, or it ran from a source tree predating the companions, or the client has not re-scanned. |
-| **Resolution** | Re-run the installer without the opt-out flag and restart the session. Confirm `SKILLS_DIR/teach-me/SKILL.md` and `SKILLS_DIR/quiz-me/SKILL.md` exist — they must be **siblings** of `wgm`, not nested inside it. |
+| **Symptom** | `/wgm` works but `/teach-me`, `/quiz-me`, or `/rugged` is not offered. |
+| **Cause** | The install used `--no-companions` or `-NoCompanions`, or it ran from a source tree predating that companion, or the client has not re-scanned. |
+| **Resolution** | Re-run the installer without the opt-out flag and restart the session. Confirm `SKILLS_DIR/teach-me/SKILL.md`, `SKILLS_DIR/quiz-me/SKILL.md`, and `SKILLS_DIR/rugged/SKILL.md` exist — they must be **siblings** of `wgm`, not nested inside it. |
 
 ### The installer says "companion not in this source, skipping"
 

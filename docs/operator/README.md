@@ -53,7 +53,8 @@ first validated build in eight steps. Come back here for depth.
 [artifacts](../reference/artifacts.md).
 
 **Just took delivery of a build you didn't write?** See
-[companion skills](../companions/README.md) — `/teach-me` maps it, `/quiz-me` checks what stuck.
+[companion skills](../companions/README.md) — `/teach-me` maps it, `/quiz-me` checks what stuck,
+and `/rugged` stress-tests whether it (or its plan) actually holds up.
 
 ## See also
 

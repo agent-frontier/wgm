@@ -99,7 +99,7 @@ with a harness that fails it deliberately.
 
 | Check | Local equivalent |
 |---|---|
-| `skills-ref validate` on wgm and both companions | `pip install skills-ref`, then `skills-ref validate wgm` from the parent directory |
+| `skills-ref validate` on wgm and all three companions | `pip install skills-ref`, then `skills-ref validate wgm` from the parent directory |
 | `actionlint` on the workflow files | `actionlint .github/workflows/ci.yml` |
 | PowerShell parse plus `test-install.ps1` | `pwsh ./scripts/test-install.ps1` |
 

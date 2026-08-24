@@ -162,20 +162,21 @@ else
 fi
 
 # ---- T12: companion skills install as siblings and uninstall cleanly ------------
-# teach-me/quiz-me ship beside wgm as their own skill dirs; a skills client discovers one skill per
-# directory, so a companion nested inside wgm/ would be invisible.
+# teach-me/quiz-me/rugged ship beside wgm as their own skill dirs; a skills client discovers one
+# skill per directory, so a companion nested inside wgm/ would be invisible.
 c_home="$WORK/t12"; mkdir -p "$c_home"
 HOME="$c_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client agents --force >/dev/null 2>&1
 c_base="$c_home/.agents/skills"
-if [[ -f "$c_base/teach-me/SKILL.md" && -f "$c_base/quiz-me/SKILL.md" ]] \
+if [[ -f "$c_base/teach-me/SKILL.md" && -f "$c_base/quiz-me/SKILL.md" && -f "$c_base/rugged/SKILL.md" ]] \
    && grep -qE '^name:[[:space:]]*teach-me[[:space:]]*$' "$c_base/teach-me/SKILL.md" \
-   && grep -qE '^name:[[:space:]]*quiz-me[[:space:]]*$' "$c_base/quiz-me/SKILL.md"; then
+   && grep -qE '^name:[[:space:]]*quiz-me[[:space:]]*$' "$c_base/quiz-me/SKILL.md" \
+   && grep -qE '^name:[[:space:]]*rugged[[:space:]]*$' "$c_base/rugged/SKILL.md"; then
   ok "T12 companions install as sibling skill dirs next to wgm"
 else
-  bad "T12 expected teach-me/ and quiz-me/ beside wgm in $c_base"
+  bad "T12 expected teach-me/, quiz-me/, and rugged/ beside wgm in $c_base"
 fi
 HOME="$c_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client agents --uninstall >/dev/null 2>&1
-if [[ ! -e "$c_base/teach-me" && ! -e "$c_base/quiz-me" && ! -e "$c_base/$WGM" ]]; then
+if [[ ! -e "$c_base/teach-me" && ! -e "$c_base/quiz-me" && ! -e "$c_base/rugged" && ! -e "$c_base/$WGM" ]]; then
   ok "T13 uninstall removes the companions along with wgm"
 else
   bad "T13 uninstall left companion skills behind in $c_base"
@@ -185,7 +186,7 @@ fi
 n_home="$WORK/t14"; mkdir -p "$n_home"
 HOME="$n_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client agents --force --no-companions >/dev/null 2>&1
 n_base="$n_home/.agents/skills"
-if [[ -f "$n_base/$WGM/SKILL.md" && ! -e "$n_base/teach-me" && ! -e "$n_base/quiz-me" ]]; then
+if [[ -f "$n_base/$WGM/SKILL.md" && ! -e "$n_base/teach-me" && ! -e "$n_base/quiz-me" && ! -e "$n_base/rugged" ]]; then
   ok "T14 --no-companions installs wgm without the companion skills"
 else
   bad "T14 --no-companions still installed companions into $n_base"

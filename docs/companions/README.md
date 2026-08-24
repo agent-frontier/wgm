@@ -1,21 +1,25 @@
-# Companion skills: teach-me and quiz-me
+# Companion skills: teach-me, quiz-me, and rugged
 
-Two skills install alongside wgm and solve a problem wgm creates: **it can build software faster
+Three skills install alongside wgm. Two solve a problem wgm creates: **it can build software faster
 than its operator can understand it.** You take delivery of a working repository and own code you
-cannot explain.
+cannot explain. The third solves a different problem: a plan or diff can look sound and still be
+built for operators and conditions that don't exist.
 
-`teach-me` closes that gap. `quiz-me` proves it actually closed.
+`teach-me` closes the understanding gap. `quiz-me` proves it actually closed. `rugged` checks
+whether the result — or the plan for it — actually holds up in the field.
 
 ## Executive overview
 
-- **For:** anyone who owns a codebase they did not write line by line — whether an agent built it or
-  a previous team did.
-- **You'll get:** a cited map of the repository, a guided tour, one validated change you made
-  yourself, and an honest score on what you actually retained.
-- **Why two skills:** a tour produces the *feeling* of understanding. Only being tested distinguishes
-  that feeling from the real thing.
-- **Watch out:** neither skill modifies your code. The single exception is `teach-me`'s first-change
-  exercise, which is reverted by default.
+- **For:** anyone who owns a codebase they did not write line by line, or anyone about to build or
+  ship something and wants to know if it will survive its real operators and environment.
+- **You'll get:** from `teach-me`/`quiz-me` — a cited map, a guided tour, a validated change, and an
+  honest score on what you retained. From `rugged` — one unhedged verdict (RUGGED, FRAGILE, or
+  UNKNOWN) on whether a design holds up, plus the single highest-leverage next action.
+- **Why three skills:** a tour produces the *feeling* of understanding; only being tested
+  distinguishes that feeling from the real thing. Separately, a design can pass every test its
+  authors thought of and still fail its actual operators — that needs a dedicated, read-only check.
+- **Watch out:** none of the three modify your product code. `teach-me`'s one exception (the
+  first-change exercise) is reverted by default; `rugged` writes only under `.wgm/rugged/`.
 - **Next:** [Get started](../get-started/README.md) if wgm itself is not installed yet.
 
 ## When to use which
@@ -27,8 +31,11 @@ cannot explain.
 | You are returning to a project after months away | `/teach-me recap`, then `/quiz-me` |
 | You are about to go on call for a service | `/quiz-me` |
 | You want to know if a teammate can safely change this code | `/quiz-me` |
+| A plan, spec, or diff claims something will "just work" | `/rugged` |
+| You suspect a design is over-built for an idealized deployment | `/rugged` |
+| You want a second opinion before building, not just after | `/rugged plan` |
 | You have one narrow question about one function | Neither — just look it up |
-| You want the code changed | Neither — that is `/wgm` |
+| You want the code or design changed | Neither — that is `/wgm` |
 
 ## teach-me
 
@@ -112,15 +119,53 @@ serious one.
 **Caution:** The skill will not soften a grade to be encouraging. An inflated score is the one
 output that actively causes harm — it certifies someone as ready who is not.
 
+## rugged
+
+```
+/rugged MODE [scope]
+```
+
+Runs `Triage → Context → Bottleneck decomposition → Simplify → Field test → Verdict`. Unlike
+`teach-me`/`quiz-me`, it is **read-only**: it never edits product code or docs, and it judges
+robustness rather than comprehension.
+
+| Invocation | Behavior |
+|---|---|
+| `/rugged review [scope]` | Full lifecycle end to end; ends at Verdict. Default when no mode word matches. |
+| `/rugged plan [scope]` | Judges whether a request/spec/plan is rugged enough to build, before anything exists to test. |
+| `/rugged stress [scope]` | Focuses on Field test: names the deterministic evidence required and checks what's actually offered. |
+| `/rugged recap` | Re-reads past verdicts and open gaps from `.wgm/rugged/`; no new exploration. |
+
+It names the **actual** operators and environment a design will run in — not the idealized ones a
+plan quietly assumes — then decomposes expected failure into intrinsic design constraints, user
+capacity, and operational stress, and asks what evidence would actually settle the question. It
+always ends in exactly one unhedged verdict:
+
+| Verdict | Means |
+|---|---|
+| **RUGGED** | Idealized assumptions are removed and every load-bearing claim has exact field/stress evidence (or, in plan mode, an exact validation design). The only passing verdict. |
+| **FRAGILE** | It works only under idealized conditions, or carries components unjustified by the actual operators/environment. |
+| **UNKNOWN** | The evidence needed to judge RUGGED vs. FRAGILE is missing. Treated as a blocking gap, never a soft pass. |
+
+**Where the name comes from:** the skill's core distinction — intrinsic design vs. real user
+capacity vs. operational stress — is a software-and-development-practice metaphor drawn from one
+cited source. See [`companions/rugged/SKILL.md`](../../companions/rugged/SKILL.md) for the exact
+citation and the full lifecycle; it is stated once there rather than repeated here.
+
+**Not for:** getting a design fixed (that's `/wgm`, since `rugged` only names the problem and the
+next action) or learning/being quizzed on a codebase (that's `teach-me`/`quiz-me`).
+
 ## Artifacts
 
-Both skills write only under `.wgm/learning/`:
+`teach-me` and `quiz-me` write only under `.wgm/learning/`; `rugged` writes only under
+`.wgm/rugged/`:
 
 | File | Contents |
 |---|---|
 | `.wgm/learning/MAP.md` | The cited repository map: what it is, how to run it, entry points, shape, data, conventions, invariants, open questions |
 | `.wgm/learning/progress.md` | What the tour covered and what it deferred |
 | `.wgm/learning/quiz-log.md` | Every question, tier, area, grade, and citation |
+| `.wgm/rugged/` | Each review's Context, Bottleneck decomposition, Field-test gaps, and Verdict, so `/rugged recap` resumes without re-deriving them |
 
 Because these persist, a later session resumes instead of re-surveying, and `quiz-me` can start from
 your weakest recorded area.
@@ -164,8 +209,8 @@ They install automatically alongside wgm as sibling skill directories. To skip t
 ./scripts/install.ps1 -NoCompanions           # PowerShell
 ```
 
-They live in `companions/teach-me/` and `companions/quiz-me/` in this repository, and install to
-`SKILLS_DIR/teach-me` and `SKILLS_DIR/quiz-me`.
+They live in `companions/teach-me/`, `companions/quiz-me/`, and `companions/rugged/` in this
+repository, and install to `SKILLS_DIR/teach-me`, `SKILLS_DIR/quiz-me`, and `SKILLS_DIR/rugged`.
 
 **Note:** They must be siblings of `wgm`, not nested inside it, because a skills client discovers one
 skill per directory. A companion nested under `wgm/` would be invisible.
