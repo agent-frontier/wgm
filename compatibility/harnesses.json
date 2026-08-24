@@ -106,7 +106,7 @@
         {
           "kind": "journey",
           "ref": "docs/audit/, docs/plans/2026-07-05_GROWTH_HEALTH_CHECK.md, git log Copilot-Session trailers",
-          "detail": "This repository's own grill → plan → loop → review → docs-audit journeys were driven from Copilot CLI; every commit carries a Copilot-Session trailer and the audits are committed as a paper trail."
+          "detail": "This repository's own grill → plan → loop → review → docs-audit journeys were driven from Copilot CLI, and the audits are committed as a paper trail. Copilot-Session trailers appear in the history from 2026-07-30 onward — 22 of 179 commits as counted on 2026-08-24, not every commit and not every commit since that date — so the trailers corroborate the journeys rather than enumerate them."
         }
       ],
       "notes": "The only harness with all three evidence tiers on record. macOS and native Windows remain unverified even here — Verified is per-contract, not per-platform."
