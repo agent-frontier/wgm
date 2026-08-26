@@ -5,6 +5,16 @@ persistent plan, and a build loop steered by deterministic pass/fail checks.
 
 New here? Start with **[Get started](get-started/README.md)**.
 
+## Local development first
+
+If you are changing **wgm itself**, start with the [local-development SOP](../CONTRIBUTING.md). It lists the contributor prerequisites and the canonical repository gate:
+
+```bash
+make validate
+```
+
+This index covers wgm's public engine and contributor workflow. Challenge-specific material belongs in the separate project repository that uses wgm, not in this repository's documentation set.
+
 ## Find your path
 
 | I want to… | Go to |
