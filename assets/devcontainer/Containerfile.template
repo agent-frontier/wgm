@@ -14,7 +14,7 @@
 # Never bake secrets or credentials into this file — its layers are cached and reused across every
 # project on the machine. Auth (git config, agent CLI tokens) is mounted at *run* time only
 # (see scripts/devcontainer.sh), never copied in here.
-FROM debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash git curl ca-certificates jq nodejs npm \

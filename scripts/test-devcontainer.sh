@@ -15,6 +15,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DC="$ROOT/scripts/devcontainer.sh"
+CONTAINERFILE="$ROOT/assets/devcontainer/Containerfile.template"
+QUALIFIED_BASE="docker.io/library/debian:bookworm-slim"
 TEST_TAG="localhost/wgm-devcontainer-base-test:latest"
 
 FAILED=0
@@ -96,10 +98,24 @@ else
   fail "invalid --container not rejected (rc=$RC)"
 fi
 
+# 7) the template names Docker Hub explicitly; checking before the build prevents a cached base
+# image or host short-name alias from hiding a source regression.
+qualified_from_count=0
+from_count=0
+if [[ -f "$CONTAINERFILE" ]]; then
+  qualified_from_count="$(grep -Fxc "FROM $QUALIFIED_BASE" "$CONTAINERFILE" || true)"
+  from_count="$(grep -Ec '^FROM[[:space:]]+' "$CONTAINERFILE" || true)"
+fi
+if [[ "$qualified_from_count" == "1" ]] && [[ "$from_count" == "1" ]]; then
+  pass "Containerfile uses exactly one qualified Docker Hub base source"
+else
+  fail "Containerfile must contain exactly 'FROM $QUALIFIED_BASE' as its only base source"
+fi
+
 if [[ -z "$ENGINE" ]]; then
   echo "skip: no podman/docker found on PATH — skipping real build-base/run/prune cases"
 else
-  # 7) run without a trailing command after -- is rejected
+  # 8) run without a trailing command after -- is rejected
   run run --container "$ENGINE"
   if [[ "$RC" -eq 2 ]] && grep -qi "requires a command" <<<"$OUT"; then
     pass "run without a trailing command is rejected"
@@ -107,7 +123,7 @@ else
     fail "run without a command not rejected (rc=$RC)"
   fi
 
-  # 8) build-base --dry-run prints the plan without building
+  # 9) build-base --dry-run prints the plan without building
   run build-base --container "$ENGINE" --tag "$TEST_TAG" --dry-run
   if [[ "$RC" -eq 0 ]] && grep -q "${ENGINE} build" <<<"$OUT" && ! "$ENGINE" image inspect "$TEST_TAG" >/dev/null 2>&1; then
     pass "build-base --dry-run prints the plan without building"
@@ -115,7 +131,7 @@ else
     fail "build-base --dry-run misbehaved (rc=$RC)"
   fi
 
-  # 9) build-base actually builds the (dedicated, test-only) tagged image
+  # 10) build-base actually builds the (dedicated, test-only) tagged image
   run build-base --container "$ENGINE" --tag "$TEST_TAG"
   if [[ "$RC" -eq 0 ]] && "$ENGINE" image inspect "$TEST_TAG" >/dev/null 2>&1; then
     pass "build-base builds the test-tagged image"
@@ -123,7 +139,7 @@ else
     fail "build-base did not produce $TEST_TAG (rc=$RC): $OUT"
   fi
 
-  # 10) build-base is idempotent: a second call skips the rebuild
+  # 11) build-base is idempotent: a second call skips the rebuild
   run build-base --container "$ENGINE" --tag "$TEST_TAG"
   if [[ "$RC" -eq 0 ]] && grep -q "already built" <<<"$OUT"; then
     pass "build-base skips an unnecessary rebuild"
@@ -131,7 +147,7 @@ else
     fail "build-base did not skip the rebuild (rc=$RC)"
   fi
 
-  # 11) run actually executes inside the sandbox: proves the bind-mount + non-root user
+  # 12) run actually executes inside the sandbox: proves the bind-mount + non-root user
   echo "marker-file-contents" > proof.txt
   run run --container "$ENGINE" --tag "$TEST_TAG" -- sh -c 'whoami; cat /workspace/proof.txt'
   if [[ "$RC" -eq 0 ]] && grep -q "^wgm$" <<<"$OUT" && grep -q "marker-file-contents" <<<"$OUT"; then
@@ -140,7 +156,7 @@ else
     fail "run did not execute correctly inside the sandbox (rc=$RC): $OUT"
   fi
 
-  # 12) run propagates the sandboxed command's own exit code
+  # 13) run propagates the sandboxed command's own exit code
   set +e
   "$DC" run --container "$ENGINE" --tag "$TEST_TAG" -- sh -c 'exit 7'
   inner_rc=$?
@@ -151,7 +167,7 @@ else
     fail "run did not propagate exit code 7 (got $inner_rc)"
   fi
 
-  # 13) run --dry-run shows the assembled command without executing it
+  # 14) run --dry-run shows the assembled command without executing it
   run run --container "$ENGINE" --tag "$TEST_TAG" --dry-run -- echo should-not-run
   if [[ "$RC" -eq 0 ]] && grep -q "${ENGINE} run" <<<"$OUT" && grep -q "$TEST_TAG" <<<"$OUT"; then
     pass "run --dry-run shows the assembled command without executing"
@@ -159,7 +175,7 @@ else
     fail "run --dry-run misbehaved (rc=$RC)"
   fi
 
-  # 14) prune --dry-run reports disk usage without removing anything
+  # 15) prune --dry-run reports disk usage without removing anything
   run prune --container "$ENGINE" --dry-run
   if [[ "$RC" -eq 0 ]] && grep -qi "disk usage" <<<"$OUT"; then
     pass "prune --dry-run reports disk usage without removing anything"
@@ -167,7 +183,7 @@ else
     fail "prune --dry-run misbehaved (rc=$RC)"
   fi
 
-  # 15) prune actually removes a labeled STOPPED container (created directly, bypassing --rm)
+  # 16) prune actually removes a labeled STOPPED container (created directly, bypassing --rm)
   "$ENGINE" run --label wgm.devcontainer=1 --name wgm-test-prune-target "$TEST_TAG" true >/dev/null 2>&1 || true
   run prune --container "$ENGINE"
   still_there="$("$ENGINE" ps -a --filter "name=wgm-test-prune-target" --format '{{.ID}}' 2>/dev/null || true)"
@@ -177,7 +193,7 @@ else
     fail "prune did not remove the labeled stopped container (rc=$RC)"
   fi
 
-  # 16) prune never touches a container from an UNRELATED image (safety invariant: label-scoped
+  # 17) prune never touches a container from an UNRELATED image (safety invariant: label-scoped
   # removal only — note the shared base image's own Containerfile LABEL means every container
   # derived from *that* image is fair game for prune, by design; the real safety boundary this
   # checks is that prune never reaches into a container from a totally different image).
