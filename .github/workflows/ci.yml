@@ -66,6 +66,9 @@ jobs:
       - name: Agent-adapter harness (bash)
         run: bash scripts/test-agent-adapters.sh
 
+      - name: Plugin-registry harness (bash)
+        run: bash scripts/test-plugin-registry.sh
+
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
 
