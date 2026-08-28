@@ -80,6 +80,7 @@ run_memory() {
 run_memory inspect --root "$PROJECT"
 if [[ "$RC" -eq 0 ]] && [[ -f "$PROJECT/.wgm/stage10/observations.jsonl" ]] \
    && [[ -f "$PROJECT/.wgm/stage10/brief.md" ]] \
+   && [[ -f "$PROJECT/.wgm/stage10/system-map.md" ]] \
    && grep -q "no model call, network call, or credential-file read" <<<"$OUT"; then
   pass "inspect writes observations and a generated brief without model/network work"
 else
@@ -222,7 +223,8 @@ fi
 # repository-level memory or Python bytecode artifact as a side effect.
 if [[ ! -e "$ROOT/.wgm/stage10/observations.jsonl" ]] \
    && [[ ! -e "$ROOT/scripts/__pycache__" ]] \
-   && [[ -f "$PROJECT/.wgm/stage10/brief.md" ]]; then
+   && [[ -f "$PROJECT/.wgm/stage10/brief.md" ]] \
+   && [[ -f "$PROJECT/.wgm/stage10/system-map.md" ]]; then
   pass "fixture state stays isolated and leaves no repository bytecode"
 else
   fail "memory harness leaked state into the wgm repository"
