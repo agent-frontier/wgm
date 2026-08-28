@@ -67,7 +67,7 @@ window, not just a full one).
 - **Shrink `.wgm/memories.md`'s budget.** `ralph-loop.md`'s flat-log default targets ~2000 tokens —
   reasonable against a large window, but ~3% of a 65k one is still real weight paid every iteration.
   Target **~600–800 tokens** instead, trimming the oldest lessons more aggressively.
-  `references/memory-patterns.md`'s structured alternatives (Beads-style, layered memory) exist for
+  `references/stage10-memory.md`'s layered memory contract exists for
   *long* builds outgrowing the flat log — don't reach for them here; they add files to read, which
   works against a small budget. Keep the flat log, just make it leaner.
 - **Use TOON encoding for agent-only state** (`references/artifacts.md`) wherever it applies — single-
@@ -163,7 +163,7 @@ than expecting it to shrink with a smaller task.
 
 ## Cross-links
 `references/ralph-loop.md` (Context rotation, Standing guardrails) ·
-`references/memory-patterns.md` (memory budget alternatives) ·
+`references/stage10-memory.md` (memory contract) ·
 `references/artifacts.md` (TOON encoding) ·
 `references/stall-recovery.md` (frugal/main escalation) ·
 `references/subagents.md` (Model selection — the same frugal/main flag pair, along the cost axis

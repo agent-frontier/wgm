@@ -213,7 +213,7 @@ Fresh context per iteration is Ralph's strength, but it also forgets. A small, t
 - **Append in Record:** add the one-line lesson from this iteration (a fix that worked, a gotcha, a
   stall's cause). Keep it within ~2000 tokens — trim the oldest when over.
 - **Outgrown the flat log?** For optional named alternatives for long builds, see
-  `references/memory-patterns.md`.
+  `references/stage10-memory.md`.
 - **Cross-check prior commitments at Ship/Handoff:** if a previous session's memories include an
   explicit "resolve to..." / "next time..." commitment and this build reused the same
   `.wgm/memories.md`, add a one-line ✅/❌ note on whether it actually happened. This is a

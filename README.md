@@ -359,7 +359,7 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
 wgm/
 ├── SKILL.md          # the protocol the agent follows
 ├── README.md         # this file
-├── references/       # grilling · ralph-loop · telemetry · memory-patterns · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · harness-portability · PLUGIN_PROTOCOL · plugin-integration
+├── references/       # grilling · ralph-loop · telemetry · stage10-memory · subagents · artifacts · scenarios · scoring · stall-recovery · hard-to-test-domains · gene-transfusion · validation-env · devcontainers · self-improvement · issue-intake · heuristics · docs-audit · adr · trigger-eval · evals · local-models · harness-portability · PLUGIN_PROTOCOL · plugin-integration
 ├── compatibility/    # harnesses.json — the per-harness capability/evidence record (gated by scripts/check-harnesses.sh) · agent-adapters.json — the canonical-role -> host-agent-format mapping
 ├── adapters/         # host translations of the role subagents, derived from .github/agents/ by scripts/sync-agent-adapters.sh (claude/agents/ today)
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates

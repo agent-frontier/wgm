@@ -12,6 +12,7 @@ exactly does this accept?"* — for *"how do I do X?"*, start with the
 | [swarm.sh](cli-swarm.md) | Parallel worktree streams: flags, partitioning rules, lane safety, telemetry output |
 | [audit.sh](cli-audit.md) | The portable docs-audit dispatcher: flags, role ordering, report placement, what it refuses to do |
 | [Installers](cli-install.md) | `install.sh` and `install.ps1`: flags, targets, environment variables, verification |
+| [Stage 10 memory](stage10.md) | Evidence-first observations, generated briefs, memory standings, migration, and safety boundaries |
 
 ## Validation and files
 
@@ -48,4 +49,5 @@ They are denser than these pages and written for the agent, not the operator:
 [hard-to-test-domains](../../references/hard-to-test-domains.md) ·
 [validation-env](../../references/validation-env.md) ·
 [self-improvement](../../references/self-improvement.md) ·
-[heuristics](../../references/heuristics.md)
+[heuristics](../../references/heuristics.md) ·
+[stage10-memory](../../references/stage10-memory.md)

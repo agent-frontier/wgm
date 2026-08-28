@@ -125,7 +125,7 @@ layered/compaction-surviving memory and the dissent-preserving review.
   (choo-choo-ralph).
   **Note (round 4):** all four items above have since been *documented* as optional/future patterns
   elsewhere (`references/ralph-loop.md`, `references/artifacts.md`, `docs/operator/running-the-loop.md`,
-  `references/memory-patterns.md`) without this landscape doc being refreshed or `heuristics.md`
+  `references/stage10-memory.md`) without this landscape doc being refreshed or `heuristics.md`
   being touched — this snapshot can be overtaken by a reference-doc addition that never lands in
   `heuristics.md`'s Provenance ledger. The docs-audit PM checklist (`references/docs-audit.md`) now
   sweeps `references/*.md` generally, not only `heuristics.md`, so this class of drift is caught

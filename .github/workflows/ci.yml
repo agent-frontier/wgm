@@ -69,6 +69,9 @@ jobs:
       - name: Plugin-registry harness (bash)
         run: bash scripts/test-plugin-registry.sh
 
+      - name: Stage 10 memory harness (bash)
+        run: bash scripts/test-stage10-memory.sh
+
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
 

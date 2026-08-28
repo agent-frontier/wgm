@@ -162,10 +162,9 @@ cause-and-fix of a stall, patterns that work in this repo, and dead ends not to 
 - **Distinct from the other artifacts.** `IMPLEMENTATION_PLAN.md` holds task *state*, `AGENTS.md` the
   curated *how-to*, `.wgm/scores.md` the *numeric* trajectory; memories hold the raw *lessons*.
 - **Placement:** always under `.wgm/` — it is per-build scratch, not a deliverable.
-- **Outgrown the flat log?** For a long **Full-track** build where this log keeps hitting its token
-  budget and trimming lessons you later need, `references/memory-patterns.md` documents two
-  **optional** named alternatives (Beads-style structured records, compaction-surviving layered
-  memory) — the flat log above stays the default for everything else.
+- **Stage 10 memory:** when a build needs a system map, evidence standings, or layered recall, use
+  `references/stage10-memory.md` and the local `scripts/stage10_memory.py` contract. The ordinary
+  flat log remains compatible for builds that do not opt into Stage 10.
 
 ## `.wgm/rugged/*` — the ruggedness-gate record
 Where the `rugged` companion writes each review's Context, Bottleneck decomposition, Field-test gaps,
