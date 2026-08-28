@@ -501,7 +501,7 @@ def render_brief(root: Path, state: Path, observations: list[dict[str, Any]], me
         "",
         "## Harnesses",
         "",
-        "| Harness | Present | Current | Registry standing | Qualification |\n|---|---|---|---|---|", 
+        "| Harness | Present | Current | Registry standing | Qualification |\n|---|---|---|---|---|",
     ]
     current = harness_data.get("current", {})
     for route in harness_data.get("routes", []):
