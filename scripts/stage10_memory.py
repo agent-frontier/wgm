@@ -622,48 +622,157 @@ def current_environment(root: Path) -> dict[str, Any]:
     }
 
 
-def record_memory(args: argparse.Namespace) -> None:
-    root = resolve_root(args.root)
-    state, _, memory_file = paths(root, args.state_dir)
-    summary = args.summary.strip()
-    source = args.source.strip()
-    evidence = [item.strip() for item in args.evidence if item.strip()]
+def make_memory_record(
+    root: Path,
+    kind: str,
+    standing: str,
+    scope: str,
+    summary: str,
+    source: str,
+    evidence: list[str],
+    revalidate_when: str = "",
+) -> dict[str, Any]:
+    summary = summary.strip()
+    source = source.strip()
+    scope = scope.strip()
+    evidence = [item.strip() for item in evidence if item.strip()]
     if not summary or len(summary) > MAX_SUMMARY_CHARS or any(character in summary for character in "\r\n"):
         fail(f"summary must be 1..{MAX_SUMMARY_CHARS} characters and stay on one line")
-    if not args.scope.strip() or any(character in args.scope for character in "\r\n"):
+    if not scope or any(character in scope for character in "\r\n"):
         fail("scope must not be empty or multiline")
     if not source or any(character in source for character in "\r\n") or not evidence:
         fail("source and at least one single-line evidence reference are required")
+    if any(character in revalidate_when for character in "\r\n"):
+        fail("revalidate_when must stay on one line")
     for label, value in (
         ("summary", summary),
         ("source", source),
-        ("revalidate_when", args.revalidate_when),
+        ("revalidate_when", revalidate_when),
         *[("evidence", item) for item in evidence],
     ):
         reject_secret(value, label)
-    standing = args.standing
     if standing in {"corroborated", "promoted"} and len(evidence) < 2:
         fail(f"{standing} memory requires at least two independent evidence references")
     if standing == "promoted" and not any(item.lower().startswith("human-approved:") for item in evidence):
         fail("promoted memory requires a human-approved: evidence reference")
-    stable = "|".join((args.kind, args.scope, summary, source))
+    stable = "|".join((kind, scope, summary, source))
     identifier = "mem-" + hashlib.sha256(stable.encode("utf-8")).hexdigest()[:16]
-    record = {
+    return {
         "schema": MEMORY_SCHEMA,
         "id": identifier,
-        "kind": args.kind,
+        "kind": kind,
         "standing": standing,
         "summary": summary,
-        "scope": args.scope,
+        "scope": scope,
         "source": source,
         "evidence": evidence,
         "environment": current_environment(root),
         "observed_at": now(),
-        "revalidate_when": args.revalidate_when.strip() or "source, validation, or environment fingerprint changes",
+        "revalidate_when": revalidate_when.strip() or "source, validation, or environment fingerprint changes",
     }
+
+
+def record_memory(args: argparse.Namespace) -> None:
+    root = resolve_root(args.root)
+    state, _, memory_file = paths(root, args.state_dir)
+    record = make_memory_record(
+        root,
+        args.kind,
+        args.standing,
+        args.scope,
+        args.summary,
+        args.source,
+        args.evidence,
+        args.revalidate_when,
+    )
     state.mkdir(parents=True, exist_ok=True)
     append_jsonl(memory_file, record)
-    print(f"stage10 record: appended {identifier} to {memory_file}")
+    print(f"stage10 record: appended {record['id']} to {memory_file}")
+
+
+def input_file(root: Path, raw: str) -> Path:
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    path = path.resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        fail(f"legacy input must remain under project root: {path}")
+    return path
+
+
+def legacy_records(root: Path, memories_file: Path, scores_file: Path) -> list[dict[str, Any]]:
+    """Convert legacy ledgers without deleting or treating them as authoritative."""
+    records: list[dict[str, Any]] = []
+    if memories_file.is_file():
+        relative = memories_file.relative_to(root).as_posix()
+        for line_number, line in enumerate(memories_file.read_text(encoding="utf-8").splitlines(), 1):
+            text = line.strip()
+            if not text.startswith("- "):
+                continue
+            summary = text[2:].strip()
+            if not summary or summary.startswith("<"):
+                continue
+            records.append(
+                make_memory_record(
+                    root,
+                    "lesson",
+                    "observed",
+                    "project",
+                    summary,
+                    f"legacy:{relative}:{line_number}",
+                    [f"legacy-file:{relative}"],
+                )
+            )
+    if scores_file.is_file():
+        relative = scores_file.relative_to(root).as_posix()
+        for line_number, line in enumerate(scores_file.read_text(encoding="utf-8").splitlines(), 1):
+            text = line.strip()
+            if not text.startswith("|") or set(text.replace("|", "").replace("-", "").replace(":", "").strip()) == set():
+                continue
+            cells = [cell.strip() for cell in text.strip("|").split("|")]
+            if len(cells) < 3 or cells[0].lower() in {"iteration", "---"}:
+                continue
+            summary = "Legacy score: " + " · ".join(cells)
+            records.append(
+                make_memory_record(
+                    root,
+                    "observation",
+                    "observed",
+                    "project",
+                    summary,
+                    f"legacy:{relative}:{line_number}",
+                    [f"legacy-file:{relative}"],
+                )
+            )
+    return records
+
+
+def migrate_legacy(args: argparse.Namespace) -> None:
+    root = resolve_root(args.root)
+    state, _, memory_file = paths(root, args.state_dir)
+    memories_file = input_file(root, args.memories_file)
+    scores_file = input_file(root, args.scores_file)
+    try:
+        existing = read_jsonl(memory_file)
+    except ValueError as exc:
+        fail(str(exc), 1)
+    existing_ids = {record.get("id") for record in existing}
+    imported = legacy_records(root, memories_file, scores_file)
+    pending = [record for record in imported if record.get("id") not in existing_ids]
+    state.mkdir(parents=True, exist_ok=True)
+    for record in pending:
+        append_jsonl(memory_file, record)
+    observations = read_jsonl(paths(root, args.state_dir)[1])
+    if observations:
+        write_brief(root, state, observations, existing + pending)
+        write_system_map(root, state, observations)
+    print(
+        f"stage10 migrate: imported {len(pending)} legacy records, "
+        f"skipped {len(imported) - len(pending)} already present; "
+        f"legacy sources remain unchanged"
+    )
 
 
 def validate_record(
@@ -845,6 +954,12 @@ def parser() -> argparse.ArgumentParser:
     record_command.add_argument("--evidence", action="append", required=True, help="repeat for independent evidence")
     record_command.add_argument("--revalidate-when", default="")
     record_command.set_defaults(handler=record_memory)
+
+    migrate_command = subcommands.add_parser("migrate", help="import legacy memories and scores into Stage 10")
+    common(migrate_command)
+    migrate_command.add_argument("--memories-file", default=".wgm/memories.md")
+    migrate_command.add_argument("--scores-file", default=".wgm/scores.md")
+    migrate_command.set_defaults(handler=migrate_legacy)
     return command
 
 

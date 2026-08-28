@@ -25,6 +25,13 @@ command -v python3 >/dev/null 2>&1 || { fail "python3 is required"; exit 1; }
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/wgm-stage10-memory.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 PROJECT="$TMP/project"
+ROOT_STATE_SNAPSHOT="$TMP/root-stage10.before"
+: >"$ROOT_STATE_SNAPSHOT"
+if [[ -d "$ROOT/.wgm/stage10" ]]; then
+  find "$ROOT/.wgm/stage10" -type f -print | sort | while IFS= read -r path; do
+    cksum "$path"
+  done >"$ROOT_STATE_SNAPSHOT"
+fi
 mkdir -p "$PROJECT/scripts" "$PROJECT/docs" "$PROJECT/.github/workflows"
 
 # The fixture is intentionally small but shaped like a real repository: source inventory, a
@@ -170,7 +177,44 @@ else
   fail "brief did not render the recorded memory (rc=$RC): $OUT"
 fi
 
-# 5) Promotion is deliberately harder than observation. One evidence reference must not become
+# 5) Legacy flat ledgers are imported into the Stage 10 source without being deleted or treated as
+# authoritative. A second migration must be idempotent rather than duplicating history.
+mkdir -p "$PROJECT/.wgm"
+printf '# legacy lessons\n\n- Legacy lesson survives migration.\n' >"$PROJECT/.wgm/memories.md"
+printf '| Iteration | Tier | Score | Note | Dominant diagnostic |\n|---|---|---|---|---|\n| 1 | 1 | 100 | Legacy score survives | none |\n' >"$PROJECT/.wgm/scores.md"
+legacy_mem_before="$(cksum "$PROJECT/.wgm/memories.md")"
+legacy_scores_before="$(cksum "$PROJECT/.wgm/scores.md")"
+run_memory migrate --root "$PROJECT"
+if [[ "$RC" -eq 0 ]] \
+   && grep -q 'imported 2 legacy records' <<<"$OUT" \
+   && grep -q 'Legacy lesson survives migration' "$PROJECT/.wgm/stage10/memory.jsonl" \
+   && grep -q 'Legacy score: 1 · 1 · 100' "$PROJECT/.wgm/stage10/memory.jsonl" \
+   && [[ "$(cksum "$PROJECT/.wgm/memories.md")" == "$legacy_mem_before" ]] \
+   && [[ "$(cksum "$PROJECT/.wgm/scores.md")" == "$legacy_scores_before" ]]; then
+  pass "legacy memory and score ledgers import without data loss"
+else
+  fail "legacy ledgers were not imported safely (rc=$RC): $OUT"
+fi
+run_memory migrate --root "$PROJECT"
+if [[ "$RC" -eq 0 ]] && grep -q 'imported 0 legacy records' <<<"$OUT"; then
+  pass "legacy migration is idempotent"
+else
+  fail "legacy migration duplicated records (rc=$RC): $OUT"
+fi
+
+# 5b) A suspicious legacy entry must fail the whole migration before appending any partial result.
+legacy_count_before="$(wc -l < "$PROJECT/.wgm/stage10/memory.jsonl")"
+printf '%s\n' '- Legacy token=must-not-persist' >>"$PROJECT/.wgm/memories.md"
+run_memory migrate --root "$PROJECT"
+legacy_count_after="$(wc -l < "$PROJECT/.wgm/stage10/memory.jsonl")"
+if [[ "$RC" -ne 0 ]] && [[ "$legacy_count_after" -eq "$legacy_count_before" ]] \
+   && ! grep -q 'must-not-persist' "$PROJECT/.wgm/stage10/memory.jsonl"; then
+  pass "suspicious legacy migration fails without a partial append"
+else
+  fail "suspicious legacy migration partially persisted data (rc=$RC): $OUT"
+fi
+
+# 6) Promotion is deliberately harder than observation. One evidence reference must not become
 # broad router policy just because an agent requested a stronger label.
 run_memory record --root "$PROJECT" --kind decision --standing promoted --scope project \
   --summary 'A single run proves the universal route.' --source 'README.md:1' \
@@ -181,7 +225,7 @@ else
   fail "promotion gate accepted an under-evidenced record (rc=$RC): $OUT"
 fi
 
-# 6) The memory lint gate is the backpressure: the baseline is green before a source changes.
+# 7) The memory lint gate is the backpressure: the baseline is green before a source changes.
 run_memory lint --root "$PROJECT"
 if [[ "$RC" -eq 0 ]] && grep -q 'stage10 lint: GREEN' <<<"$OUT"; then
   pass "lint accepts the valid observation and memory ledgers"
@@ -189,7 +233,7 @@ else
   fail "valid memory ledgers did not lint cleanly (rc=$RC): $OUT"
 fi
 
-# 7) A changed hashed source invalidates the observation. The tool must report stale evidence rather
+# 8) A changed hashed source invalidates the observation. The tool must report stale evidence rather
 # than quietly allowing the old system map to steer a later iteration.
 printf '\nchanged after observation\n' >>"$PROJECT/README.md"
 run_memory lint --root "$PROJECT"
@@ -199,7 +243,7 @@ else
   fail "lint did not catch the changed source (rc=$RC): $OUT"
 fi
 
-# 8) A suspicious record is refused before it can poison the append-only source ledger.
+# 9) A suspicious record is refused before it can poison the append-only source ledger.
 run_memory record --root "$PROJECT" --kind lesson --standing observed --scope task \
   --summary 'Use token=do-not-store-this in the next route.' --source 'README.md:1' \
   --evidence 'command:make validate'
@@ -209,7 +253,7 @@ else
   fail "credential-like memory content was accepted (rc=$RC): $OUT"
 fi
 
-# 9) The write boundary is real: an explicit state directory outside the project .wgm area is
+# 10) The write boundary is real: an explicit state directory outside the project .wgm area is
 # rejected rather than turning the inspect command into an arbitrary file writer.
 run_memory inspect --root "$PROJECT" --state-dir "$TMP/outside-state"
 if [[ "$RC" -ne 0 ]] && grep -q 'must remain under' <<<"$OUT" \
@@ -219,15 +263,23 @@ else
   fail "state output escaped the .wgm boundary (rc=$RC): $OUT"
 fi
 
-# 10) The fixture state is isolated from the wgm checkout: this prevents a test run from writing a
-# repository-level memory or Python bytecode artifact as a side effect.
-if [[ ! -e "$ROOT/.wgm/stage10/observations.jsonl" ]] \
+# 11) The fixture state is isolated from the wgm checkout: this prevents a test run from writing a
+# repository-level memory or Python bytecode artifact as a side effect. Preserve an existing Stage 10
+# snapshot because a real maintainer may already have inspected this checkout before running tests.
+ROOT_STATE_AFTER="$TMP/root-stage10.after"
+: >"$ROOT_STATE_AFTER"
+if [[ -d "$ROOT/.wgm/stage10" ]]; then
+  find "$ROOT/.wgm/stage10" -type f -print | sort | while IFS= read -r path; do
+    cksum "$path"
+  done >"$ROOT_STATE_AFTER"
+fi
+if cmp -s "$ROOT_STATE_SNAPSHOT" "$ROOT_STATE_AFTER" \
    && [[ ! -e "$ROOT/scripts/__pycache__" ]] \
    && [[ -f "$PROJECT/.wgm/stage10/brief.md" ]] \
    && [[ -f "$PROJECT/.wgm/stage10/system-map.md" ]]; then
   pass "fixture state stays isolated and leaves no repository bytecode"
 else
-  fail "memory harness leaked state into the wgm repository"
+  fail "memory harness leaked or changed state in the wgm repository"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then
