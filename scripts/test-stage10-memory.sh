@@ -97,6 +97,14 @@ else
   fail "brief exposed the wrong host facts or a credential-like value"
 fi
 
+# 2c) The executable mapping and static compatibility registry are two sources of truth. Keep them
+# aligned or lint must make the disagreement visible before routing consumes the inventory.
+if grep -q '"unmapped_registry_ids":\[\]' "$PROJECT/.wgm/stage10/observations.jsonl"; then
+  pass "known harness registry entries have executable mappings"
+else
+  fail "harness registry and executable mapping are inconsistent"
+fi
+
 # 2a) Holdout material is deliberately placed under .wgm/scenarios. The inspector must not copy or
 # cite it into either source observations or the human brief; the actual scenario judge owns that
 # directory and remains outside the inspect path.

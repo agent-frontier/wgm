@@ -24,6 +24,32 @@ It fuses two proven ideas:
 The result is an agent that aligns first, plans on disk, and then builds in small, test-validated
 steps instead of one hopeful mega-edit.
 
+## Stage 10 memory foundation (experimental)
+
+<!-- Stage 10 is a local dogfood surface; its generated state is intentionally gitignored. -->
+
+Maintainers can inspect the repository and record local, evidence-backed memory without making a model call or reading credentials.
+
+Prerequisites: Python 3.10+ and Git; no credentials or network access are required. Run the commands from the repository root:
+
+```bash
+python3 scripts/stage10_memory.py inspect --root .
+python3 scripts/stage10_memory.py lint --root .
+bash scripts/test-stage10-memory.sh
+```
+
+`inspect` writes `.wgm/stage10/observations.jsonl` and `.wgm/stage10/brief.md` and exits `0` on success. `lint` exits `0` for a current, valid brief and nonzero when records are malformed, suspicious, or stale. The canonical Phase 1 gate is `bash scripts/test-stage10-memory.sh`; inspect/lint are the real-checkout refresh and diagnostic commands. The brief is the human entry point; raw JSONL is the machine source. The brief is bounded to 120 lines and 16,000 bytes. If lint reports changed sources, rerun inspect; if the current harness is unknown, do not infer it from executable presence. This Phase 1 surface is local and experimental; live qualification and learned routing come later.
+
+To record a validated lesson after a green check:
+
+```bash
+python3 scripts/stage10_memory.py record --kind lesson --standing validated --scope task \
+  --summary 'The validation target is the cheapest backpressure.' \
+  --source 'CONTRIBUTING.md:40' --evidence 'command:make validate'
+```
+
+Promotion is stricter: `corroborated` needs two independent evidence references, and `promoted` additionally needs a `human-approved:` evidence reference. Token-shaped values are refused; rewrite them as `<redacted>` before recording. For the current Stage 10 scope and artifact authority, read `.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/CONTEXT.md`, and `.wgm/stage10/brief.md` after inspect. These are local dogfood artifacts and are intentionally not part of the shipped template tree.
+
 ## Install
 
 A skill is just a folder containing `SKILL.md`. Install it **once for your user** (global — the

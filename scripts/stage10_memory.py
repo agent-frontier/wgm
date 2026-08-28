@@ -94,7 +94,10 @@ def fail(message: str, code: int = 2) -> "NoReturn":
 
 def reject_secret(value: str, label: str) -> None:
     if SECRET_RE.search(value):
-        fail(f"{label} looks credential-bearing; refusing to persist it")
+        fail(
+            f"{label} looks credential-bearing; replace the token-shaped value with "
+            "<redacted> or rewrite it as non-assignment prose before recording"
+        )
 
 
 def is_sensitive_path(relative: str) -> bool:
@@ -308,6 +311,8 @@ def host_signals() -> dict[str, Any]:
 
 def harness_inventory(root: Path, script_path: Path) -> dict[str, Any]:
     registry = {entry.get("id"): entry for entry in load_harness_registry(script_path, root)}
+    known_ids = set(HARNESS_BINARIES)
+    registry_ids = {identifier for identifier in registry if identifier}
     host = host_signals()
     rows: list[dict[str, Any]] = []
     for harness_id, binary in HARNESS_BINARIES.items():
@@ -326,7 +331,15 @@ def harness_inventory(root: Path, script_path: Path) -> dict[str, Any]:
                 "current": harness_id == host["current_harness"],
             }
         )
-    return {"current": host, "routes": rows}
+    return {
+        "current": host,
+        "routes": rows,
+        "registry_consistency": {
+            "registry_ids": sorted(registry_ids),
+            "unmapped_registry_ids": sorted(registry_ids - known_ids),
+            "binaries_without_registry_entry": sorted(known_ids - registry_ids) if registry else [],
+        },
+    }
 
 
 def observation(
@@ -636,6 +649,10 @@ def lint(args: argparse.Namespace) -> None:
     if not observations:
         errors.append("no observations found; run inspect first")
     errors.extend(stale_reasons(root, observations))
+    harness_observation = next((record for record in observations if record.get("kind") == "harnesses"), None)
+    consistency = (harness_observation or {}).get("data", {}).get("registry_consistency", {})
+    for identifier in consistency.get("unmapped_registry_ids", []):
+        errors.append(f"harness registry entry has no executable mapping: {identifier}")
     target = state / "brief.md"
     if not target.is_file():
         errors.append(f"generated brief is missing: {target}")
