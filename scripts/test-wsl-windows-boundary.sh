@@ -93,8 +93,12 @@ KEEP=0
 # WGM_WSL_PWSH_STARTUP_ALLOWANCE only tunes this grace; it cannot fabricate a result, so it is not a
 # detection seam and does not mark a run simulated.
 PWSH_STARTUP_ALLOWANCE="${WGM_WSL_PWSH_STARTUP_ALLOWANCE:-20}"
-[[ "$PWSH_STARTUP_ALLOWANCE" =~ ^[0-9]+$ ]] && [[ "$PWSH_STARTUP_ALLOWANCE" -ge 1 ]] && [[ "$PWSH_STARTUP_ALLOWANCE" -le 600 ]] \
-  || { echo "WGM_WSL_PWSH_STARTUP_ALLOWANCE must be an integer 1..600 (seconds)" >&2; exit 2; }
+if ! [[ "$PWSH_STARTUP_ALLOWANCE" =~ ^[0-9]+$ ]] \
+   || ! [[ "$PWSH_STARTUP_ALLOWANCE" -ge 1 ]] \
+   || ! [[ "$PWSH_STARTUP_ALLOWANCE" -le 600 ]]; then
+  echo "WGM_WSL_PWSH_STARTUP_ALLOWANCE must be an integer 1..600 (seconds)" >&2
+  exit 2
+fi
 
 PROC_VERSION_FILE="${WGM_WSL_PROC_VERSION_FILE:-/proc/version}"
 BINFMT_DIR="${WGM_WSL_BINFMT_DIR:-/proc/sys/fs/binfmt_misc}"
@@ -116,8 +120,10 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --timeout)
       [[ $# -ge 2 ]] || { echo "--timeout requires a value" >&2; exit 2; }
-      [[ "$2" =~ ^[0-9]+$ ]] && [[ "$2" -ge 1 ]] && [[ "$2" -le 120 ]] \
-        || { echo "--timeout must be an integer 1..120" >&2; exit 2; }
+      if ! [[ "$2" =~ ^[0-9]+$ ]] || ! [[ "$2" -ge 1 ]] || ! [[ "$2" -le 120 ]]; then
+        echo "--timeout must be an integer 1..120" >&2
+        exit 2
+      fi
       TIMEOUT="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
     -*) echo "Unknown flag: $1" >&2; exit 2 ;;
