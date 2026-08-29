@@ -49,6 +49,7 @@ test: ## Run the bash harnesses (install, agent-adapters, plugin-registry, stage
 	bash scripts/test-stage10-router.sh
 	bash scripts/test-stage10-experiments.sh
 	bash scripts/test-stage10-policy.sh
+	bash scripts/test-stage10-e2e.sh
 	bash scripts/test-loop.sh
 	bash scripts/test-swarm.sh
 	bash scripts/test-audit.sh

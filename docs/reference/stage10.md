@@ -148,6 +148,20 @@ a human-reviewed PR. This comparator is offline and never calls a provider or ch
 bash scripts/test-stage10-policy.sh
 ```
 
+## End-to-end demonstration
+
+Run the disposable vertical slice to compose observation/recall, qualification, transparent routing,
+experiment comparison, and offline learned-policy comparison:
+
+```bash
+bash scripts/test-stage10-e2e.sh
+```
+
+It writes its concise report only inside a temporary fixture and proves the selected route,
+alternatives, evidence, budget, frozen-baseline result, corroborated knowledge, and human decision
+boundary. The harness uses no model or network and never creates a PR, merges, deploys, publishes, or
+activates a policy automatically.
+
 ## What to do next
 
 - [Run the Ralph loop](../operator/running-the-loop.md) — execute one fresh-context iteration.
