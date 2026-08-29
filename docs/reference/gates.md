@@ -87,6 +87,11 @@ any harness wgm publishes a claim about. It needs no network and no vendor CLI â
 Each shipped script has a harness proving it does what it claims. They use fake agents and throwaway
 repositories, so **no real agent, model, network, or token is needed**.
 
+Stage 10's live-qualification harness is explicitly a local contract test: CI sets
+`WGM_STAGE10_LIVE_ALLOWED=false`, rejects live-authorization files, and runs only disposable doubles.
+A green CI job is never live-provider evidence; a real live record requires the separately documented
+operator authorization and `--allow-live` path.
+
 | Harness | Proves |
 |---|---|
 | `test-install.sh` | Install, idempotent re-run, uninstall, WSL mirroring, companion install, `--no-companions` |

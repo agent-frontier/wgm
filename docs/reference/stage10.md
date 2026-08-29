@@ -125,7 +125,9 @@ bash scripts/test-stage10-qualification.sh
 A live route is an operator action, never a CI/default-validation side effect. The live manifest
 must set `allow_live: true`, declare a finite `live_budget_seconds`, and label each live route. A
 separate authorization JSON binds the exact manifest bytes, exact route/phase scope, UTC expiry,
-and same total execution-time budget:
+and same total execution-time budget. CI sets `WGM_STAGE10_LIVE_ALLOWED=false`, rejects live-
+authorization files, and runs only the disposable contract harness below; CI success is not live
+provider evidence.
 
 ```json
 {

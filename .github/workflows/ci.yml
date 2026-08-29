@@ -78,8 +78,16 @@ jobs:
       - name: Stage 10 qualification harness (bash)
         run: bash scripts/test-stage10-qualification.sh
 
-      - name: Stage 10 live qualification contract harness (bash, offline fixtures only)
-        run: bash scripts/test-stage10-live-qualification.sh
+      - name: Stage 10 live-boundary contract harness — OFFLINE FIXTURES ONLY (bash)
+        env:
+          WGM_STAGE10_LIVE_ALLOWED: "false"
+        run: |
+          test "$WGM_STAGE10_LIVE_ALLOWED" = "false"
+          if find .wgm -type f -name '*live-authorization*' -print -quit 2>/dev/null | grep -q .; then
+            echo 'Stage 10 CI guard: live authorization files are forbidden in CI.' >&2
+            exit 1
+          fi
+          bash scripts/test-stage10-live-qualification.sh
 
       - name: Stage 10 router harness (bash)
         run: bash scripts/test-stage10-router.sh
