@@ -132,6 +132,22 @@ bash scripts/test-stage10-experiments.sh
 The fixture deliberately includes a high-scoring regressing candidate so the hard non-regression
 gate is observed rather than assumed.
 
+## Compare a learned policy offline
+
+```bash
+python3 scripts/stage10_policy.py compare --root . --manifest /path/to/policy-history.json
+```
+
+The manifest supplies policy names, `metric_direction`, corroborated route history, and identical
+incumbent/learner results for each task. Sparse history remains `deferred`; any per-task hard-gate
+or holdout regression rejects promotion even when the aggregate metric improves. A recommendation
+is written as JSON and Markdown under `.wgm/stage10/routing/policy/`, but activation still requires
+a human-reviewed PR. This comparator is offline and never calls a provider or changes policy.
+
+```bash
+bash scripts/test-stage10-policy.sh
+```
+
 ## What to do next
 
 - [Run the Ralph loop](../operator/running-the-loop.md) — execute one fresh-context iteration.

@@ -81,6 +81,9 @@ jobs:
       - name: Stage 10 experiments harness (bash)
         run: bash scripts/test-stage10-experiments.sh
 
+      - name: Stage 10 policy harness (bash)
+        run: bash scripts/test-stage10-policy.sh
+
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
 
