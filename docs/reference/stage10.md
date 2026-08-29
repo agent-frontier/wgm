@@ -6,7 +6,7 @@
 - **What it is:** local JSONL observations plus generated Markdown views.
 - **Safety:** no model call, network call, credential-file read, or write outside the project's `.wgm/` directory.
 - **Canonical gate:** `bash scripts/test-stage10-memory.sh`.
-- **Next:** route qualification and learned orchestration are later Stage 10 slices.
+- **Next:** use the explicit harness qualification ladder before route selection.
 
 ## Inspect a repository
 
@@ -78,6 +78,20 @@ present → contract-valid → protocol-ready → tool-ready
 ```
 
 Live qualification must be explicit and budgeted. Demo/fixture checks remain distinct from live evidence.
+
+## Qualify a harness fixture
+
+Qualification is phase-aware and fail-closed. Provide an explicit JSON manifest with `routes`, an optional `evidence` value (`fixture` by default), and commands keyed by `contract`, `protocol`, `tool`, `ralph-smoke`, `repeated`, or `benchmark`:
+
+```bash
+python3 scripts/stage10_qualification.py qualify --root . --manifest /path/to/fixture.json
+```
+
+The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record preserves the route, phase, fixture/live evidence class, environment, exact command, duration, status, and revalidation condition. Missing commands are `unknown`, not passes; a failed phase stops that route. Live evidence requires explicit `allow_live: true` in the manifest and is never inferred from fixture output. The focused gate uses disposable fake commands and does not call a model or network:
+
+```bash
+bash scripts/test-stage10-qualification.sh
+```
 
 ## What to do next
 
