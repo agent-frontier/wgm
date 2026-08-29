@@ -3,9 +3,9 @@
 ## Executive overview
 
 - **For:** maintainers and fresh agents who need a compact picture of a repository and its known execution environment.
-- **What it is:** an evidence-first memory layer plus offline qualification, routing, experiment-comparison, and policy-comparison commands.
+- **What it is:** an evidence-first memory layer plus a bounded process contract, offline qualification, routing, experiment-comparison, and policy-comparison commands.
 - **Default safety:** inspection and fixture gates make no model or network call, read no credential file, and write only under the target project's `.wgm/` directory.
-- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
+- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded execution, and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
 - **Authority:** live execution, branch/worktree creation, PR creation, deployment, merge, publication, and policy activation remain explicit human-authorized boundaries.
 
 > **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. No shipped command silently performs a live provider call, creates a branch or PR, merges, deploys, publishes, or activates policy.
@@ -19,6 +19,7 @@
 | `stage10_memory.py record` | append-oriented `memory.jsonl` | tooling + maintainer | summary: 240 characters; source ledgers: 10 MiB; provenance required |
 | `stage10_memory.py migrate` | `memory.jsonl` plus generated views | tooling + maintainer | legacy sources remain unchanged; idempotent import |
 | `stage10_qualification.py qualify` | `harnesses/qualification.jsonl` | tooling + maintainer | manifest: 1 MiB; command: 2,000 characters; phase timeout: 1–600 seconds |
+| `stage10_runner.py run` | `runs/result.json` | tooling + maintainer | manifest: 1 MiB; direct argv: 128 items / 64,000 characters; timeout: 0.01–600 seconds; diagnostic: ≤64,000 characters |
 | `stage10_router.py route` | `routing/decision.json` and `decision.md` | human decision-maker | manifest: 1 MiB / 100 routes; transparent policy; no execution |
 | `stage10_experiments.py compare` | `experiments/report.json` and `.md` | human decision-maker | manifest: 1 MiB / 100 candidates; comparison only; no branch or PR |
 | `stage10_policy.py compare` | `routing/policy/comparison.json` and `.md` | human decision-maker | manifest: 1 MiB / 10,000 tasks; offline comparison; no activation |
@@ -115,6 +116,48 @@ The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record pre
 
 ```bash
 bash scripts/test-stage10-qualification.sh
+```
+
+## Run one bounded process
+
+The generic runner is the shared provider-agnostic process contract for later execution adapters. Its
+manifest is structured data, not a shell command:
+
+```json
+{
+  "argv": ["/path/to/fixture-command", "literal; shell punctuation is data"],
+  "cwd": ".",
+  "timeout_seconds": 5,
+  "evidence": "fixture",
+  "diagnostic_limit": 4000
+}
+```
+
+Run it from the target repository root with an output path under `.wgm`:
+
+```bash
+python3 scripts/stage10_runner.py run \\
+  --root . \\
+  --manifest ./run.json \\
+  --output .wgm/stage10/runs/result.json
+```
+
+The runner invokes the exact `argv` vector with `shell=False`, starts it in a new process group,
+drains stdout/stderr while retaining only the configured diagnostic bound, and redacts
+credential-shaped diagnostics before writing JSON. It constructs a small environment from safe
+ambient basics plus explicit `env` values or an in-bound `environment_file`; it records keys and
+hashes, not environment values. `cwd` and `environment_file` must resolve under `--root`, and the
+result must remain under `--root/.wgm`; invalid paths are rejected before the child is spawned.
+
+Results classify a run as `passed`, `failed`, `timeout`, or `refused`, and include the exit code,
+duration, evidence class, environment fingerprint, cleanup result, and manifest hash used for
+revalidation. A `live` manifest is refused unless it carries a non-empty authority envelope with
+`allow_live: true` and the caller also passes `--allow-live`; the runner never discovers or creates
+that authority and never promotes a refusal to route evidence. The focused fixture gate is local,
+deterministic, and provider/network-free:
+
+```bash
+bash scripts/test-stage10-runner.sh
 ```
 
 ## Transparent route policy

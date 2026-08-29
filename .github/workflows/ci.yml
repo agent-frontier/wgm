@@ -72,6 +72,9 @@ jobs:
       - name: Stage 10 memory harness (bash)
         run: bash scripts/test-stage10-memory.sh
 
+      - name: Stage 10 bounded runner harness (bash)
+        run: bash scripts/test-stage10-runner.sh
+
       - name: Stage 10 qualification harness (bash)
         run: bash scripts/test-stage10-qualification.sh
 

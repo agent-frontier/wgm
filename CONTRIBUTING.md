@@ -45,6 +45,7 @@ bash scripts/check-evals.sh                   # evals/evals.json schema (agentsk
 bash scripts/test-install.sh                  # bash installer harness
 bash scripts/test-plugin-registry.sh          # real plugin discovery + callable-handler parity
 bash scripts/test-stage10-memory.sh           # Stage 10 evidence/memory boundary harness
+bash scripts/test-stage10-runner.sh           # bounded direct-process contract and authority boundary
 bash scripts/test-stage10-qualification.sh    # qualification ladder and live-evidence boundary
 bash scripts/test-stage10-router.sh           # transparent route policy
 bash scripts/test-stage10-experiments.sh      # baseline comparison and feature economy
