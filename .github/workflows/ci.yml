@@ -87,6 +87,9 @@ jobs:
       - name: Stage 10 experiments harness (bash)
         run: bash scripts/test-stage10-experiments.sh
 
+      - name: Stage 10 isolated execution harness (bash, local fixtures only)
+        run: bash scripts/test-stage10-execution.sh
+
       - name: Stage 10 policy harness (bash)
         run: bash scripts/test-stage10-policy.sh
 

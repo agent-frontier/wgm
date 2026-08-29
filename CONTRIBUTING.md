@@ -50,6 +50,7 @@ bash scripts/test-stage10-qualification.sh    # qualification ladder and live-ev
 bash scripts/test-stage10-live-qualification.sh # offline scope/hash/expiry/budget authority contract
 bash scripts/test-stage10-router.sh           # transparent route policy
 bash scripts/test-stage10-experiments.sh      # baseline comparison and feature economy
+bash scripts/test-stage10-execution.sh        # isolated local branch/worktree experiment execution
 bash scripts/test-stage10-policy.sh           # offline learned-policy comparison
 bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness

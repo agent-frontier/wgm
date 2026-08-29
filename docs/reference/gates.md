@@ -98,6 +98,7 @@ repositories, so **no real agent, model, network, or token is needed**.
 | `test-stage10-live-qualification.sh` | Offline test doubles proving manifest opt-in, explicit confirmation, exact scope/hash/expiry/budget authorization, T10-backed execution, and fixture/live evidence separation |
 | `test-stage10-router.sh` | Transparent capability/evidence filtering, deterministic route ordering, decision cards, and safe output confinement |
 | `test-stage10-experiments.sh` | Frozen-baseline comparison, hard non-regression, negative-result retention, feature economy, and no-merge authority |
+| `test-stage10-execution.sh` | Disposable local Git fixtures proving pre-mutation baseline/dirty/collision/path guards, isolated branch/worktree identity, T10-backed finite-budget checks, allowed-file scope, negative retention/cleanup, successful local retention, and unchanged source/remotes |
 | `test-stage10-policy.sh` | Offline learned-policy comparison, sparse-history deferral, per-task regression rejection, metric direction, and no-activation authority |
 | `test-loop.sh` | Limit knobs, capability probe, no-progress stall, project-gate execution, container selection, phase artifacts, watchdog timeout, harvest idempotency, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
 | `test-swarm.sh` | Parallel branches, worktree/artifact pinning, project-gate propagation, partial-setup failure, zero-commit failure, memory consolidation, telemetry summary |

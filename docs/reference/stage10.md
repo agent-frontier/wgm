@@ -3,12 +3,12 @@
 ## Executive overview
 
 - **For:** maintainers and fresh agents who need a compact picture of a repository and its known execution environment.
-- **What it is:** an evidence-first memory layer plus a bounded process contract, offline qualification, routing, experiment-comparison, and policy-comparison commands.
+- **What it is:** an evidence-first memory layer plus a bounded process contract, offline qualification, routing, isolated local experiment execution, experiment comparison, and policy comparison.
 - **Default safety:** inspection and fixture gates make no model or network call, read no credential file, and write only under the target project's `.wgm/` directory.
-- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded execution, and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
-- **Authority:** live execution, branch/worktree creation, PR creation, deployment, merge, publication, and policy activation remain explicit human-authorized boundaries.
+- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded processes, `bash scripts/test-stage10-execution.sh` for isolated local experiments, and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
+- **Authority:** `stage10_experiments.py execute` may create only its declared local experiment branch/worktree; live provider execution, remote mutation, PR creation, deployment, merge, publication, and policy activation remain separate explicit human-authorized boundaries.
 
-> **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. No shipped command silently performs a live provider call, creates a branch or PR, merges, deploys, publishes, or activates policy.
+> **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. The execution harness creates branches/worktrees only inside disposable local fixtures. No shipped command silently performs a live provider call, remote mutation, PR operation, merge, deployment, publication, or policy activation.
 
 ## Artifact map
 
@@ -21,6 +21,7 @@
 | `stage10_qualification.py qualify` | `harnesses/qualification.jsonl` | tooling + maintainer | manifest: 1 MiB; command: 2,000 characters; phase timeout: 1–600 seconds |
 | `stage10_runner.py run` | `runs/result.json` | tooling + maintainer | manifest: 1 MiB; direct argv: 128 items / 64,000 characters; timeout: 0.01–600 seconds; diagnostic: ≤64,000 characters |
 | `stage10_router.py route` | `routing/decision.json` and `decision.md` | human decision-maker | manifest: 1 MiB / 100 routes; transparent policy; no execution |
+| `stage10_experiments.py execute` | `experiments/executions/*.json`, one local branch/worktree, and per-check runner evidence | human reviewer | local patch/ref only; finite aggregate/check budgets; failed identities removed; no remote mutation |
 | `stage10_experiments.py compare` | `experiments/report.json` and `.md` | human decision-maker | manifest: 1 MiB / 100 candidates; comparison only; no branch or PR |
 | `stage10_policy.py compare` | `routing/policy/comparison.json` and `.md` | human decision-maker | manifest: 1 MiB / 10,000 tasks; offline comparison; no activation |
 | `test-stage10-e2e.sh` | temporary fixture state and report | maintainer | disposable fixture; no model, network, or external write |
@@ -228,6 +229,64 @@ non-stale qualified evidence, and at least one evidence reference. The command w
 made by the policy. The focused offline fixture gate is `bash scripts/test-stage10-router.sh`.
 
 ## Compare experiment candidates
+
+Run one already-local candidate in an isolated experiment worktree:
+
+```bash
+python3 scripts/stage10_experiments.py execute \
+  --root . \
+  --manifest .wgm/stage10/experiments/execution.json
+```
+
+The execution manifest is frozen before worktree creation. It uses this shape:
+
+```json
+{
+  "id": "candidate-a",
+  "hypothesis": "the local candidate improves the declared evaluator",
+  "baseline_sha": "0123456789abcdef0123456789abcdef01234567",
+  "candidate": {"patch": ".wgm/stage10/experiments/candidate.patch"},
+  "route": {"id": "local-fixture"},
+  "environment": {"kind": "local"},
+  "allowed_files": ["src/example.py"],
+  "evaluator": {
+    "name": "evaluator",
+    "argv": ["python3", "scripts/evaluate.py"],
+    "timeout_seconds": 30
+  },
+  "non_regression": [{
+    "name": "tests",
+    "argv": ["python3", "-m", "unittest"],
+    "timeout_seconds": 60
+  }],
+  "budget": {"seconds": 90, "cost_units": 0}
+}
+```
+
+`candidate` contains exactly one local `patch` path or local Git `ref`. The source checkout must be
+clean outside `.wgm`, on a branch, and exactly at `baseline_sha`. Output, branch, and worktree
+collisions fail before Git mutation. The executor derives a unique branch such as
+`stage10/experiment/candidate-a-9f86d081884c` (the suffix is the manifest hash) and a worktree beneath
+`.wgm/stage10/worktrees/`, then verifies the actual Git root, branch, and baseline before applying
+candidate material.
+
+Evaluator and non-regression commands are direct `argv` arrays. Every check gets a generated
+`stage10_runner.py` manifest/result, and its declared timeout is capped by the remaining aggregate
+budget. Changed tracked and untracked files must stay within `allowed_files`. Failure, timeout, or
+scope escape preserves a negative JSON report while removing the failed worktree and branch.
+Success retains the local branch, worktree, report, and per-check evidence for human review. Every
+outcome revalidates that the source checkout's HEAD, branch, status outside `.wgm`, and configured
+remotes are unchanged.
+
+Execution never calls a provider, pushes, merges, opens a PR, deploys, publishes, or activates
+policy, and its report always sets `pr_eligible` to false. Run the focused local-fixture gate with:
+
+```bash
+bash scripts/test-stage10-execution.sh
+```
+
+`execute` is not a replacement for the comparison gate below. Only `compare` applies hard
+non-regression/holdout results and the two-retirement or evidenced-exception economy rule.
 
 ```bash
 python3 scripts/stage10_experiments.py compare --root . --manifest /path/to/experiment.json
