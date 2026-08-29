@@ -53,6 +53,7 @@ bash scripts/test-stage10-experiments.sh      # baseline comparison and feature 
 bash scripts/test-stage10-execution.sh        # isolated local branch/worktree experiment execution
 bash scripts/test-stage10-pr.sh               # report-derived, human-gated local PR bundle
 bash scripts/test-stage10-policy.sh           # offline learned-policy comparison
+bash scripts/test-stage10-deferred-e2e.sh     # final disposable deferred-boundary integration
 bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness

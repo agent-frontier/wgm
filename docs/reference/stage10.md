@@ -5,7 +5,7 @@
 - **For:** maintainers and fresh agents who need a compact picture of a repository and its known execution environment.
 - **What it is:** an evidence-first memory layer plus a bounded process contract, offline qualification, routing, isolated local experiment execution, experiment comparison, human-gated local PR preparation, and policy comparison.
 - **Default safety:** inspection and fixture gates make no model or network call, read no credential file, and write only under the target project's `.wgm/` directory.
-- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded processes, `bash scripts/test-stage10-execution.sh` for isolated local experiments, `bash scripts/test-stage10-pr.sh` for PR preparation, and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
+- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded processes, `bash scripts/test-stage10-execution.sh` for isolated local experiments, `bash scripts/test-stage10-pr.sh` for PR preparation, `bash scripts/test-stage10-e2e.sh` for the composed offline path, and `bash scripts/test-stage10-deferred-e2e.sh` for the final deferred-boundary integration.
 - **Authority:** `stage10_experiments.py execute` may create only its declared local experiment branch/worktree; live provider execution, remote mutation, PR creation, deployment, merge, publication, and policy activation remain separate explicit human-authorized boundaries.
 
 > **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. The execution harness creates branches/worktrees only inside disposable local fixtures. No shipped command silently performs a live provider call, remote mutation, PR operation, merge, deployment, publication, or policy activation.
@@ -25,6 +25,7 @@
 | `stage10_experiments.py compare` | `experiments/report.json` and `.md` | human decision-maker | manifest: 1 MiB / 100 candidates; comparison only; no branch or PR |
 | `stage10_policy.py compare` | `routing/policy/comparison.json` and `.md` | human decision-maker | manifest: 1 MiB / 10,000 tasks; offline comparison; no activation |
 | `test-stage10-e2e.sh` | temporary fixture state and report | maintainer | disposable fixture; no model, network, or external write |
+| `test-stage10-deferred-e2e.sh` | temporary execution/comparison/approval/gate artifacts and bounded report | maintainer | disposable Git fixture; authorized local double only; no provider, hosting, or remote write |
 
 ## Inspect a repository
 
@@ -380,6 +381,20 @@ It writes its concise report only inside a temporary fixture and proves the sele
 alternatives, evidence, budget, frozen-baseline result, corroborated knowledge, and human decision
 boundary. The harness uses no model or network and never creates a PR, merges, deploys, publishes, or
 activates a policy automatically.
+
+Run the final deferred-boundary integration after the focused continuation gates:
+
+```bash
+bash scripts/test-stage10-deferred-e2e.sh
+```
+
+This second disposable demonstration composes T10-backed authorized local-double qualification,
+passing and negative isolated executions, T7 comparison, and T13's two-part human approval. It
+hashes the prior T1-T9 and T14 gate logs into a bounded artifact-derived report, proves failed and
+reviewed worktree cleanup, and snapshots both fixture and real checkout/remotes/refs/worktrees.
+Actual live qualification and every push or external PR action remain explicit operator decisions;
+the harness invokes no provider, model, network, hosting client, merge, deployment, publication, or
+policy activation.
 
 ## What to do next
 

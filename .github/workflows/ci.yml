@@ -99,6 +99,9 @@ jobs:
       - name: Stage 10 end-to-end harness (bash)
         run: bash scripts/test-stage10-e2e.sh
 
+      - name: Stage 10 deferred-boundary integration harness (bash, local fixtures only)
+        run: bash scripts/test-stage10-deferred-e2e.sh
+
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
 
