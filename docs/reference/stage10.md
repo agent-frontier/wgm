@@ -103,11 +103,13 @@ matches, latency, cost, then route id, and the decision JSON records alternative
 budget, uncertainty, and rationale without prompt or secret material:
 
 ```bash
-python3 scripts/stage10_router.py route --manifest /path/to/routes.json
+python3 scripts/stage10_router.py route --root . --manifest /path/to/routes.json
 ```
 
-The focused offline fixture gate is `bash scripts/test-stage10-router.sh`. No model or network
-call is made by the policy.
+The manifest must be under the target project root. A qualified route needs hard-capability matches,
+non-stale qualified evidence, and at least one evidence reference. The command writes both
+`.wgm/stage10/routing/decision.json` and a concise `decision.md` card; no model or network call is
+made by the policy. The focused offline fixture gate is `bash scripts/test-stage10-router.sh`.
 
 ## What to do next
 
