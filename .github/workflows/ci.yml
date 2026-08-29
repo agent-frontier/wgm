@@ -72,6 +72,15 @@ jobs:
       - name: Stage 10 memory harness (bash)
         run: bash scripts/test-stage10-memory.sh
 
+      - name: Stage 10 qualification harness (bash)
+        run: bash scripts/test-stage10-qualification.sh
+
+      - name: Stage 10 router harness (bash)
+        run: bash scripts/test-stage10-router.sh
+
+      - name: Stage 10 experiments harness (bash)
+        run: bash scripts/test-stage10-experiments.sh
+
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
 

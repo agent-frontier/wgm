@@ -111,6 +111,27 @@ non-stale qualified evidence, and at least one evidence reference. The command w
 `.wgm/stage10/routing/decision.json` and a concise `decision.md` card; no model or network call is
 made by the policy. The focused offline fixture gate is `bash scripts/test-stage10-router.sh`.
 
+## Compare experiment candidates
+
+```bash
+python3 scripts/stage10_experiments.py compare --root . --manifest /path/to/experiment.json
+```
+
+The manifest freezes a Git baseline, hypothesis, route, environment, allowed files, evaluator,
+target metric/direction, non-regression checks, budget, candidates, and either two evidence-backed
+retirements or a narrow evidenced exception. A candidate must provide explicit holdout and gate
+results, changed files within the allowed surface, and evidence references. The command writes a
+machine report and Markdown comparison under `.wgm/stage10/experiments/`; hard regressions or
+missing economy evidence return nonzero. This offline comparator never creates branches, calls a
+provider, opens or merges a PR, deploys, pushes, or publishes.
+
+```bash
+bash scripts/test-stage10-experiments.sh
+```
+
+The fixture deliberately includes a high-scoring regressing candidate so the hard non-regression
+gate is observed rather than assumed.
+
 ## What to do next
 
 - [Run the Ralph loop](../operator/running-the-loop.md) — execute one fresh-context iteration.
