@@ -95,6 +95,7 @@ repositories, so **no real agent, model, network, or token is needed**.
 | `test-stage10-memory.sh` | Deterministic Stage 10 observations, system map, human brief, safe host signals, standing, migration, redaction, staleness, and `.wgm` confinement |
 | `test-stage10-runner.sh` | Direct argv execution, process-group timeout cleanup, bounded/redacted diagnostics, safe environment input, evidence classification, and path/authority confinement |
 | `test-stage10-qualification.sh` | Phase-aware harness qualification, bounded commands, fixture/live separation, timeout handling, redacted diagnostics, and `.wgm` confinement |
+| `test-stage10-live-qualification.sh` | Offline test doubles proving manifest opt-in, explicit confirmation, exact scope/hash/expiry/budget authorization, T10-backed execution, and fixture/live evidence separation |
 | `test-stage10-router.sh` | Transparent capability/evidence filtering, deterministic route ordering, decision cards, and safe output confinement |
 | `test-stage10-experiments.sh` | Frozen-baseline comparison, hard non-regression, negative-result retention, feature economy, and no-merge authority |
 | `test-stage10-policy.sh` | Offline learned-policy comparison, sparse-history deferral, per-task regression rejection, metric direction, and no-activation authority |

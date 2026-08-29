@@ -39,6 +39,9 @@ DEFAULT_DIAGNOSTIC_LIMIT = 4_000
 MAX_DIAGNOSTIC_LIMIT = 64_000
 MAX_ENV_FILE_BYTES = 64 * 1024
 ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+SENSITIVE_ARG_RE = re.compile(
+    r"(?i)^--?(?:api[-_]?key|secret|password|passwd|token|authorization|bearer)$"
+)
 SECRET_RE = re.compile(
     r"(?i)(?:api[_ -]?key|secret|password|passwd|token|authorization|bearer)"
     r"\s*(?:[:=]|is)\s*[^\s,;]+"
@@ -199,6 +202,9 @@ def validate_argv(raw: Any) -> list[str]:
         reject_unsafe_string(item, f"argv[{index}]")
         total += len(item)
         argv.append(item)
+    for index, item in enumerate(argv[:-1]):
+        if SENSITIVE_ARG_RE.fullmatch(item):
+            raise RunnerError(f"argv[{index}] names a credential-bearing option")
     if not argv[0]:
         raise RunnerError("argv[0] must name an executable")
     if total > MAX_TOTAL_ARG_CHARS:

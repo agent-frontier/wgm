@@ -112,10 +112,59 @@ Qualification is phase-aware and fail-closed. Provide an explicit JSON manifest 
 python3 scripts/stage10_qualification.py qualify --root . --manifest /path/to/fixture.json
 ```
 
-The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record preserves the route, phase, fixture/live evidence class, environment fingerprint, exact command, duration, status, diagnostic, and revalidation condition. Manifest commands are tokenized and run with `shell=False`; missing commands are `unknown`, not passes; a failed or timed-out phase stops that route. Live evidence requires both `allow_live: true` in the manifest and the explicit `--allow-live` flag, and is never inferred from fixture output. Diagnostics are redacted before persistence. The focused gate uses disposable fake commands and does not call a model or network:
+The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record preserves the route, phase, fixture/live evidence class, environment fingerprint, exact command, duration, status, diagnostic, and revalidation condition. Manifest commands are tokenized and run with `shell=False`; missing commands are `unknown`, not passes; a failed or timed-out phase stops that route. Fixture evidence needs no live authority and is never inferred to be live. Diagnostics are redacted before persistence. The focused gate uses disposable fake commands and does not call a model or network:
 
 ```bash
 bash scripts/test-stage10-qualification.sh
+```
+
+## Qualify a live harness with explicit authority
+
+A live route is an operator action, never a CI/default-validation side effect. The live manifest
+must set `allow_live: true`, declare a finite `live_budget_seconds`, and label each live route. A
+separate authorization JSON binds the exact manifest bytes, exact route/phase scope, UTC expiry,
+and same total execution-time budget:
+
+```json
+{
+  "schema": "stage10.live-authorization.v1",
+  "allow_live": true,
+  "manifest_sha256": "replace-with-sha256-of-live-manifest-bytes",
+  "scope": {
+    "routes": {
+      "maintainer-chosen-route": ["contract", "protocol", "tool", "ralph-smoke", "repeated", "benchmark"]
+    }
+  },
+  "expires_at": "2026-08-30T20:00:00Z",
+  "budget_seconds": 120
+}
+```
+
+The scope must exactly equal the configured executable phases of every live route; extra,
+missing, expired, hash-mismatched, or budget-mismatched authority fails before any child is
+spawned. The authorization carries metadata and hashes only. Provider credentials stay in the
+host's existing authentication mechanism and must not appear in either JSON file.
+
+After a maintainer reviews both files, the explicit real-host command is:
+
+```bash
+python3 scripts/stage10_qualification.py qualify \
+  --root . \
+  --manifest .wgm/stage10/harnesses/live-manifest.json \
+  --authorization-file .wgm/stage10/harnesses/live-authorization.json \
+  --allow-live
+```
+
+Each configured live phase runs through `stage10_runner.py`'s bounded direct-argv contract. The
+qualification JSONL records the authorization hash/scope/expiry, environment fingerprint, total
+budget consumption, duration, status, runner result, and revalidation inputs without raw
+credentials. A timeout, failure, or missing phase stays below `qualified`; even a passing result
+is one dated observation and does not select a route, activate policy, prepare a PR, merge, deploy,
+or publish. The automated contract gate uses local disposable commands only and makes no provider,
+model, credential, or network call:
+
+```bash
+bash scripts/test-stage10-live-qualification.sh
 ```
 
 ## Run one bounded process

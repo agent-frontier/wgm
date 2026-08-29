@@ -78,6 +78,9 @@ jobs:
       - name: Stage 10 qualification harness (bash)
         run: bash scripts/test-stage10-qualification.sh
 
+      - name: Stage 10 live qualification contract harness (bash, offline fixtures only)
+        run: bash scripts/test-stage10-live-qualification.sh
+
       - name: Stage 10 router harness (bash)
         run: bash scripts/test-stage10-router.sh
 
