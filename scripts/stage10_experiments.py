@@ -16,6 +16,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import time
 from pathlib import Path
@@ -546,6 +547,54 @@ def changed_files(worktree: Path, baseline: str, generated_runner_files: set[str
     return sorted(path for path in names if path not in generated_runner_files)
 
 
+def candidate_snapshot_sha256(worktree: Path, files: list[str]) -> str:
+    """Hash the final candidate paths so later approval detects in-scope edits."""
+    digest = hashlib.sha256()
+    for relative in sorted(files):
+        path = worktree / relative
+        try:
+            path.relative_to(worktree)
+        except ValueError as exc:
+            raise ExecutionError(f"candidate snapshot path escaped worktree: {relative}") from exc
+        digest.update(os.fsencode(relative))
+        digest.update(b"\0")
+        if not os.path.lexists(path):
+            digest.update(b"deleted\0")
+            if os.path.lexists(path):
+                raise ExecutionError(f"candidate snapshot path changed while hashing: {relative}")
+            continue
+        before = path.lstat()
+        digest.update(f"{stat.S_IMODE(before.st_mode):o}".encode("ascii"))
+        digest.update(b"\0")
+        if stat.S_ISLNK(before.st_mode):
+            digest.update(b"symlink\0")
+            digest.update(os.fsencode(os.readlink(path)))
+        elif stat.S_ISREG(before.st_mode):
+            digest.update(b"file\0")
+            with path.open("rb") as handle:
+                while chunk := handle.read(64 * 1024):
+                    digest.update(chunk)
+        else:
+            raise ExecutionError(f"candidate snapshot path has unsupported type: {relative}")
+        after = path.lstat()
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_mode,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_mode,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise ExecutionError(f"candidate snapshot path changed while hashing: {relative}")
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def apply_candidate(
     source_root: Path, worktree: Path, baseline: str, candidate: dict[str, Any]
 ) -> None:
@@ -696,6 +745,7 @@ def execute(args: argparse.Namespace) -> int:
         "source_checkout": {"before": public_snapshot(before), "after": None, "unchanged": None},
         "checks": [],
         "changed_files": [],
+        "candidate_snapshot_sha256": None,
         "diagnostics": [],
         "budget": {
             "seconds": frozen["budget"]["seconds"],
@@ -785,6 +835,7 @@ def execute(args: argparse.Namespace) -> int:
         if outside:
             failure_status = "out-of-scope"
             raise ExecutionError("candidate changed files outside allowed_files: " + ", ".join(outside))
+        report["candidate_snapshot_sha256"] = candidate_snapshot_sha256(worktree, files)
 
         for check in execution_checks:
             elapsed = time.monotonic() - started
@@ -806,6 +857,7 @@ def execute(args: argparse.Namespace) -> int:
             if outside:
                 failure_status = "out-of-scope"
                 raise ExecutionError("check changed files outside allowed_files: " + ", ".join(outside))
+            report["candidate_snapshot_sha256"] = candidate_snapshot_sha256(worktree, files)
             if check_result["status"] != "passed":
                 failure_status = "timeout" if check_result["status"] == "timeout" else "failed"
                 raise ExecutionError(
@@ -893,10 +945,10 @@ def render_card(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def compare(args: argparse.Namespace) -> None:
-    root = root_path(args.root)
-    manifest_path = under_root(root, args.manifest)
-    manifest = load_manifest(manifest_path)
+def build_comparison_report(
+    manifest_path: Path, manifest: dict[str, Any], recorded_at: str | None = None
+) -> dict[str, Any]:
+    """Derive the comparison report so downstream consumers can revalidate it."""
     economy_ok, economy_reason, retirements, exception = validate_retirements(manifest)
     allowed_files = set(manifest["allowed_files"])
     candidates = []
@@ -923,10 +975,9 @@ def compare(args: argparse.Namespace) -> None:
             candidate["reason"].append(economy_reason)
         if best and not all_hard_pass and candidate["hard_gate_pass"]:
             candidate["reason"].append("another candidate failed a hard gate; comparison batch is not PR-eligible")
-    output = under_wgm(root, args.output)
-    report = {
+    return {
         "schema": "stage10.experiment.v1",
-        "recorded_at": stamp(),
+        "recorded_at": recorded_at or stamp(),
         "manifest": str(manifest_path),
         "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         "baseline_sha": manifest["baseline_sha"],
@@ -944,12 +995,20 @@ def compare(args: argparse.Namespace) -> None:
         "pr_recommendation": bool(best and economy_ok and all_hard_pass),
         "authority": "human review required; no automatic branch creation, no merge, no push, no deploy, no publish",
     }
+
+
+def compare(args: argparse.Namespace) -> None:
+    root = root_path(args.root)
+    manifest_path = under_root(root, args.manifest)
+    manifest = load_manifest(manifest_path)
+    report = build_comparison_report(manifest_path, manifest)
     reject_unsafe(report, "comparison report")
+    output = under_wgm(root, args.output)
     atomic_write(output, json.dumps(report, indent=2, sort_keys=True) + "\n")
     card = output.with_suffix(".md")
     atomic_write(card, render_card(report) + "\n")
     print(f"stage10 experiments: wrote {output} and {card}")
-    if not all_hard_pass or not economy_ok:
+    if not report["pr_recommendation"]:
         raise SystemExit(1)
 
 

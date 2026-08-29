@@ -156,6 +156,7 @@ assert report["status"] == "passed"
 assert report["result"] == "execution-passed"
 assert report["baseline_sha"] == baseline
 assert report["changed_files"] == ["app.txt"]
+assert len(report["candidate_snapshot_sha256"]) == 64
 assert report["source_checkout"]["unchanged"] is True
 assert report["cleanup"]["state"] == "retained-for-human-review"
 assert report["pr_eligible"] is False

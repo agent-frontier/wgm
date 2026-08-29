@@ -3,9 +3,9 @@
 ## Executive overview
 
 - **For:** maintainers and fresh agents who need a compact picture of a repository and its known execution environment.
-- **What it is:** an evidence-first memory layer plus a bounded process contract, offline qualification, routing, isolated local experiment execution, experiment comparison, and policy comparison.
+- **What it is:** an evidence-first memory layer plus a bounded process contract, offline qualification, routing, isolated local experiment execution, experiment comparison, human-gated local PR preparation, and policy comparison.
 - **Default safety:** inspection and fixture gates make no model or network call, read no credential file, and write only under the target project's `.wgm/` directory.
-- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded processes, `bash scripts/test-stage10-execution.sh` for isolated local experiments, and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
+- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory, `bash scripts/test-stage10-runner.sh` for bounded processes, `bash scripts/test-stage10-execution.sh` for isolated local experiments, `bash scripts/test-stage10-pr.sh` for PR preparation, and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
 - **Authority:** `stage10_experiments.py execute` may create only its declared local experiment branch/worktree; live provider execution, remote mutation, PR creation, deployment, merge, publication, and policy activation remain separate explicit human-authorized boundaries.
 
 > **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. The execution harness creates branches/worktrees only inside disposable local fixtures. No shipped command silently performs a live provider call, remote mutation, PR operation, merge, deployment, publication, or policy activation.
@@ -306,6 +306,50 @@ bash scripts/test-stage10-experiments.sh
 
 The fixture deliberately includes a high-scoring regressing candidate so the hard non-regression
 gate is observed rather than assumed.
+
+## Prepare a human-gated local PR bundle
+
+PR preparation consumes the retained `stage10.execution.v1` report and the corresponding
+`stage10.experiment.v1` comparison report. It revalidates both source-manifest hashes, the local
+base/head/worktree identities, the final candidate snapshot, exact changed-file scope, every
+bounded execution check, holdout and hard-gate evidence, and T7's economy result. Passing reports
+without both human controls stop as `awaiting-human-review` and emit no bundle:
+
+```bash
+python3 scripts/stage10_pr.py prepare \
+  --root . \
+  --execution-report .wgm/stage10/experiments/executions/candidate-report.json \
+  --comparison-report .wgm/stage10/experiments/report.json
+```
+
+The approval file uses schema `stage10.pr-approval.v1`, sets `approved` to `true`, names the
+approver and UTC expiry, and binds the exact execution-report SHA-256, comparison-report SHA-256,
+candidate-snapshot SHA-256, local head branch, base branch, baseline SHA, and ordered
+`allowed_files`. After reviewing those exact inputs, the maintainer repeats the command with:
+
+```bash
+python3 scripts/stage10_pr.py prepare \
+  --root . \
+  --execution-report .wgm/stage10/experiments/executions/candidate-report.json \
+  --comparison-report .wgm/stage10/experiments/report.json \
+  --approval-file .wgm/stage10/pr-approval.json \
+  --human-approve
+```
+
+Only that matching pair writes a bounded `stage10.pr-bundle.v1` JSON manifest and generated
+Markdown body beneath `.wgm/stage10/pr/`. The body includes the baseline, route/environment,
+changed files, exact validation, hard/holdout/economy evidence, source hashes, negative findings,
+and remaining human action. Any changed report, candidate content, branch, base, scope, or expired
+approval requires fresh evidence and approval.
+
+`stage10_pr.py` has no hosting or network client and performs no push, PR creation, merge,
+deployment, publication, protected-history rewrite, or policy activation. The generated bundle is
+a local handoff only; a human must review and perform every external action separately. Run its
+disposable local-fixture gate with:
+
+```bash
+bash scripts/test-stage10-pr.sh
+```
 
 ## Compare a learned policy offline
 

@@ -40,7 +40,7 @@ docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixtu
 	bash scripts/check-harnesses.sh
 	bash scripts/sync-agent-adapters.sh --check
 
-test: ## Run the bash harnesses (install, agent-adapters, plugin-registry, stage10-memory, runner, qualification, live qualification, router, experiments, execution, policy, loop, swarm, audit, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync, release-index, wsl-boundary)
+test: ## Run the bash harnesses (install, agent-adapters, plugin-registry, stage10-memory, runner, qualification, live qualification, router, experiments, execution, PR preparation, policy, loop, swarm, audit, devcontainer, harvest-hive, grade-evals, check-evals, check-harnesses, check-docs, check-trailers, check-doc-sync, release-index, wsl-boundary)
 	bash scripts/test-install.sh
 	bash scripts/test-agent-adapters.sh
 	bash scripts/test-plugin-registry.sh
@@ -51,6 +51,7 @@ test: ## Run the bash harnesses (install, agent-adapters, plugin-registry, stage
 	bash scripts/test-stage10-router.sh
 	bash scripts/test-stage10-experiments.sh
 	bash scripts/test-stage10-execution.sh
+	bash scripts/test-stage10-pr.sh
 	bash scripts/test-stage10-policy.sh
 	bash scripts/test-stage10-e2e.sh
 	bash scripts/test-loop.sh
