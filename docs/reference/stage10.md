@@ -87,7 +87,7 @@ Qualification is phase-aware and fail-closed. Provide an explicit JSON manifest 
 python3 scripts/stage10_qualification.py qualify --root . --manifest /path/to/fixture.json
 ```
 
-The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record preserves the route, phase, fixture/live evidence class, environment, exact command, duration, status, and revalidation condition. Missing commands are `unknown`, not passes; a failed phase stops that route. Live evidence requires explicit `allow_live: true` in the manifest and is never inferred from fixture output. The focused gate uses disposable fake commands and does not call a model or network:
+The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record preserves the route, phase, fixture/live evidence class, environment fingerprint, exact command, duration, status, diagnostic, and revalidation condition. Manifest commands are tokenized and run with `shell=False`; missing commands are `unknown`, not passes; a failed or timed-out phase stops that route. Live evidence requires both `allow_live: true` in the manifest and the explicit `--allow-live` flag, and is never inferred from fixture output. Diagnostics are redacted before persistence. The focused gate uses disposable fake commands and does not call a model or network:
 
 ```bash
 bash scripts/test-stage10-qualification.sh
