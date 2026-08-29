@@ -3,13 +3,15 @@
 
 The command deliberately has no model, network, database, or credential-file dependency.  It
 captures deterministic repository/host observations as JSONL sources and renders a small Markdown
-brief as a generated view.  A later router may consume these records, but this module never promotes
-model prose or executable presence into routing authority.
+brief as a generated view.  The qualification, routing, experiment, and policy commands consume
+its evidence boundary, but this module never promotes model prose or executable presence into
+routing authority.
 
 Commands:
     inspect  Capture repository, validation, harness, and non-secret host observations; render brief.
     brief    Render the brief from existing observations and memory records.
     record   Append one provenance-bearing memory record.
+    migrate  Import legacy memory/score sources without deleting them.
     lint     Validate records, redaction, brief bounds, and source freshness.
 """
 

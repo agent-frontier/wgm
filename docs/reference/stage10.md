@@ -8,6 +8,22 @@
 - **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
 - **Authority:** live execution, branch/worktree creation, PR creation, deployment, merge, publication, and policy activation remain explicit human-authorized boundaries.
 
+> **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. No shipped command silently performs a live provider call, creates a branch or PR, merges, deploys, publishes, or activates policy.
+
+## Artifact map
+
+| Command | Writes | First reader | Bounds / authority |
+|---|---|---|---|
+| `stage10_memory.py inspect` | observations, `brief.md`, `system-map.md` | human + tooling | generated views: 120 lines / 16,000 bytes each; local only |
+| `stage10_memory.py brief` | `brief.md` and `system-map.md` | human + tooling | regenerates bounded generated views; local only |
+| `stage10_memory.py record` | append-oriented `memory.jsonl` | tooling + maintainer | summary: 240 characters; source ledgers: 10 MiB; provenance required |
+| `stage10_memory.py migrate` | `memory.jsonl` plus generated views | tooling + maintainer | legacy sources remain unchanged; idempotent import |
+| `stage10_qualification.py qualify` | `harnesses/qualification.jsonl` | tooling + maintainer | manifest: 1 MiB; command: 2,000 characters; phase timeout: 1–600 seconds |
+| `stage10_router.py route` | `routing/decision.json` and `decision.md` | human decision-maker | manifest: 1 MiB / 100 routes; transparent policy; no execution |
+| `stage10_experiments.py compare` | `experiments/report.json` and `.md` | human decision-maker | manifest: 1 MiB / 100 candidates; comparison only; no branch or PR |
+| `stage10_policy.py compare` | `routing/policy/comparison.json` and `.md` | human decision-maker | manifest: 1 MiB / 10,000 tasks; offline comparison; no activation |
+| `test-stage10-e2e.sh` | temporary fixture state and report | maintainer | disposable fixture; no model, network, or external write |
+
 ## Inspect a repository
 
 Run from the target repository root:
@@ -25,7 +41,7 @@ stage10 inspect: wrote system map to .wgm/stage10/system-map.md
 stage10 inspect: no model call, network call, or credential-file read
 ```
 
-`inspect` captures Git identity, tracked-file hashes, entry points, Makefile validation targets, known harness metadata, executable presence, and safe current-host/provider/model signals when the host exposes them.
+`inspect` captures Git identity, tracked-file hashes, entry points, Makefile validation targets, known harness metadata, executable presence, and safe current-host/provider/model signals when the host exposes them. The allowlist is the `SAFE_ENV_KEYS` constant in [`scripts/stage10_memory.py`](../../scripts/stage10_memory.py); arbitrary environment variables and credential stores are not inspected.
 
 ## Read the generated views
 
@@ -48,7 +64,15 @@ python3 scripts/stage10_memory.py record \
   --evidence 'command:make validate'
 ```
 
-`validated` needs one evidence reference. `corroborated` needs at least two. `promoted` needs at least two and one `human-approved:` reference. Credential-like values and multiline fields are rejected.
+`validated` needs one evidence reference. `corroborated` needs at least two. `promoted` needs at least two and one `human-approved:` reference. Credential-like values and multiline fields are rejected. For example, this intentionally exits nonzero before writing a record:
+
+```bash
+python3 scripts/stage10_memory.py record --scope task \
+  --summary 'token=redacted' --source 'README.md:1' --evidence 'command:example'
+# stage10: ERROR: summary looks credential-bearing; replace the token-shaped value with &lt;redacted&gt; or rewrite it as non-assignment prose before recording
+```
+
+The refusal is about the assignment-shaped text, even though the displayed value is a placeholder.
 
 ## Migrate legacy memory
 

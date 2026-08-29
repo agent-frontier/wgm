@@ -18,7 +18,7 @@ This writes:
 - `.wgm/stage10/brief.md` — concise generated hot view for humans and fresh agents.
 - `.wgm/stage10/system-map.md` — fuller generated map of entry points, gates, and harnesses.
 
-The command makes no model call, network call, or credential-file read. It reports executable presence and safe host signals, but presence is not authentication or qualification.
+The command makes no model call, network call, or credential-file read. It reports executable presence and safe host signals, but presence is not authentication or qualification. The safe host-environment allowlist is the `SAFE_ENV_KEYS` constant in [`scripts/stage10_memory.py`](../scripts/stage10_memory.py); arbitrary environment values and credential stores are never inspected.
 
 The focused gate is:
 
