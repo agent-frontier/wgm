@@ -20,10 +20,22 @@ run stage10_memory.py inspect --root "$PROJECT" || bad 'memory observation faile
 [[ -s "$PROJECT/.wgm/stage10/brief.md" ]] \
   && ok 'observe/recall produced a bounded offline brief' || bad 'brief output missing'
 cat >"$PROJECT/qualification.json" <<'EOF'
-{"routes":[{"id":"safe","environment":"offline-fixture","commands":{"contract":"true","protocol":"true","tool":"true","ralph-smoke":"true","repeated":"true","benchmark":"true"}},{"id":"alternate","environment":"offline-fixture","commands":{"contract":"true"}}]}
+{"routes":[{"id":"safe","environment":"offline-fixture","commands":{"contract":"true","protocol":"true","tool":"true","ralph-smoke":"true","repeated":"true","benchmark":"true"}},{"id":"alternate","environment":"offline-fixture","commands":{"contract":"true","protocol":"true","tool":"true","ralph-smoke":"true","repeated":"true","benchmark":"true"}}]}
 EOF
 run stage10_qualification.py qualify --root "$PROJECT" --manifest "$PROJECT/qualification.json" || bad 'qualification failed'
-grep -q '"status": "passed"' "$PROJECT/.wgm/stage10/harnesses/qualification.jsonl" && ok 'two fixture routes qualified with phase evidence' || bad 'qualification evidence missing'
+if PYTHONDONTWRITEBYTECODE=1 python3 - "$PROJECT/.wgm/stage10/harnesses/qualification.jsonl" <<'PY'
+import json
+import sys
+rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+assert len(rows) == 14
+assert {row["route_status"] for row in rows} == {"fixture-qualified"}
+assert all(row["status"] == "passed" for row in rows)
+PY
+then
+  ok 'two fixture routes qualified with phase evidence'
+else
+  bad 'qualification evidence missing or overclaimed'
+fi
 cat >"$PROJECT/routes.json" <<'EOF'
 {"task":{"hard_capabilities":["fresh-session","tools"],"preferences":["fast"],"local_only":true,"budget":{"seconds":30,"cost_units":4}},"routes":[{"id":"safe","environment":"local","capabilities":["fresh-session","tools"],"evidence":{"status":"corroborated","level":"qualified","refs":["qualification:safe"]},"latency_ms":5,"cost_units":2},{"id":"alternate","environment":"local","capabilities":["fresh-session","tools","fast"],"evidence":{"status":"corroborated","level":"qualified","refs":["qualification:alternate"]},"latency_ms":2,"cost_units":1}]}
 EOF
@@ -40,18 +52,53 @@ EOF
 run stage10_policy.py compare --root "$PROJECT" --manifest "$PROJECT/policy.json" || bad 'policy comparison failed'
 REPORT="$PROJECT/.wgm/stage10/e2e-report.md"
 mkdir -p "$(dirname "$REPORT")"
-cat >"$REPORT" <<'EOF'
-# Stage 10 end-to-end demonstration
+# Generate the human report from the actual decision artifacts rather than a hand-written success
+# fixture. This catches a future schema/output drift that leaves the narrative claiming a result the
+# composed tools did not produce.
+if PYTHONDONTWRITEBYTECODE=1 python3 - "$PROJECT" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-- Path: observe → recall → qualify → route → experiment → compare → report
-- Selected route: `alternate`; alternative: `safe`
-- Evidence: fixture qualification, route references, frozen baseline, and corroborated history
-- Budget: 30 seconds / 4 cost units (route manifest)
-- Baseline comparison: candidate cleared the offline hard gates; learned policy improves the incumbent
-- Knowledge: generated memory brief plus corroborated policy history; two retirements support feature economy
-- Human decision required: review the recommendation before activation or merge
-
-**Authority boundary:** fixture-only and offline. No model, network, publish, deploy, PR creation, merge, or automatic activation occurs.
-EOF
-grep -q 'Human decision required' "$REPORT" && grep -q 'No model, network' "$REPORT" && ok 'concise report preserves decision and authority boundaries' || bad 'e2e report incomplete'
+project = Path(sys.argv[1])
+brief = project / ".wgm/stage10/brief.md"
+qualification = project / ".wgm/stage10/harnesses/qualification.jsonl"
+route = project / ".wgm/stage10/routing/decision.json"
+experiment = project / ".wgm/stage10/experiments/report.json"
+policy = project / ".wgm/stage10/routing/policy/comparison.json"
+assert brief.is_file()
+rows = [json.loads(line) for line in qualification.read_text(encoding="utf-8").splitlines()]
+route_result = json.loads(route.read_text(encoding="utf-8"))
+experiment_result = json.loads(experiment.read_text(encoding="utf-8"))
+policy_result = json.loads(policy.read_text(encoding="utf-8"))
+assert len(rows) == 14 and {row["route_status"] for row in rows} == {"fixture-qualified"}
+assert route_result["selected_route"] == "alternate"
+assert experiment_result["frozen_baseline"] is True
+assert experiment_result["feature_economy"]["eligible"] is True
+assert policy_result["status"] == "recommend"
+report = "\n".join([
+    "# Stage 10 end-to-end demonstration",
+    "",
+    "- Path: observe → recall → qualify → route → experiment → compare → report",
+    f"- Selected route: `{route_result['selected_route']}`; alternative: `{route_result['alternatives'][0]}`",
+    f"- Evidence: {len(rows)} fixture qualification records, route references, frozen baseline, and corroborated history",
+    f"- Budget: `{route_result['budget']}`",
+    f"- Baseline comparison: winner `{experiment_result['winner']}`; hard gates passed for the composed candidate",
+    f"- Knowledge: policy status `{policy_result['status']}`; feature economy `{experiment_result['feature_economy']['reason']}",
+    "- Human decision required: review the recommendation before activation or merge",
+    "",
+    "**Authority boundary:** fixture-only and offline. No model, network, publish, deploy, PR creation, merge, or automatic activation occurs.",
+    "",
+])
+(project / ".wgm/stage10/e2e-report.md").write_text(report, encoding="utf-8")
+PY
+then
+  if grep -q 'Human decision required' "$REPORT" && grep -q 'No model, network' "$REPORT"; then
+    ok 'generated report preserves actual decisions and authority boundaries'
+  else
+    bad 'generated e2e report incomplete'
+  fi
+else
+  bad 'e2e report generation failed'
+fi
 [[ "$fail" -eq 0 ]] && printf 'stage10 e2e harness: GREEN (%d assertions passed)\n' "$pass" || { echo 'stage10 e2e harness: RED' >&2; exit 1; }
