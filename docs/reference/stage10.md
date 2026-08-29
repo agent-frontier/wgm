@@ -93,6 +93,22 @@ The command writes `.wgm/stage10/harnesses/qualification.jsonl`. Each record pre
 bash scripts/test-stage10-qualification.sh
 ```
 
+## Transparent route policy
+
+Route selection is explicit and provider-agnostic. A task manifest supplies `hard_capabilities`,
+soft `preferences`, a `budget`, and optional `local_only`; each route supplies capabilities and
+qualification evidence. Hard mismatches, stale evidence, inventory-only evidence, and non-local
+routes are excluded before scoring. Eligible routes are ordered deterministically by preference
+matches, latency, cost, then route id, and the decision JSON records alternatives, evidence,
+budget, uncertainty, and rationale without prompt or secret material:
+
+```bash
+python3 scripts/stage10_router.py route --manifest /path/to/routes.json
+```
+
+The focused offline fixture gate is `bash scripts/test-stage10-router.sh`. No model or network
+call is made by the policy.
+
 ## What to do next
 
 - [Run the Ralph loop](../operator/running-the-loop.md) — execute one fresh-context iteration.
