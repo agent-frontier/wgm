@@ -12,7 +12,7 @@ exactly does this accept?"* — for *"how do I do X?"*, start with the
 | [swarm.sh](cli-swarm.md) | Parallel worktree streams: flags, partitioning rules, lane safety, telemetry output |
 | [audit.sh](cli-audit.md) | The portable docs-audit dispatcher: flags, role ordering, report placement, what it refuses to do |
 | [Installers](cli-install.md) | `install.sh` and `install.ps1`: flags, targets, environment variables, verification |
-| [Stage 10 memory](stage10.md) | Evidence-first observations, generated briefs, memory standings, migration, and safety boundaries |
+| [Stage 10 offline orchestration](stage10.md) | Evidence-first memory, harness qualification, transparent routing, comparison gates, and authority boundaries |
 
 ## Validation and files
 

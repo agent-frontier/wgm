@@ -146,7 +146,7 @@ Raw JSONL is for tooling and investigation. It is never the default human handof
 - It does not call a model during `inspect`.
 - It does not read API keys or credential stores.
 - It does not modify source code, specs, governance, CI, or provider configuration.
-- It does not select a route, run an experiment, open a PR, deploy, or merge.
+- It does not select a route, run an experiment, open a PR, deploy, or merge; those are separate Stage 10 commands and future authority boundaries.
 - It does not make a single successful observation into project-wide policy.
 
-Those capabilities are later Stage 10 slices and must reuse this evidence boundary.
+The current offline qualification, routing, comparison, and policy commands must reuse this evidence boundary. Live execution, branch/worktree creation, PR creation, deployment, merge, publication, and policy activation remain separately authorized.

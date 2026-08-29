@@ -1,12 +1,12 @@
-# Reference: Stage 10 memory
+# Reference: Stage 10 offline orchestration
 
 ## Executive overview
 
 - **For:** maintainers and fresh agents who need a compact picture of a repository and its known execution environment.
-- **What it is:** local JSONL observations plus generated Markdown views.
-- **Safety:** no model call, network call, credential-file read, or write outside the project's `.wgm/` directory.
-- **Canonical gate:** `bash scripts/test-stage10-memory.sh`.
-- **Next:** use the explicit harness qualification ladder before route selection.
+- **What it is:** an evidence-first memory layer plus offline qualification, routing, experiment-comparison, and policy-comparison commands.
+- **Default safety:** inspection and fixture gates make no model or network call, read no credential file, and write only under the target project's `.wgm/` directory.
+- **Canonical gates:** `bash scripts/test-stage10-memory.sh` for memory and `bash scripts/test-stage10-e2e.sh` for the composed offline path.
+- **Authority:** live execution, branch/worktree creation, PR creation, deployment, merge, publication, and policy activation remain explicit human-authorized boundaries.
 
 ## Inspect a repository
 
@@ -70,7 +70,7 @@ The command reports executable presence only. It does not prove authentication, 
 
 ## Qualification boundary
 
-Later Stage 10 qualification progresses through:
+Stage 10 qualification progresses through:
 
 ```text
 present → contract-valid → protocol-ready → tool-ready
@@ -165,6 +165,7 @@ activates a policy automatically.
 ## What to do next
 
 - [Run the Ralph loop](../operator/running-the-loop.md) — execute one fresh-context iteration.
+- Read the local `.wgm/STAGE10_ROADMAP.md` and `.wgm/IMPLEMENTATION_PLAN.md` for current offline-slice status and separately authorized future boundaries.
 - [Gates](gates.md) — see the complete repository validation suite.
 - [Harness portability](../../references/harness-portability.md) — review compatibility evidence.
 - [Stage 10 memory protocol](../../references/stage10-memory.md) — agent-facing record and safety contract.

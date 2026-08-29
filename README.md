@@ -38,7 +38,7 @@ python3 scripts/stage10_memory.py lint --root .
 bash scripts/test-stage10-memory.sh
 ```
 
-`inspect` writes `.wgm/stage10/observations.jsonl` and `.wgm/stage10/brief.md` and exits `0` on success. `lint` exits `0` for a current, valid brief and nonzero when records are malformed, suspicious, or stale. The canonical Phase 1 gate is `bash scripts/test-stage10-memory.sh`; inspect/lint are the real-checkout refresh and diagnostic commands. The brief is the human entry point; raw JSONL is the machine source. The brief is bounded to 120 lines and 16,000 bytes. If lint reports changed sources, rerun inspect; if the current harness is unknown, do not infer it from executable presence. This Phase 1 surface is local and experimental; live qualification and learned routing come later.
+`inspect` writes `.wgm/stage10/observations.jsonl` and `.wgm/stage10/brief.md` and exits `0` on success. `lint` exits `0` for a current, valid brief and nonzero when records are malformed, suspicious, or stale. The canonical memory gate is `bash scripts/test-stage10-memory.sh`; inspect/lint are the real-checkout refresh and diagnostic commands. The brief is the human entry point; raw JSONL is the machine source. The brief is bounded to 120 lines and 16,000 bytes. If lint reports changed sources, rerun inspect; if the current harness is unknown, do not infer it from executable presence. The offline Stage 10 qualification, routing, experiment comparison, learned-policy comparison, and end-to-end gates are documented in [`docs/reference/stage10.md`](docs/reference/stage10.md); live execution, branch/worktree creation, PR creation, and policy activation remain explicit human-authorized boundaries.
 
 To record a validated lesson after a green check:
 
