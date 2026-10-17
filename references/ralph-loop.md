@@ -89,6 +89,18 @@ loop, with progress living on disk (not the model's context) between passes
   leave the missing tier blocked/unverified (`[learn]` issue #104).
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
+- **Freeze public mathematical boundary behavior before promising it.** If docs or callers will rely
+  on a mathematical/numerical API, first state what undefined or out-of-domain inputs do (error,
+  status, NaN, clamp, etc.) and add deterministic boundary tests; examples or today's
+  implementation are not the contract (`[learn]` issue #109).
+- **Compare numerical outputs by tolerance contract, not decimal strings.** For installed-package or
+  cross-runtime floating/statistical checks, document absolute and relative budgets, near-zero
+  handling, and finite/NaN/domain expectations from the API or algorithm; never loosen a tolerance
+  ad hoc just to force green (`[learn]` issue #110).
+- **Benchmark only after semantic parity.** Before claiming a performance win, show the contenders
+  produce equivalent results, warm up, then collect repeated pinned timings and report
+  compiler/build mode, dataset/input shape, and environment/semantic caveats; a single cold run is not
+  evidence (`[learn]` issue #108).
 - **Check the toolchain is present before checking it's compatible.** Before reasoning about whether
   a runtime is *newer/odder* than a tool's tested baseline (below), do a trivial presence check first
   — `which <tool>` or a version probe — that the required runtime/toolchain is installed **at all**.

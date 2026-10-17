@@ -57,6 +57,10 @@ thing you're replacing." Score relative to a live baseline instead:
 2. **Run the exact same deterministic audit on both** (the same checks, the same scenarios).
 3. **Gate on parity-or-better:** the new build must be ≥ the incumbent on every dimension that
    matters, plus still clear its own absolute floor.
+4. **For performance claims, prove semantic parity before timing:** contenders must keep the same observable
+   contract/results, not just the same interface shape.
+5. **Benchmark like a measurement, not a demo:** exclude warmups from repeated pinned timings, and
+   record compiler/build mode, dataset/input shape, and environment/semantic caveats with the result.
 
 The incumbent's own failures, surfaced by the shared harness, become the *proof* the replacement is
 better — a far stronger, more defensible artifact than a lone "we hit the target number" — and it
@@ -65,6 +69,11 @@ catches a regression an absolute pass would hide. See `references/hard-to-test-d
 
 **Provenance:** `[learn]` issues #32, #33 — clone/replacement builds scored against a served
 incumbent, not just an absolute Lighthouse/SEO threshold.
+
+For floating or statistical outputs, judge against documented absolute/relative tolerances plus
+near-zero and finite/NaN/domain expectations, not exact decimal strings. A budget change needs a
+numerical reason from the algorithm or API contract, not "the test passes now" (`[learn]` issue
+#110).
 
 ## Stratified convergence
 Grade by ascending **tier** (`references/scenarios.md`): bring tier-1 scenarios to threshold before

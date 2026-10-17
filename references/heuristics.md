@@ -144,6 +144,18 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** compare installed-package floating or statistical outputs with documented
+  absolute/relative tolerances and special-value expectations, not exact decimal strings.
+  **Why:** platform math and reduction order can legitimately move low-order digits; exact-string
+  goldens either flap or get "fixed" by unjustified tolerance inflation. **Provenance:** `[learn]`
+  issue #110. **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/scoring.md` · `evals/evals.json` · `scripts/test-check-evals.sh`.
+- **Heuristic:** before documenting a public mathematical API, make undefined or out-of-domain
+  inputs explicit in the contract and pin them with deterministic boundary tests.
+  **Why:** happy-path examples and current implementation behavior do not tell callers whether edge
+  inputs error, clamp, return NaN, or carry another status. **Provenance:** `[learn]` issue #109.
+  **Landed in:** `references/grilling.md` · `references/ralph-loop.md` (Backpressure in depth) ·
+  `evals/evals.json` · `scripts/test-check-evals.sh`.
 - **Heuristic:** when a consumer runs on the other side of a virtualization boundary (a Windows
   process calling a service inside WSL, a host tool calling a VM guest), prove reachability with a
   probe that *runs on the consumer's OS* and declares the platform it ran on — and keep `localhost`
@@ -310,6 +322,13 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** before timing a performance comparison, prove equivalent semantics and measure with
+  warmups, repeated pinned runs, and disclosed caveats.
+  **Why:** a faster number is meaningless if the candidate changed the result, compiler mode, input
+  distribution, or just won one noisy cold run. **Provenance:** `[learn]` issue #108. **Landed
+  in:** `references/grilling.md` · `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/scoring.md` · `references/evals.md` · `evals/evals.json` ·
+  `scripts/test-check-evals.sh`.
 - **Heuristic:** before accepting an automated edit to a skill/protocol document, gate it on a
   held-out or baseline comparison — never accept on the generator's own say-so.
   **Why:** a skill document that edits itself without a comparison against a prior-known-good

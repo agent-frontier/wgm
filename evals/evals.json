@@ -179,6 +179,36 @@
         "Delayed or rejected async operations are injected through the real SDK, using a controlled transport where appropriate",
         "Detached initialization and credential cleanup are covered, not hidden behind synchronous method-level mocks"
       ]
+    },
+    {
+      "id": "performance-benchmark-semantic-parity",
+      "prompt": "/wgm review: my port benchmarks 2x faster on one laptop run, but I did not first prove it returns equivalent results and I changed compiler flags and dataset size. Can I report a performance win?",
+      "expected_output": "wgm rejects the timing claim until semantic/result equivalence is established, then requires warmups plus repeated pinned measurements and reports compiler/build, dataset/input, and environment caveats with any benchmark number.",
+      "assertions": [
+        "Equivalent semantics and results are established before a timing win is accepted",
+        "Warmups and repeated pinned measurements are required instead of a single opportunistic run",
+        "Compiler/build mode, dataset/input shape, and environment or semantic caveats are disclosed with the benchmark claim"
+      ]
+    },
+    {
+      "id": "public-math-api-boundary-contracts",
+      "prompt": "/wgm review: the public stats API examples look fine, so I'll document the current behavior even though empty input, NaN, infinities, and out-of-domain values still have no explicit contract. Okay?",
+      "expected_output": "wgm refuses to turn current implementation or examples into the public contract: it first requires explicit statuses for undefined or out-of-domain cases and deterministic boundary tests for those promises.",
+      "assertions": [
+        "Undefined or out-of-domain inputs are given an explicit public status contract before documentation promises are accepted",
+        "Deterministic boundary tests are required for the documented edge cases before the API promise is treated as proven",
+        "Current implementation behavior or a happy-path example is not accepted as the contract by itself"
+      ]
+    },
+    {
+      "id": "floating-statistical-tolerance-contracts",
+      "prompt": "/wgm review: the installed package's p-value output differs in the last few decimals on another machine, so I'll update the golden string or widen the tolerance until it passes. Sound good?",
+      "expected_output": "wgm compares installed-package floating or statistical outputs against documented absolute and relative tolerances, including near-zero handling and finite/NaN/domain expectations, and refuses exact decimal-string goldens or ad hoc tolerance loosening.",
+      "assertions": [
+        "Floating or statistical outputs are checked against documented absolute and relative tolerances rather than exact decimal strings",
+        "The comparison contract names near-zero handling plus finite/NaN/domain expectations",
+        "Tolerance is derived from the algorithm or API contract, not loosened ad hoc just to make a failing test pass"
+      ]
     }
   ]
 }

@@ -12,6 +12,7 @@
 #   6. assertions must actually be an array;
 #   7. the ruggedness-gate lifecycle cases stay in wgm's own fixture, one per distinction.
 #   8. the evidence-boundary learning cases stay in wgm's own fixture, one per issue.
+#   9. the numerical/API/performance learning cases stay in wgm's own fixture, one per issue.
 #
 # (3) and (4) are the [learn] issue #86 class: an identifier-shaped regex would skip exactly those
 # keys, so the gate must read the key set structurally instead.
@@ -49,6 +50,46 @@ run_on() {  # $1 = fixture path; sets OUT/RC without tripping set -e
 
 run_all() {  # exercise the real repository-discovery branch
   OUT="$(cd "$ROOT" && env -u WGM_EVALS_FIXTURE bash "$CHECK" 2>&1)"; RC=$?
+}
+
+pin_case_ids() {  # $1 = success message; $2 = failure noun; $3... = eval ids
+  local success_message="$1"
+  local failure_noun="$2"
+  shift 2
+  local missing=()
+  local id
+  for id in "$@"; do
+    jq -e --arg id "$id" 'any(.evals[]; .id == $id)' "$FIXTURE" >/dev/null 2>&1 \
+      || missing+=("$id")
+  done
+  if (( ${#missing[@]} == 0 )); then
+    pass "$success_message"
+  else
+    fail "the shipped fixture is missing $failure_noun: ${missing[*]}"
+  fi
+}
+
+pin_case_assertions() {  # $1 = success message; $2 = failure noun; remaining args = id/assertion pairs
+  local success_message="$1"
+  local failure_noun="$2"
+  shift 2
+  if (( $# % 2 != 0 )); then
+    fail "internal harness bug: pin_case_assertions needs id/assertion pairs"
+    return
+  fi
+  local missing=()
+  local id assertion
+  while (( $# > 0 )); do
+    id="$1"; assertion="$2"; shift 2
+    jq -e --arg id "$id" --arg assertion "$assertion" \
+      'any(.evals[] | select(.id == $id) | .assertions[]; contains($assertion))' "$FIXTURE" >/dev/null 2>&1 \
+      || missing+=("$id")
+  done
+  if (( ${#missing[@]} == 0 )); then
+    pass "$success_message"
+  else
+    fail "$failure_noun lack their pinned assertion: ${missing[*]}"
+  fi
 }
 
 # 1) the shipped fixture is green
@@ -117,37 +158,20 @@ RUGGED_CASE_IDS=(
   rugged-companion-missing-fallback
   rugged-gate-no-lifecycle-bypass
 )
-missing_cases=()
-for id in "${RUGGED_CASE_IDS[@]}"; do
-  jq -e --arg id "$id" 'any(.evals[]; .id == $id)' "$FIXTURE" >/dev/null 2>&1 \
-    || missing_cases+=("$id")
-done
-if (( ${#missing_cases[@]} == 0 )); then
-  pass "the ruggedness-gate lifecycle cases are all present in the shipped fixture"
-else
-  fail "the shipped fixture is missing ruggedness-gate case(s): ${missing_cases[*]}"
-fi
+pin_case_ids \
+  "the ruggedness-gate lifecycle cases are all present in the shipped fixture" \
+  "ruggedness-gate case(s)" \
+  "${RUGGED_CASE_IDS[@]}"
 
 # 7b) the cases that define each verdict must assert their specific behavior themselves, so a
 # generic enumeration in another assertion cannot keep a blocking behavior test green after it is
 # hollowed out.
-declare -A RUGGED_CASE_ASSERTIONS=(
-  [plan-exit-rugged-gate-rugged]="RUGGED is justified by plan-readiness evidence"
-  [rugged-fragile-blocks-plan-exit]="The recorded verdict is FRAGILE and the Plan-exit ruggedness gate item is marked FAIL"
-  [rugged-unknown-blocks-with-validation-task]="The recorded verdict is UNKNOWN and the Plan-exit ruggedness gate item is marked FAIL"
-)
-missing_verdicts=()
-for id in "${!RUGGED_CASE_ASSERTIONS[@]}"; do
-  assertion="${RUGGED_CASE_ASSERTIONS[$id]}"
-  jq -e --arg id "$id" --arg assertion "$assertion" \
-    'any(.evals[] | select(.id == $id) | .assertions[]; contains($assertion))' "$FIXTURE" >/dev/null 2>&1 \
-    || missing_verdicts+=("$id")
-done
-if (( ${#missing_verdicts[@]} == 0 )); then
-  pass "Plan-exit RUGGED/FRAGILE/UNKNOWN cases each assert their own verdict behavior"
-else
-  fail "ruggedness case(s) lack their own behavior assertion: ${missing_verdicts[*]}"
-fi
+pin_case_assertions \
+  "Plan-exit RUGGED/FRAGILE/UNKNOWN cases each assert their own verdict behavior" \
+  "ruggedness case(s)" \
+  plan-exit-rugged-gate-rugged "RUGGED is justified by plan-readiness evidence" \
+  rugged-fragile-blocks-plan-exit "The recorded verdict is FRAGILE and the Plan-exit ruggedness gate item is marked FAIL" \
+  rugged-unknown-blocks-with-validation-task "The recorded verdict is UNKNOWN and the Plan-exit ruggedness gate item is marked FAIL"
 
 # 8) the evidence-boundary learning cases stay present. Like the ruggedness pins above, this is not
 # behavioral grading: it only prevents the public regression fixtures from silently disappearing while
@@ -160,39 +184,49 @@ EVIDENCE_CASE_IDS=(
   intermediary-shell-semantics
   pinned-sdk-async-boundary
 )
-missing_evidence_cases=()
-for id in "${EVIDENCE_CASE_IDS[@]}"; do
-  jq -e --arg id "$id" 'any(.evals[]; .id == $id)' "$FIXTURE" >/dev/null 2>&1 \
-    || missing_evidence_cases+=("$id")
-done
-if (( ${#missing_evidence_cases[@]} == 0 )); then
-  pass "the evidence-boundary learning cases are all present in the shipped fixture"
-else
-  fail "the shipped fixture is missing evidence-boundary case(s): ${missing_evidence_cases[*]}"
-fi
+pin_case_ids \
+  "the evidence-boundary learning cases are all present in the shipped fixture" \
+  "evidence-boundary case(s)" \
+  "${EVIDENCE_CASE_IDS[@]}"
 
 # 8b) each evidence-boundary case must keep one issue-specific, load-bearing assertion in its own
 # assertion list. Presence alone is not enough if the case is hollowed out into generic prose.
-declare -A EVIDENCE_CASE_ASSERTIONS=(
-  [wsl-consumer-origin-evidence]="wgm requires a probe that runs on the consumer's OS and declares that origin"
-  [offline-proxy-is-not-live-release-evidence]="A separate deploy or release check is required before claiming the change is publicly released"
-  [model-tool-omission-sentinel]="Arbitrary strings such as 'none' are not globally normalized away; invalid input is rejected and legitimate values are preserved"
-  [embedded-host-bootstrap-first]="The bootstrap proves the loader, listener, and private discovery path"
-  [intermediary-shell-semantics]="The transformed command is executed under the actual shell with hostile but valid path characters"
-  [pinned-sdk-async-boundary]="Detached initialization and credential cleanup are covered, not hidden behind synchronous method-level mocks"
+pin_case_assertions \
+  "evidence-boundary cases each retain their issue-specific load-bearing assertion" \
+  "evidence-boundary case(s)" \
+  wsl-consumer-origin-evidence "wgm requires a probe that runs on the consumer's OS and declares that origin" \
+  offline-proxy-is-not-live-release-evidence "A separate deploy or release check is required before claiming the change is publicly released" \
+  model-tool-omission-sentinel "Arbitrary strings such as 'none' are not globally normalized away; invalid input is rejected and legitimate values are preserved" \
+  embedded-host-bootstrap-first "The bootstrap proves the loader, listener, and private discovery path" \
+  intermediary-shell-semantics "The transformed command is executed under the actual shell with hostile but valid path characters" \
+  pinned-sdk-async-boundary "Detached initialization and credential cleanup are covered, not hidden behind synchronous method-level mocks"
+
+# 9) the numerical/API/performance learning cases stay present. This is still fixture-content pinning,
+# not behavioral grading: it prevents public regression cases from disappearing or turning generic
+# while the schema gate stays green.
+NUMERICAL_CASE_IDS=(
+  performance-benchmark-semantic-parity
+  public-math-api-boundary-contracts
+  floating-statistical-tolerance-contracts
 )
-missing_evidence_assertions=()
-for id in "${!EVIDENCE_CASE_ASSERTIONS[@]}"; do
-  assertion="${EVIDENCE_CASE_ASSERTIONS[$id]}"
-  jq -e --arg id "$id" --arg assertion "$assertion" \
-    'any(.evals[] | select(.id == $id) | .assertions[]; contains($assertion))' "$FIXTURE" >/dev/null 2>&1 \
-    || missing_evidence_assertions+=("$id")
-done
-if (( ${#missing_evidence_assertions[@]} == 0 )); then
-  pass "evidence-boundary cases each retain their issue-specific load-bearing assertion"
-else
-  fail "evidence-boundary case(s) lack their pinned assertion: ${missing_evidence_assertions[*]}"
-fi
+pin_case_ids \
+  "the numerical/API/performance learning cases are all present in the shipped fixture" \
+  "numerical/API/performance case(s)" \
+  "${NUMERICAL_CASE_IDS[@]}"
+
+# 9b) retain every numerical rule; keeping only the headline loses edge-case protection.
+pin_case_assertions \
+  "numerical/API/performance cases each retain their issue-specific load-bearing assertion" \
+  "numerical/API/performance case(s)" \
+  performance-benchmark-semantic-parity "Equivalent semantics and results are established before a timing win is accepted" \
+  performance-benchmark-semantic-parity "Warmups and repeated pinned measurements are required instead of a single opportunistic run" \
+  performance-benchmark-semantic-parity "Compiler/build mode, dataset/input shape, and environment or semantic caveats are disclosed with the benchmark claim" \
+  public-math-api-boundary-contracts "Undefined or out-of-domain inputs are given an explicit public status contract before documentation promises are accepted" \
+  public-math-api-boundary-contracts "Deterministic boundary tests are required for the documented edge cases before the API promise is treated as proven" \
+  public-math-api-boundary-contracts "Current implementation behavior or a happy-path example is not accepted as the contract by itself" \
+  floating-statistical-tolerance-contracts "Floating or statistical outputs are checked against documented absolute and relative tolerances rather than exact decimal strings" \
+  floating-statistical-tolerance-contracts "The comparison contract names near-zero handling plus finite/NaN/domain expectations" \
+  floating-statistical-tolerance-contracts "Tolerance is derived from the algorithm or API contract, not loosened ad hoc just to make a failing test pass"
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-evals harness: GREEN"

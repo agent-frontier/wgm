@@ -30,7 +30,7 @@ maintainer or a future automated judge; only their *shape* is checked mechanical
 
 ## What's in `evals/evals.json`
 Cases against wgm's own `SKILL.md`, following the upstream schema (`skill_name`, `evals[]` of `id` /
-`prompt` / `expected_output` / optional `files` / `assertions`). The fixture currently carries three
+`prompt` / `expected_output` / optional `files` / `assertions`). The fixture currently carries four
 families:
 
 The five lifecycle cases:
@@ -64,6 +64,14 @@ The six evidence-boundary learning cases (`[learn]` issues #101, #104, #106, #11
 16. Intermediary shell semantics — published command rewrites are proved under the actual shell.
 17. Pinned-SDK async boundaries — delayed/rejected async, detached init, and cleanup go through the real contract.
 
+The three numerical/API/performance learning cases (`[learn]` issues #108, #109, #110):
+18. Performance comparisons — prove equivalent semantics/results before timing, then use warmups,
+    repeated pinned measurements, and disclose compiler/data/environment caveats.
+19. Public mathematical API boundary contracts — undefined or out-of-domain cases need explicit
+    statuses plus deterministic boundary tests before docs promise behavior.
+20. Floating/statistical tolerance contracts — installed-package outputs compare against documented
+    absolute/relative budgets and special-value expectations, not exact decimal strings.
+
 ## Running an eval by hand
 Per `evaluating-skills.mdx`'s pattern: run the prompt twice — once with wgm loaded, once without (or
 against a previous `SKILL.md` revision) — in a clean context each time, save outputs, then grade each
@@ -75,9 +83,9 @@ a different trade-off than one that's both better and cheaper.
 `bash scripts/check-evals.sh` is schema-only (always-on, free, part of `make validate`/CI), and
 `bash scripts/test-check-evals.sh` proves that gate fails closed while pinning fixture content the
 schema cannot see. Today that means six ruggedness-case presence checks, three ruggedness
-verdict-content checks, and separate issue-specific id/assertion pins for the evidence-boundary
-lessons above. None of those checks executes wgm; behavioral grading still belongs to
-`scripts/grade-evals.sh`.
+verdict-content checks, and separate issue-specific id/assertion pins for the evidence-boundary plus
+numerical/API/performance lessons above. None of those checks executes wgm; behavioral grading still
+belongs to `scripts/grade-evals.sh`.
 **`scripts/grade-evals.sh`** is the real, opt-in mechanization of the protocol below — it costs real
 agent/API calls, so it is never wired into CI; run it by hand before landing a `SKILL.md`/
 `references/*` change that might affect behavior quality. Design note: it grades a candidate
