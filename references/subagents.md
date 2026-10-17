@@ -52,6 +52,10 @@ flowchart LR
   then `wgm-quality-reviewer` (is it correct, and does the check prove it?). Two sets of eyes catch
   spec drift and quality bugs separately — one reviewer rationalizes its own misses. **Neither may
   emit PASS without the iteration's ruggedness verdict in hand** (below).
+- **Boundary claims stay adversarial in review.** If validation leans on a proxy, omission sentinel,
+  intermediary rewrite, embedded host, or SDK mock, the quality reviewer challenges the real
+  contract — evidence labels, real shell semantics, host bootstrap, and pinned-SDK async/cleanup —
+  instead of rerunning the same idealized harness.
 - **Validate** → dispatch `wgm-validator` to judge holdout-scenario satisfaction once the gate is
   green. It is the only role that opens `scenarios/`, preserving the holdout.
 - **Stall** → dispatch `wgm-diagnostician` (wonder→reflect, escalation, harness building) when

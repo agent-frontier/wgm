@@ -41,6 +41,9 @@ Walk down each branch of the decision tree, resolving dependencies between decis
   Phrase each as a testable **EARS** requirement (Mavin et al., Rolls-Royce / IEEE RE 2009; see
   `references/artifacts.md` for all five shapes) — that structure forces out the ambiguity a test
   or an LLM judge otherwise can't settle.
+- **Boundary contracts:** if the build exposes a public mathematical/numerical API or a benchmark
+  claim, make undefined inputs, special values, equivalence criteria, and acceptable error budgets
+  explicit before planning.
 
 ## Ambiguity taxonomy (what to scan for)
 Before you ask, scan the request/spec against this ambiguity taxonomy (adapted from

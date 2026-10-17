@@ -27,6 +27,9 @@ report process, scope, cost, or missing measurements, but it cannot satisfy this
 - **Source-first adversarial checks**: test the load-bearing claims the author is most likely to be
   certain about, including absolute documentation claims, arithmetic, security statements, and
   copy-paste commands.
+- **Boundary-fidelity audit**: challenge omission sentinels, intermediary rewrites, embedded-host
+  bootstrap, and SDK mocks at the real contract — actual model/CLI payloads, real shells, the
+  shipped host runtime, and pinned-SDK async/error/cleanup paths.
 - **Ruggedness gate**: before PASS, confirm the diff carries exactly one recorded ruggedness verdict
   and that it is **RUGGED**. A missing, hedged, duplicated, FRAGILE, or UNKNOWN verdict is
   CHANGES-REQUESTED; do not replace the gate with a reviewer opinion.

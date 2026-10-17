@@ -320,11 +320,10 @@ stop condition fires. **One task per iteration.** Each iteration:
    so a fresh context never deletes it as an orphan. **Format only what you touched:** never run a
    project-wide auto-formatter mid-iteration — it buries the one-task diff in reformatting noise.
 3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
-   creating one **is** this iteration's task. No green signal → not done. **If the project has a
-   deploy pipeline distinct from its per-PR CI, PR-level green is not proof of a real deploy** —
-   check that separate workflow's own latest run when a task's acceptance criteria implies reaching
-   a running deployment, and treat a red one as a standing blocker surfaced now, not deferred to
-   Ship/Handoff (`references/ralph-loop.md`, Backpressure in depth). Then **judge satisfaction
+   creating one **is** this iteration's task. No green signal → not done. **If acceptance names a
+   live service, embedded host, or release, keep evidence tiered** — PR green or an offline proxy is
+   not proof of that boundary; run the real host/service/deploy check when available and otherwise leave
+   it blocked or unverified (`references/ralph-loop.md`, Backpressure in depth). Then **judge satisfaction
    (0–100)** against this slice's holdout scenarios, converging by tier (stratified); run the app in
    a container if a scenario needs a live service (`references/scoring.md`,
    `references/validation-env.md`). Deterministic checks still gate "done."
@@ -339,11 +338,13 @@ stop condition fires. **One task per iteration.** Each iteration:
    by a swarm lane — is an *unverified assertion*. For each acceptance bullet, check the artifact:
    does the named file exist, does the claimed symbol/constant/branch actually appear, does the named
    command run? Grep, don't trust plausible prose (`references/subagents.md`, "Worktree swarm").
-   **Ruggedness verdict — required, every Review:** run `/rugged review` (or `/rugged stress`) over
-   this diff when the companion is discoverable, otherwise run the embedded rubric inline and record
-   the fallback. Neither reviewer may declare PASS without that verdict in hand: **FRAGILE** blocks
-   `done` and spawns a remediation task, **UNKNOWN** blocks `done` and spawns a validation-signal
-   task, and an absent `/rugged` is never a pass (see "The ruggedness gate").
+   **Boundary-fidelity + ruggedness — required, every Review:** if the task relies on an adapter or
+   mock, challenge the real boundary first: model→tool omission sentinels, intermediary shell
+   semantics, embedded-host bootstrap, and delayed/rejected async or cleanup through the pinned SDK.
+   Then run `/rugged review` (or `/rugged stress`) when the companion is discoverable, otherwise run
+   the embedded rubric inline and record the fallback. Neither reviewer may declare PASS without that
+   verdict in hand: **FRAGILE** blocks `done`, **UNKNOWN** blocks `done`, and an absent `/rugged` is
+   never a pass (see "The ruggedness gate").
 5. **Record** — update `IMPLEMENTATION_PLAN.md`: mark status, note results, add/adjust follow-up
    tasks. Write enough that a **fresh agent could continue** from the file alone. Once that
    validation command exits 0, commit the iteration with a Conventional Commits message (`type:
@@ -404,7 +405,7 @@ next iteration is a consolidation task (help land existing PRs), not another net
   autonomous run — or for an operator new to this codebase — a summary is not comprehension. Point
   them at `/teach-me` (cited map, tour, one validated change) and `/quiz-me` to confirm it landed
   (`companions/teach-me/SKILL.md`).
-- Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
+- Leave a buildable, resumable tree; classify residue and preserve tracked history (`references/artifacts.md`).
 - **If a separate deploy pipeline exists, confirm it's actually green** — not just the PR-level CI
   that gated each merge (`references/ralph-loop.md`, Backpressure in depth). A merged, CI-green PR
   can still sit behind a silently-failing post-merge deploy; don't report work "complete" on PR

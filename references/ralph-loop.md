@@ -83,8 +83,24 @@ loop, with progress living on disk (not the model's context) between passes
   surfaced immediately (mid-loop, at Record — not deferred to a Ship/Handoff afterthought), since
   every later iteration otherwise silently builds on an environment that never received the earlier
   "done" work (`[learn]` issue #60).
+- **Keep offline proxy, live-service, and release evidence in separate tiers.** A local stub,
+  disposable proxy, or pre-merge smoke can prove only the path it actually exercised. Do not relabel
+  that as live third-party service evidence or public-release evidence; require those exact checks or
+  leave the missing tier blocked/unverified (`[learn]` issue #104).
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
+- **Freeze public mathematical boundary behavior before promising it.** If docs or callers will rely
+  on a mathematical/numerical API, first state what undefined or out-of-domain inputs do (error,
+  status, NaN, clamp, etc.) and add deterministic boundary tests; examples or today's
+  implementation are not the contract (`[learn]` issue #109).
+- **Compare numerical outputs by tolerance contract, not decimal strings.** For installed-package or
+  cross-runtime floating/statistical checks, document absolute and relative budgets, near-zero
+  handling, and finite/NaN/domain expectations from the API or algorithm; never loosen a tolerance
+  ad hoc just to force green (`[learn]` issue #110).
+- **Benchmark only after semantic parity.** Before claiming a performance win, show the contenders
+  produce equivalent results, warm up, then collect repeated pinned timings and report
+  compiler/build mode, dataset/input shape, and environment/semantic caveats; a single cold run is not
+  evidence (`[learn]` issue #108).
 - **Check the toolchain is present before checking it's compatible.** Before reasoning about whether
   a runtime is *newer/odder* than a tool's tested baseline (below), do a trivial presence check first
   — `which <tool>` or a version probe — that the required runtime/toolchain is installed **at all**.
@@ -98,6 +114,12 @@ loop, with progress living on disk (not the model's context) between passes
   the real build/run path, assert the real output exists — before any feature work, and pre-commit a
   fallback (pin a known-good version) in case it misbehaves. This extends "the first task is to
   build a validation signal" to the runtime/environment axis, not just the test harness.
+- **Bootstrap embedded hosts before expanding their integration.** If the code runs inside a shipped
+  host runtime (editor, desktop shell, engine), check load-bearing APIs against that runtime and make
+  the first validation task a minimal real-host
+  bootstrap that proves loader, listener, and private discovery-path startup on that runtime.
+  Desktop compilation and offline tests are supporting evidence, not host evidence (`[learn]` issue
+  #111).
 - Prefer fast, deterministic signals. A 2-second deterministic check beats a 30-second flaky one.
 - **A green isolated retry does not clear a failed full-suite gate.** When a test fails in the suite
   and passes when run alone, the isolated pass is *not* the answer — it is a second data point, and
@@ -138,6 +160,17 @@ loop, with progress living on disk (not the model's context) between passes
   [`saitarrun/devforge-ai`](https://github.com/saitarrun/devforge-ai)'s `ralph-loop` skill (its
   "Sentinel" health check, which also flags "context drift" — a new log
   entry conspicuously shorter than prior ones).
+- **Validate omission sentinels at the real model→tool boundary.** If a tool field is omitted by
+  contract, inspect the real model payload and platform CLI path, and normalize only the documented
+  omission sentinel for that exact field. Do not globally coerce arbitrary strings like `none`;
+  preserve legitimate values and reject invalid input (`[learn]` issue #106).
+- **Challenge intermediary rewrites and SDK mocks at the real contract.** When a check rewrites a
+  published command or hides a provider behind a mock, model the intermediary's actual escape state
+  (for cron, percent and backslash escape-state parity), then run the transformed published command
+  under the actual shell with hostile-but-valid paths. Inspect the pinned SDK contract and drive
+  delayed/rejected async, detached initialization errors, and credential cleanup through the real
+  SDK, using a controlled transport where appropriate, not synchronous method-level doubles
+  (`[learn]` issues #112, #113).
 - Include at least one **end-to-end demo check** that exercises the spec's smallest demo path —
   narrow unit/build checks can pass while the actual user flow is broken.
 - Only when no deterministic check can exist (UX feel, copy, aesthetics) fall back to an
@@ -177,6 +210,10 @@ track, not an optional extra (`SKILL.md`, "The ruggedness gate"; `references/art
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent recurring loop failures:
+- **Classify residue before cleanup.** Tracked historical metrics are not disposable lane output,
+  even under an ignored directory. Remove only known task-owned stale files, preserve unrelated
+  changes, and recover any history this run overwrote from its pre-run baseline, not a blanket
+  reset (`references/artifacts.md`, "Residue is not history"; `[learn]` issue #107).
 - **Search before you build.** Before adding code, grep the codebase for an existing implementation
   (parallel searches help). The classic Ralph failure is re-implementing something that already
   exists because one quick search came up empty. Don't assume a feature is missing — prove it is.

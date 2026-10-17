@@ -55,6 +55,11 @@ and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** classify tracked history, ignored generated residue, and unrelated user files before
+  cleanup; preserve tracked metrics and remove only known task-owned stale output.
+  **Why:** a blanket cleanup can erase historical evidence or concurrent work merely because it lives
+  beside disposable lane files. **Provenance:** `[learn]` issue #107. **Landed in:**
+  `references/artifacts.md` · `references/ralph-loop.md` · `SKILL.md` · `evals/evals.json`.
 - **Heuristic:** default to Ralph-full (genuinely fresh context per iteration via `scripts/loop.sh`)
   whenever a non-interactive agent invocation is available, not only for large/ambiguous builds;
   reserve Ralph-lite (in-session) for interactive-only hosts or Quick-track work.
@@ -144,6 +149,18 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** compare installed-package floating or statistical outputs with documented
+  absolute/relative tolerances and special-value expectations, not exact decimal strings.
+  **Why:** platform math and reduction order can legitimately move low-order digits; exact-string
+  goldens either flap or get "fixed" by unjustified tolerance inflation. **Provenance:** `[learn]`
+  issue #110. **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/scoring.md` · `evals/evals.json` · `scripts/test-check-evals.sh`.
+- **Heuristic:** before documenting a public mathematical API, make undefined or out-of-domain
+  inputs explicit in the contract and pin them with deterministic boundary tests.
+  **Why:** happy-path examples and current implementation behavior do not tell callers whether edge
+  inputs error, clamp, return NaN, or carry another status. **Provenance:** `[learn]` issue #109.
+  **Landed in:** `references/grilling.md` · `references/ralph-loop.md` (Backpressure in depth) ·
+  `evals/evals.json` · `scripts/test-check-evals.sh`.
 - **Heuristic:** when a consumer runs on the other side of a virtualization boundary (a Windows
   process calling a service inside WSL, a host tool calling a VM guest), prove reachability with a
   probe that *runs on the consumer's OS* and declares the platform it ran on — and keep `localhost`
@@ -155,7 +172,38 @@ and result in the audit report.
   interop path, reachable at the WSL IPv4 address once published on all interfaces). **Landed in:**
   `scripts/test-wsl-windows-boundary.sh` · `scripts/test-wsl-reachability.ps1` ·
   `references/hard-to-test-domains.md` (Cross-OS boundary reachability) ·
-  `references/validation-env.md` · `docs/operator/containers.md`.
+  `references/validation-env.md` · `docs/operator/containers.md` · `evals/evals.json` ·
+  `scripts/test-check-evals.sh`.
+- **Heuristic:** keep offline proxy, live-service, and release evidence in separate tiers.
+  **Why:** a local stub or proxy can validate the path it exercised while the real managed service or
+  deploy path is still broken, absent, or unobserved. **Provenance:** `[learn]` issue #104.
+  **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/validation-env.md` · `evals/evals.json`.
+- **Heuristic:** verify omission-style tool arguments at the real model→adapter→CLI boundary, and
+  normalize only the contract-documented sentinel for that exact field.
+  **Why:** real models can serialize "missing" as a sentinel string that a fake harness never emits; global normalization erases
+  legitimate values and hides invalid input instead of rejecting it. **Provenance:** `[learn]`
+  issue #106. **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/subagents.md` · `evals/evals.json`.
+- **Heuristic:** for embedded-host integrations, make the first validation task a minimal real-host
+  bootstrap against the shipped runtime.
+  **Why:** desktop compilation and offline tests can pass while the real host cannot load, listen, or
+  discover the integration at all. **Provenance:** `[learn]` issue #111. **Landed in:**
+  `references/hard-to-test-domains.md` · `references/ralph-loop.md` (Backpressure in depth) ·
+  `evals/evals.json`.
+- **Heuristic:** when a validation adapter rewrites an intermediary's published command, model its
+  actual escape semantics and execute the transformed command under the real shell with
+  hostile-but-valid inputs.
+  **Why:** idealized string replacement can report green while the real intermediary or shell changes
+  meaning on `%`, `\`, or path characters the adapter ignored. **Provenance:** `[learn]` issue #112.
+  **Landed in:** `references/ralph-loop.md` (Backpressure in depth) · `references/subagents.md` ·
+  `evals/evals.json`.
+- **Heuristic:** inspect the pinned SDK contract and inject delayed or rejected async through the real
+  SDK before trusting mocks.
+  **Why:** synchronous or method-level mocks hide missing awaits, detached initialization failures,
+  and credential-cleanup bugs that appear only at the real async boundary. **Provenance:** `[learn]`
+  issue #113. **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/subagents.md` · `evals/evals.json`.
 - **Heuristic:** when a project has a deploy pipeline distinct from its per-PR CI, treat PR-level
   green as proof a change is safe to merge, never as proof it shipped — explicitly check the
   separate deploy workflow's own latest run whenever a task's acceptance criteria implies reaching
@@ -279,6 +327,13 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** before timing a performance comparison, prove equivalent semantics and measure with
+  warmups, repeated pinned runs, and disclosed caveats.
+  **Why:** a faster number is meaningless if the candidate changed the result, compiler mode, input
+  distribution, or just won one noisy cold run. **Provenance:** `[learn]` issue #108. **Landed
+  in:** `references/grilling.md` · `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/scoring.md` · `references/evals.md` · `evals/evals.json` ·
+  `scripts/test-check-evals.sh`.
 - **Heuristic:** before accepting an automated edit to a skill/protocol document, gate it on a
   held-out or baseline comparison — never accept on the generator's own say-so.
   **Why:** a skill document that edits itself without a comparison against a prior-known-good

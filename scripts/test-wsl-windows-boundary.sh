@@ -56,7 +56,7 @@
 #   WGM_WSL_BINFMT_DIR          binfmt_misc dir holding WSLInterop*    (default /proc/sys/fs/binfmt_misc)
 #   WGM_WSL_WINDOWS_MOUNT_ROOT  DrvFs mount root for Windows drives    (default /mnt)
 #   WGM_WSL_PWSH                explicit Windows PowerShell executable (default: auto-detect)
-#   WGM_WSL_IPV4                explicit WSL IPv4 address             (default: auto-detect)
+#   WGM_WSL_IPV4                explicit WSL IPv4 address             (default: auto-detect from the routed IPv4)
 #
 # SEAMS AND EVIDENCE: the WGM_WSL_* variables above exist so the harness can drive failure paths on
 # any host. Setting ANY of them makes the run a SIMULATION: the script prints a stable
@@ -114,6 +114,99 @@ die_unsupported() {
 
 note() { printf 'wsl-boundary: %s\n' "$*"; }
 fail() { printf 'wsl-boundary: FAIL — %s\n' "$*" >&2; }
+
+route_field() {  # $1 = route line, $2 = key (e.g. dev/src) — echoes the first matching value, or ""
+  local line="$1" key="$2"
+  awk -v key="$key" '{for (i = 1; i < NF; i++) if ($i == key) {print $(i + 1); exit}}' <<<"$line"
+}
+
+valid_ipv4() {  # fail closed: only dotted-quad IPv4 with 0..255 octets is accepted
+  local ip="$1" o1 o2 o3 o4 octet
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  IFS=. read -r o1 o2 o3 o4 <<<"$ip"
+  for octet in "$o1" "$o2" "$o3" "$o4"; do
+    [[ "$octet" =~ ^[0-9]+$ ]] || return 1
+    (( 10#$octet <= 255 )) || return 1
+  done
+}
+
+DISCOVER_WSL_IPV4_REASON=""
+DISCOVER_WSL_IPV4_DEV=""
+DISCOVER_WSL_IPV4_SRC=""
+DISCOVER_WSL_IPV4_VALUE=""
+discover_wsl_ipv4() {  # set DISCOVER_WSL_IPV4_* from the routed IPv4 the kernel selects, without sending traffic
+  local route_get_line route_get_dev route_get_src default_dev dev_list
+  local -a default_routes=() default_devs=() dev_addrs=()
+
+  mapfile -t default_routes < <(ip -4 -o route show default 2>/dev/null)
+  if [[ "${#default_routes[@]}" -eq 0 ]]; then
+    DISCOVER_WSL_IPV4_REASON="no IPv4 default route found"
+    return 1
+  fi
+
+  mapfile -t default_devs < <(
+    printf '%s\n' "${default_routes[@]}" \
+      | awk '{for (i = 1; i < NF; i++) if ($i == "dev") {print $(i + 1)}}' \
+      | sed '/^$/d' \
+      | sort -u
+  )
+  if [[ "${#default_devs[@]}" -ne 1 ]]; then
+    dev_list="$(IFS=,; printf '%s' "${default_devs[*]:-missing}")"
+    DISCOVER_WSL_IPV4_REASON="ambiguous IPv4 default-route devices: $dev_list"
+    return 1
+  fi
+  default_dev="${default_devs[0]}"
+
+  # `ip route get` consults the kernel routing table and selected source address without sending traffic
+  # or mutating the network. That makes it stable against unrelated global addresses on lo/bridges.
+  route_get_line="$(ip -4 -o route get 1.1.1.1 2>/dev/null | head -n1)"
+  if [[ -z "$route_get_line" ]]; then
+    DISCOVER_WSL_IPV4_REASON="IPv4 route lookup for 1.1.1.1 produced no result"
+    return 1
+  fi
+
+  route_get_dev="$(route_field "$route_get_line" dev)"
+  route_get_src="$(route_field "$route_get_line" src)"
+
+  if [[ -z "$route_get_dev" ]]; then
+    DISCOVER_WSL_IPV4_REASON="IPv4 route lookup for 1.1.1.1 returned no dev"
+    return 1
+  fi
+  if [[ "$route_get_dev" != "$default_dev" ]]; then
+    DISCOVER_WSL_IPV4_REASON="route lookup selected dev $route_get_dev but the default-route device is $default_dev"
+    return 1
+  fi
+  if [[ -z "$route_get_src" ]]; then
+    DISCOVER_WSL_IPV4_REASON="IPv4 route lookup for 1.1.1.1 returned no src on dev $default_dev"
+    return 1
+  fi
+  if ! valid_ipv4 "$route_get_src"; then
+    DISCOVER_WSL_IPV4_REASON="route-selected src '$route_get_src' is not a valid IPv4 address"
+    return 1
+  fi
+
+  mapfile -t dev_addrs < <(
+    ip -4 -o addr show dev "$default_dev" scope global 2>/dev/null \
+      | awk '{print $4}' \
+      | cut -d/ -f1 \
+      | sed '/^$/d' \
+      | sort -u
+  )
+  if [[ "${#dev_addrs[@]}" -eq 0 ]]; then
+    DISCOVER_WSL_IPV4_REASON="default-route dev $default_dev has no global IPv4 address"
+    return 1
+  fi
+
+  if ! printf '%s\n' "${dev_addrs[@]}" | grep -Fxq "$route_get_src"; then
+    DISCOVER_WSL_IPV4_REASON="route-selected src $route_get_src is not configured on default-route dev $default_dev"
+    return 1
+  fi
+
+  DISCOVER_WSL_IPV4_DEV="$default_dev"
+  DISCOVER_WSL_IPV4_SRC="$route_get_src"
+  DISCOVER_WSL_IPV4_VALUE="$route_get_src"
+  return 0
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -195,16 +288,21 @@ command -v curl >/dev/null 2>&1 \
 
 WSL_IPV4="${WGM_WSL_IPV4:-}"
 if [[ -z "$WSL_IPV4" ]]; then
-  WSL_IPV4="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
+  discover_wsl_ipv4 \
+    || die_unsupported "could not determine this distro's WSL IPv4 address: ${DISCOVER_WSL_IPV4_REASON:-auto-detection failed} (set WGM_WSL_IPV4)"
+  WSL_IPV4="$DISCOVER_WSL_IPV4_VALUE"
 fi
 [[ -n "$WSL_IPV4" ]] \
-  || die_unsupported "could not determine this distro's WSL IPv4 address (set WGM_WSL_IPV4)"
+  || die_unsupported "could not determine this distro's WSL IPv4 address: auto-detection produced an empty result (set WGM_WSL_IPV4)"
 
 PROBE_WIN_PATH="$(wslpath -w "$PROBE_PS1" 2>/dev/null || true)"
 [[ -n "$PROBE_WIN_PATH" ]] \
   || die_unsupported "wslpath could not translate $PROBE_PS1 to a Windows path"
 
 note "environment: WSL detected, interop registered, windows-powershell=$PWSH_REAL, wsl-ipv4=$WSL_IPV4"
+if [[ -z "${WGM_WSL_IPV4:-}" ]]; then
+  note "wsl-ipv4 discovery: selected default-route dev=$DISCOVER_WSL_IPV4_DEV src=$DISCOVER_WSL_IPV4_SRC"
+fi
 
 # ---- 2. disposable fixture ---------------------------------------------------------------------
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/wgm-wsl-boundary.XXXXXX")"
@@ -483,7 +581,7 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
   fi
 
   RESULTS+=("$leg|via=$via|$url|origin=windows|http=$http_outcome|asset=$asset_outcome|ws=$ws_outcome|rc=$rc|required=$required")
-  note "$(printf '%-19s' "$leg") via=$(printf '%-16s' "$via") endpoint=$url  windows-origin=yes  http=$http_outcome  asset=$asset_outcome  websocket=$ws_outcome  probe-rc=$rc  required=$required"
+  note "$(printf '%-19s' "$leg") via=$(printf '%-16s' "$via") endpoint=$url  origin-platform=$origin  windows-origin=yes  http=$http_outcome  asset=$asset_outcome  websocket=$ws_outcome  probe-rc=$rc  required=$required"
 
   if [[ "${#problems[@]}" -gt 0 ]]; then
     local p
@@ -570,7 +668,7 @@ finish() {  # single exit point: a seam-driven run can never end in a bare GREEN
   if [[ "$SIMULATED" -eq 1 ]]; then
     printf 'wsl-boundary: seams-overridden=%s\n' "$(IFS=,; printf '%s' "${SEAMS[*]}")"
     if [[ "$FAILED" -eq 0 ]]; then
-      echo "wsl-boundary: SIMULATED (UNVERIFIED) — every check passed, but detection seams were overridden, so this run is harness coverage and NOT field evidence. [learn] agent-frontier/wgm#101 stays open until a run with seams-overridden=none on a real Windows+WSL host." >&2
+      echo "wsl-boundary: SIMULATED (UNVERIFIED) — every check passed, but detection seams were overridden, so this run is harness coverage and NOT field evidence. Boundary claims require a run with seams-overridden=none on a real Windows+WSL host." >&2
       exit 4
     fi
     echo "wsl-boundary: RED (SIMULATED / UNVERIFIED — seams overridden; not field evidence)" >&2
