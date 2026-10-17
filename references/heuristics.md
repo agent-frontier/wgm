@@ -55,6 +55,11 @@ and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** classify tracked history, ignored generated residue, and unrelated user files before
+  cleanup; preserve tracked metrics and remove only known task-owned stale output.
+  **Why:** a blanket cleanup can erase historical evidence or concurrent work merely because it lives
+  beside disposable lane files. **Provenance:** `[learn]` issue #107. **Landed in:**
+  `references/artifacts.md` · `references/ralph-loop.md` · `SKILL.md` · `evals/evals.json`.
 - **Heuristic:** default to Ralph-full (genuinely fresh context per iteration via `scripts/loop.sh`)
   whenever a non-interactive agent invocation is available, not only for large/ambiguous builds;
   reserve Ralph-lite (in-session) for interactive-only hosts or Quick-track work.

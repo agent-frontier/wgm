@@ -113,7 +113,7 @@ operator authorization and `--allow-live` path.
 | `test-devcontainer.sh` | Sandbox init, base-image build, run, prune |
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
-| `test-check-evals.sh` | The schema gate rejects unknown and missing keys, and the shipped fixture keeps its pinned ruggedness, evidence-boundary, and numerical/API/performance ids and load-bearing assertions |
+| `test-check-evals.sh` | The schema gate rejects unknown and missing keys, and the shipped fixture keeps its pinned ruggedness, evidence-boundary, numerical/API/performance, and cleanup ids and assertions |
 | `test-check-harnesses.sh` | The harness-contract gate rejects an invalid status, a missing discovery path, a `Verified` entry with no evidence, malformed JSON, a deleted harness entry, and a duplicate id — while still accepting a valid `Degraded` entry |
 | `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, and blank marked-table cells |
 | `test-check-trailers.sh` | The trailer audit catches a bare generated merge commit |

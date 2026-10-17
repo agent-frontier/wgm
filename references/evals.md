@@ -30,8 +30,7 @@ maintainer or a future automated judge; only their *shape* is checked mechanical
 
 ## What's in `evals/evals.json`
 Cases against wgm's own `SKILL.md`, following the upstream schema (`skill_name`, `evals[]` of `id` /
-`prompt` / `expected_output` / optional `files` / `assertions`). The fixture currently carries four
-families:
+`prompt` / `expected_output` / optional `files` / `assertions`), grouped below:
 
 The five lifecycle cases:
 1. A full-lifecycle greenfield build — proves Triage → Grill → Plan → Loop actually happens, with a
@@ -72,6 +71,10 @@ The three numerical/API/performance learning cases (`[learn]` issues #108, #109,
 20. Floating/statistical tolerance contracts — installed-package outputs compare against documented
     absolute/relative budgets and special-value expectations, not exact decimal strings.
 
+The cleanup learning case (`[learn]` issue #107):
+21. Classify residue before deletion — preserve tracked metrics and concurrent edits; recover only
+    this run's damage from its pre-run baseline.
+
 ## Running an eval by hand
 Per `evaluating-skills.mdx`'s pattern: run the prompt twice — once with wgm loaded, once without (or
 against a previous `SKILL.md` revision) — in a clean context each time, save outputs, then grade each
@@ -84,7 +87,7 @@ a different trade-off than one that's both better and cheaper.
 `bash scripts/test-check-evals.sh` proves that gate fails closed while pinning fixture content the
 schema cannot see. Today that means six ruggedness-case presence checks, three ruggedness
 verdict-content checks, and separate issue-specific id/assertion pins for the evidence-boundary plus
-numerical/API/performance lessons above. None of those checks executes wgm; behavioral grading still
+numerical/API/performance and cleanup lessons above. None of those checks executes wgm; behavioral grading still
 belongs to `scripts/grade-evals.sh`.
 **`scripts/grade-evals.sh`** is the real, opt-in mechanization of the protocol below — it costs real
 agent/API calls, so it is never wired into CI; run it by hand before landing a `SKILL.md`/

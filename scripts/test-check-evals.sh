@@ -13,6 +13,7 @@
 #   7. the ruggedness-gate lifecycle cases stay in wgm's own fixture, one per distinction.
 #   8. the evidence-boundary learning cases stay in wgm's own fixture, one per issue.
 #   9. the numerical/API/performance learning cases stay in wgm's own fixture, one per issue.
+#  10. cleanup guidance preserves tracked history and concurrent edits.
 #
 # (3) and (4) are the [learn] issue #86 class: an identifier-shaped regex would skip exactly those
 # keys, so the gate must read the key set structurally instead.
@@ -227,6 +228,14 @@ pin_case_assertions \
   floating-statistical-tolerance-contracts "Floating or statistical outputs are checked against documented absolute and relative tolerances rather than exact decimal strings" \
   floating-statistical-tolerance-contracts "The comparison contract names near-zero handling plus finite/NaN/domain expectations" \
   floating-statistical-tolerance-contracts "Tolerance is derived from the algorithm or API contract, not loosened ad hoc just to make a failing test pass"
+
+# 10) pin every cleanup distinction so a generic "clean tree" assertion cannot erase ownership safety.
+pin_case_ids "the cleanup history case is present" "cleanup case(s)" cleanup-preserves-tracked-history
+pin_case_assertions \
+  "the cleanup case retains its history and ownership safeguards" "cleanup case(s)" \
+  cleanup-preserves-tracked-history "Tracked history, ignored generated residue, and unrelated user files are classified before cleanup" \
+  cleanup-preserves-tracked-history "Only known run-owned stale generated files are removed; tracked metrics and concurrent user edits are preserved" \
+  cleanup-preserves-tracked-history "Recovery uses the recorded pre-run baseline for this run's changes, never a blanket deletion or reset to HEAD"
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-evals harness: GREEN"

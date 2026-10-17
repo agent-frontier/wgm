@@ -210,6 +210,10 @@ track, not an optional extra (`SKILL.md`, "The ruggedness gate"; `references/art
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent recurring loop failures:
+- **Classify residue before cleanup.** Tracked historical metrics are not disposable lane output,
+  even under an ignored directory. Remove only known task-owned stale files, preserve unrelated
+  changes, and recover any history this run overwrote from its pre-run baseline, not a blanket
+  reset (`references/artifacts.md`, "Residue is not history"; `[learn]` issue #107).
 - **Search before you build.** Before adding code, grep the codebase for an existing implementation
   (parallel searches help). The classic Ralph failure is re-implementing something that already
   exists because one quick search came up empty. Don't assume a feature is missing — prove it is.

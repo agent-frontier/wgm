@@ -209,6 +209,16 @@
         "The comparison contract names near-zero handling plus finite/NaN/domain expectations",
         "Tolerance is derived from the algorithm or API contract, not loosened ad hoc just to make a failing test pass"
       ]
+    },
+    {
+      "id": "cleanup-preserves-tracked-history",
+      "prompt": "/wgm review: the run left an ignored lane scratch file beside tracked historical metrics under .wgm/. There is also a teammate's uncommitted metrics edit. Can I delete .wgm/ and restore everything from HEAD to leave a clean tree?",
+      "expected_output": "wgm classifies each path before cleanup, removes only known run-owned stale generated output, and preserves tracked historical metrics and unrelated edits. Any restoration is limited to this run's damage using its recorded pre-run baseline, with uncertain ownership held for review.",
+      "assertions": [
+        "Tracked history, ignored generated residue, and unrelated user files are classified before cleanup",
+        "Only known run-owned stale generated files are removed; tracked metrics and concurrent user edits are preserved",
+        "Recovery uses the recorded pre-run baseline for this run's changes, never a blanket deletion or reset to HEAD"
+      ]
     }
   ]
 }

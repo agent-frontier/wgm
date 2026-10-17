@@ -405,7 +405,7 @@ next iteration is a consolidation task (help land existing PRs), not another net
   autonomous run — or for an operator new to this codebase — a summary is not comprehension. Point
   them at `/teach-me` (cited map, tour, one validated change) and `/quiz-me` to confirm it landed
   (`companions/teach-me/SKILL.md`).
-- Leave the repo in a clean, buildable state so a fresh `/wgm build` can resume.
+- Leave a buildable, resumable tree; classify residue and preserve tracked history (`references/artifacts.md`).
 - **If a separate deploy pipeline exists, confirm it's actually green** — not just the PR-level CI
   that gated each merge (`references/ralph-loop.md`, Backpressure in depth). A merged, CI-green PR
   can still sit behind a silently-failing post-merge deploy; don't report work "complete" on PR
