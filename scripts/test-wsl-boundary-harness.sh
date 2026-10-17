@@ -14,6 +14,9 @@
 #   E  scripts/test-wsl-reachability.ps1 rejects a bad URL (exit 2), reports an unreachable endpoint
 #      as a failure (exit 1), fetches a live local fixture (exit 0), honours -RequireWebSocket in
 #      both directions, and ignores a bogus system proxy — skipped when no pwsh.
+#   H  routed WSL IPv4 discovery follows the unique default-route device and route-selected source
+#      rather than the first global address on lo/container bridges, and fails closed for ambiguous,
+#      missing, invalid, or mismatched route discovery.
 #   G  the named Windows-PowerShell startup allowance that bounds a wedged probe.
 #   F  the accept path, the seam policy and the required-failure paths, driven by a SIMULATED
 #      Windows PowerShell that speaks the probe's output contract with CRLF line endings: a genuine
@@ -160,6 +163,88 @@ mkdir -p "$TMP/shim"
 printf '#!/usr/bin/env bash\nprintf "C:\\\\stub\\\\probe.ps1\\n"\n' >"$TMP/shim/wslpath"
 chmod +x "$TMP/shim/wslpath"
 
+FAKE_IP_DIR="$TMP/fake-ip"
+mkdir -p "$FAKE_IP_DIR"
+cat >"$FAKE_IP_DIR/ip" <<'IPEOF'
+#!/usr/bin/env bash
+set -uo pipefail
+
+mode="${FAKE_IP_MODE:-}"
+case "$*" in
+  "-4 -o route show default")
+    case "$mode" in
+      dns-lo-first|missing-src|invalid-src|mismatch-src)
+        printf 'default via 172.21.192.1 dev eth0 proto kernel onlink\n'
+        ;;
+      ambiguous-route)
+        printf 'default via 172.21.192.1 dev eth0 proto kernel onlink\n'
+        printf 'default via 10.0.2.2 dev eth1 proto static\n'
+        ;;
+      missing-route)
+        ;;
+      *)
+        printf 'fake ip: unhandled route-show mode %s\n' "$mode" >&2
+        exit 64
+        ;;
+    esac
+    ;;
+  "-4 -o route get 1.1.1.1")
+    case "$mode" in
+      dns-lo-first|ambiguous-route)
+        printf '1.1.1.1 via 172.21.192.1 dev eth0 src 172.21.207.246 uid 1000 cache\n'
+        ;;
+      missing-src)
+        printf '1.1.1.1 via 172.21.192.1 dev eth0 uid 1000 cache\n'
+        ;;
+      invalid-src)
+        printf '1.1.1.1 via 172.21.192.1 dev eth0 src not-an-ip uid 1000 cache\n'
+        ;;
+      mismatch-src)
+        printf '1.1.1.1 via 172.21.192.1 dev eth0 src 172.21.207.99 uid 1000 cache\n'
+        ;;
+      missing-route)
+        ;;
+      *)
+        printf 'fake ip: unhandled route-get mode %s\n' "$mode" >&2
+        exit 64
+        ;;
+    esac
+    ;;
+  *)
+    if [[ "$*" == *"addr show"* ]]; then
+      case "$mode" in
+        dns-lo-first|missing-src|invalid-src|mismatch-src)
+          if [[ "$*" == *" dev eth0 "* ]]; then
+            printf '2: eth0    inet 172.21.207.246/20 brd 172.21.207.255 scope global eth0\\       valid_lft forever preferred_lft forever\n'
+          else
+            printf '1: lo    inet 10.255.255.254/32 brd 10.255.255.254 scope global lo\\       valid_lft forever preferred_lft forever\n'
+            printf '3: br-06ef5f3c8017    inet 172.23.0.1/16 brd 172.23.255.255 scope global br-06ef5f3c8017\\       valid_lft forever preferred_lft forever\n'
+            printf '2: eth0    inet 172.21.207.246/20 brd 172.21.207.255 scope global eth0\\       valid_lft forever preferred_lft forever\n'
+          fi
+          ;;
+        ambiguous-route)
+          if [[ "$*" == *" dev eth0 "* ]]; then
+            printf '2: eth0    inet 172.21.207.246/20 brd 172.21.207.255 scope global eth0\\       valid_lft forever preferred_lft forever\n'
+          elif [[ "$*" == *" dev eth1 "* ]]; then
+            printf '4: eth1    inet 10.0.2.15/24 brd 10.0.2.255 scope global eth1\\       valid_lft forever preferred_lft forever\n'
+          fi
+          ;;
+        missing-route)
+          ;;
+        *)
+          printf 'fake ip: unhandled addr-show mode %s\n' "$mode" >&2
+          exit 64
+          ;;
+      esac
+    else
+      printf 'fake ip: unexpected args: %s\n' "$*" >&2
+      exit 64
+    fi
+    ;;
+esac
+IPEOF
+chmod +x "$FAKE_IP_DIR/ip"
+
 if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
   run_boundary "PATH=$TMP/shim:$PATH" \
                "WGM_WSL_PROC_VERSION_FILE=$IS_WSL" "WGM_WSL_BINFMT_DIR=$BINFMT_OK" \
@@ -280,6 +365,17 @@ sim_boundary() {  # $1 = FAKE_MODE, remaining args = extra orchestrator flags
              bash "$BOUNDARY" "$@" 2>&1)"; RC=$?
 }
 
+sim_boundary_autodiscovery() {  # $1 = FAKE_IP_MODE, $2 = FAKE_MODE, remaining args = extra orchestrator flags
+  local ip_mode="$1" mode="$2"; shift 2
+  : >"$TMP/fake-counter"
+  OUT="$(env "PATH=$FAKE_IP_DIR:$TMP/shim:$PATH" "FAKE_IP_MODE=$ip_mode" \
+             "FAKE_MODE=$mode" "FAKE_COUNTER=$TMP/fake-counter" \
+             "WGM_WSL_PROC_VERSION_FILE=$IS_WSL" "WGM_WSL_BINFMT_DIR=$BINFMT_OK" \
+             "WGM_WSL_WINDOWS_MOUNT_ROOT=$FAKE_MOUNT_ROOT" "WGM_WSL_PWSH=$SIM_PWSH" \
+             ${SIM_EXTRA_ENV[@]+"${SIM_EXTRA_ENV[@]}"} \
+             bash "$BOUNDARY" "$@" 2>&1)"; RC=$?
+}
+
 if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
   printf 'note: section F drives a SIMULATED Windows PowerShell — harness coverage only, never field evidence.\n'
 
@@ -307,12 +403,58 @@ if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
     fail "F1c the seams-overridden= disclosure is missing or incomplete: $OUT"
   fi
 
-  if grep -q "NOT field evidence" <<<"$OUT" && grep -q "stays open until a run with seams-overridden=none" <<<"$OUT"; then
-    pass "F1d a simulated run states it is not field evidence and that #101 stays open"
+  if grep -q "NOT field evidence" <<<"$OUT" && grep -q "Boundary claims require a run with seams-overridden=none" <<<"$OUT"; then
+    pass "F1d a simulated run states that real Windows-origin evidence is still required"
   else
     fail "F1d a simulated run did not disclaim field evidence: $OUT"
   fi
 
+  # H1 route-selected discovery must ignore the first global address on lo / container bridges.
+  sim_boundary_autodiscovery dns-lo-first boundary
+  if [[ "$RC" -eq 4 ]] && grep -q "wsl-ipv4=172.21.207.246" <<<"$OUT" \
+     && grep -q "selected default-route dev=eth0 src=172.21.207.246" <<<"$OUT" \
+     && ! grep -q "wsl-ipv4=10.255.255.254" <<<"$OUT"; then
+    pass "H1 routed discovery chooses the default-route src, not the first global lo/bridge address"
+  else
+    fail "H1 routed discovery did not choose the route-selected eth0 address (rc=$RC): $OUT"
+  fi
+
+  sim_boundary_autodiscovery ambiguous-route boundary
+  if [[ "$RC" -eq 3 ]] && grep -q "ambiguous IPv4 default-route devices" <<<"$OUT" && ! grep -qx "wsl-boundary: GREEN" <<<"$OUT"; then
+    pass "H2 ambiguous default-route devices exit 3 with a reason and never print a bare GREEN"
+  else
+    fail "H2 ambiguous default-route devices were not rejected cleanly (rc=$RC): $OUT"
+  fi
+
+  sim_boundary_autodiscovery missing-route boundary
+  if [[ "$RC" -eq 3 ]] && grep -q "no IPv4 default route found" <<<"$OUT" && ! grep -qx "wsl-boundary: GREEN" <<<"$OUT"; then
+    pass "H3 a missing default route exits 3 with a reason and never prints a bare GREEN"
+  else
+    fail "H3 a missing default route was not rejected cleanly (rc=$RC): $OUT"
+  fi
+
+  sim_boundary_autodiscovery missing-src boundary
+  if [[ "$RC" -eq 3 ]] && grep -q "returned no src" <<<"$OUT"; then
+    pass "H4 a default-route lookup with no src fails closed"
+  else
+    fail "H4 a missing route-selected src was not rejected (rc=$RC): $OUT"
+  fi
+
+  sim_boundary_autodiscovery invalid-src boundary
+  if [[ "$RC" -eq 3 ]] && grep -q "not a valid IPv4 address" <<<"$OUT"; then
+    pass "H5 an invalid route-selected src fails closed"
+  else
+    fail "H5 an invalid route-selected src was not rejected (rc=$RC): $OUT"
+  fi
+
+  sim_boundary_autodiscovery mismatch-src boundary
+  if [[ "$RC" -eq 3 ]] && grep -q "is not configured on default-route dev eth0" <<<"$OUT"; then
+    pass "H6 a route-selected src that is not assigned to the default-route device fails closed"
+  else
+    fail "H6 a mismatched route-selected src was not rejected (rc=$RC): $OUT"
+  fi
+
+  sim_boundary boundary
   if grep -q "boundary reproduced in SIMULATION" <<<"$OUT" && ! grep -q "boundary confirmed" <<<"$OUT"; then
     pass "F2 an observational loopback failure is reported as the boundary, and marked simulated"
   else

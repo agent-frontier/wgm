@@ -165,9 +165,10 @@ browser, editor, or CLI can connect.
 not reachable through the host's Windows interop path, while the same disposable service published
 on all interfaces was reachable at the WSL IPv4 address. **Landed in:**
 `scripts/test-wsl-windows-boundary.sh`, `scripts/test-wsl-reachability.ps1`,
-`scripts/test-wsl-boundary-harness.sh`. **Open validation requirement:** the harness's own failure
-paths are covered on any host, but the Windows-origin leg is still awaiting a run on a Windows+WSL
-machine — until an operator records that run, treat the boundary result as unverified here.
+`scripts/test-wsl-boundary-harness.sh`. **Recorded field evidence:**
+[2026-10-17 Windows+WSL run](https://github.com/agent-frontier/wgm/issues/101#issuecomment-6232032137)
+confirmed the boundary with `seams-overridden=none` and successful page, asset, and WebSocket probes.
+Other hosts/networking modes still need their own Windows-origin evidence.
 
 ## Cross-links
 [`ralph-loop.md`](ralph-loop.md) (backpressure in depth) · [`scoring.md`](scoring.md) (holdout

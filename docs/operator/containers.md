@@ -80,7 +80,7 @@ side even though the service is perfectly healthy.
 | | |
 |---|---|
 | **Same-side consumer** | Bind `127.0.0.1` on a free port. Probe with a local `curl`. |
-| **Cross-boundary consumer** | Publish on all interfaces (`0.0.0.0`, or `-p` / a port forward), and have the consumer connect to the **guest's routable address** — for WSL, the distro's IPv4 (`ip -4 -o addr show scope global`). |
+| **Cross-boundary consumer** | Publish on all interfaces (`0.0.0.0`, or `-p` / a port forward), and have the consumer connect to the **guest's routed address** — for WSL, the IPv4 the kernel selects on the distro's unique default-route device (what `ip -4 -o route get 1.1.1.1` reports as `src`; route lookup only consults the table, it does not send traffic). |
 
 **Verify from the consumer's own OS.** A `curl` inside WSL never crosses the boundary, so it cannot
 tell you whether Windows can connect. On a Windows+WSL machine, run:
@@ -118,15 +118,16 @@ even when every check passed.
 Two safety notes for the run itself: the second leg binds `0.0.0.0`, which publishes the disposable
 fixture on **all local interfaces (LAN-reachable)** for the few seconds that leg lasts — that bind is
 the configuration under test — and it serves only static test content on an ephemeral port before
-being torn down. The Windows probe also **disables the proxy for its own two requests**, so a system
+being torn down. The Windows probe also **disables the proxy for each HTTP/WebSocket request**, so a system
 proxy cannot silently reroute a local boundary probe; it changes no machine or user setting.
 
 The portable half — `bash scripts/test-wsl-boundary-harness.sh` — runs anywhere (and in CI) and
 covers the harness's own accept/failure paths. Hosted CI cannot run the real boundary: Linux runners
 have no Windows interop and Windows runners have no WSL distro, so treat the boundary as verified
-only after a run on a real Windows+WSL machine. Source of this caveat: `[learn]` issue
-[`agent-frontier/wgm#101`](https://github.com/agent-frontier/wgm/issues/101), which stays open until
-such a run is recorded.
+only after a run on a real Windows+WSL machine. A
+[real run recorded on 2026-10-17](https://github.com/agent-frontier/wgm/issues/101#issuecomment-6232032137)
+confirmed the boundary with no detection overrides and successful page, asset, and WebSocket probes.
+That evidence covers the tested host, not every WSL networking mode.
 
 See also: [running-the-loop.md](running-the-loop.md) ·
 [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
