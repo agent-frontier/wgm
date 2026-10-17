@@ -11,6 +11,7 @@
 #   5. a missing required field still fails;
 #   6. assertions must actually be an array;
 #   7. the ruggedness-gate lifecycle cases stay in wgm's own fixture, one per distinction.
+#   8. the evidence-boundary learning cases stay in wgm's own fixture, one per issue.
 #
 # (3) and (4) are the [learn] issue #86 class: an identifier-shaped regex would skip exactly those
 # keys, so the gate must read the key set structurally instead.
@@ -18,6 +19,8 @@
 # (7) exists because the ruggedness gate is a wgm protocol requirement (SKILL.md, "The ruggedness
 # gate"), and a protocol requirement with no fixture coverage silently decays into a suggestion: the
 # schema gate alone would happily pass a fixture from which every rugged case had been deleted.
+# (8) is the same limitation for the evidence-boundary lessons: schema-valid JSON says nothing about
+# whether the public fixtures that keep those rules visible are still present or still load-bearing.
 #
 # Exit 0 = all assertions pass (GREEN); exit 1 = one or more failed (RED, described on stderr).
 
@@ -144,6 +147,51 @@ if (( ${#missing_verdicts[@]} == 0 )); then
   pass "Plan-exit RUGGED/FRAGILE/UNKNOWN cases each assert their own verdict behavior"
 else
   fail "ruggedness case(s) lack their own behavior assertion: ${missing_verdicts[*]}"
+fi
+
+# 8) the evidence-boundary learning cases stay present. Like the ruggedness pins above, this is not
+# behavioral grading: it only prevents the public regression fixtures from silently disappearing while
+# the schema gate stays green.
+EVIDENCE_CASE_IDS=(
+  wsl-consumer-origin-evidence
+  offline-proxy-is-not-live-release-evidence
+  model-tool-omission-sentinel
+  embedded-host-bootstrap-first
+  intermediary-shell-semantics
+  pinned-sdk-async-boundary
+)
+missing_evidence_cases=()
+for id in "${EVIDENCE_CASE_IDS[@]}"; do
+  jq -e --arg id "$id" 'any(.evals[]; .id == $id)' "$FIXTURE" >/dev/null 2>&1 \
+    || missing_evidence_cases+=("$id")
+done
+if (( ${#missing_evidence_cases[@]} == 0 )); then
+  pass "the evidence-boundary learning cases are all present in the shipped fixture"
+else
+  fail "the shipped fixture is missing evidence-boundary case(s): ${missing_evidence_cases[*]}"
+fi
+
+# 8b) each evidence-boundary case must keep one issue-specific, load-bearing assertion in its own
+# assertion list. Presence alone is not enough if the case is hollowed out into generic prose.
+declare -A EVIDENCE_CASE_ASSERTIONS=(
+  [wsl-consumer-origin-evidence]="wgm requires a probe that runs on the consumer's OS and declares that origin"
+  [offline-proxy-is-not-live-release-evidence]="A separate deploy or release check is required before claiming the change is publicly released"
+  [model-tool-omission-sentinel]="Arbitrary strings such as 'none' are not globally normalized away; invalid input is rejected and legitimate values are preserved"
+  [embedded-host-bootstrap-first]="The bootstrap proves the loader, listener, and private discovery path"
+  [intermediary-shell-semantics]="The transformed command is executed under the actual shell with hostile but valid path characters"
+  [pinned-sdk-async-boundary]="Detached initialization and credential cleanup are covered, not hidden behind synchronous method-level mocks"
+)
+missing_evidence_assertions=()
+for id in "${!EVIDENCE_CASE_ASSERTIONS[@]}"; do
+  assertion="${EVIDENCE_CASE_ASSERTIONS[$id]}"
+  jq -e --arg id "$id" --arg assertion "$assertion" \
+    'any(.evals[] | select(.id == $id) | .assertions[]; contains($assertion))' "$FIXTURE" >/dev/null 2>&1 \
+    || missing_evidence_assertions+=("$id")
+done
+if (( ${#missing_evidence_assertions[@]} == 0 )); then
+  pass "evidence-boundary cases each retain their issue-specific load-bearing assertion"
+else
+  fail "evidence-boundary case(s) lack their pinned assertion: ${missing_evidence_assertions[*]}"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

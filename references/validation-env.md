@@ -35,6 +35,10 @@ If a fast local deterministic check suffices — a unit test, a type-check, a lo
 the container. Don't make Podman/Docker a hard dependency of wgm; reach for a container only when a
 running service is the only way to observe the behavior a scenario describes.
 
+A local container or offline proxy is still only local evidence. It can prove your client/protocol
+path, but it is not proof of a live managed service or a public release; if acceptance says "live"
+or "shipped," require that exact evidence or leave it blocked/unverified (`[learn]` issue #104).
+
 ## Safety & footguns
 - Rootless Podman by default; run as a non-root user inside the image.
 - Bind to **localhost**; pick a free port (and parameterize it) to avoid collisions across iterations.

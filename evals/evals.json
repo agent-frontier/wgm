@@ -119,6 +119,66 @@
         "wgm states that the ruggedness gate is a wgm protocol requirement, not an optional recommendation, instead of silently complying with the bypass request",
         "The Iteration-exit gate block lists the ruggedness verdict item as PASS or FAIL alongside the validation-command item"
       ]
+    },
+    {
+      "id": "wsl-consumer-origin-evidence",
+      "prompt": "/wgm review: the app runs in WSL and a curl from inside the distro to localhost passes. The real consumer is a Windows browser/editor. Can we mark cross-boundary reachability proven?",
+      "expected_output": "wgm rejects same-side evidence for a cross-OS claim: it requires a probe that runs on the consumer OS, prints that origin, contrasts the loopback and routable-address binds, and leaves the result unverified or blocked when a real Windows-origin probe is unavailable.",
+      "assertions": [
+        "wgm requires a probe that runs on the consumer's OS and declares that origin",
+        "A curl from inside WSL is explicitly rejected as cross-boundary evidence",
+        "If a real Windows-origin probe cannot run on this host, the result stays unverified or blocked rather than being imagined green"
+      ]
+    },
+    {
+      "id": "offline-proxy-is-not-live-release-evidence",
+      "prompt": "/wgm review: our offline proxy and local smoke both passed. Can I report the integration as live on the managed service and publicly released?",
+      "expected_output": "wgm keeps offline proxy evidence, live-service evidence, and release evidence as separate tiers: it may accept the local proxy signal for what it proves, but it does not claim the live managed service or public release is proven without those exact checks, and it leaves missing tiers blocked or unverified.",
+      "assertions": [
+        "An offline proxy or local smoke is not described as live-service evidence",
+        "A separate deploy or release check is required before claiming the change is publicly released",
+        "Unavailable live-service or release evidence stays blocked or unverified rather than being inferred from the proxy"
+      ]
+    },
+    {
+      "id": "model-tool-omission-sentinel",
+      "prompt": "/wgm review: the model conceptually omits a tool field, but our fake harness serializes the missing value as 'none'. Should the adapter normalize any none-like string to omission?",
+      "expected_output": "wgm validates the omission contract at the real model-to-tool boundary and allows normalization only for the documented omission sentinel on that exact field; it never globally coerces arbitrary strings like 'none' to missing, and it keeps legitimate values distinct from invalid input.",
+      "assertions": [
+        "The real model-to-tool boundary is exercised, not only a fake extension harness",
+        "Normalization is limited to the contract-documented omission sentinel for the specific field",
+        "Arbitrary strings such as 'none' are not globally normalized away; invalid input is rejected and legitimate values are preserved"
+      ]
+    },
+    {
+      "id": "embedded-host-bootstrap-first",
+      "prompt": "/wgm plan: this integration compiles on desktop and passes offline unit tests, but it actually runs inside an embedded host runtime. Should we expand the tool layer now?",
+      "expected_output": "wgm treats desktop compile and offline tests as supporting evidence only and makes the first validation task a minimal real-host bootstrap against the shipped runtime, proving the loader, listener, and private discovery path before expanding the integration.",
+      "assertions": [
+        "A minimal real-host bootstrap against the shipped runtime is required before expanding the integration",
+        "The bootstrap proves the loader, listener, and private discovery path",
+        "Offline compile or unit-test results are kept separate from host-startup evidence"
+      ]
+    },
+    {
+      "id": "intermediary-shell-semantics",
+      "prompt": "/wgm review: a validation adapter rewrites generated cron commands with simple string replacement and the unit tests pass. Is that sufficient proof?",
+      "expected_output": "wgm refuses a string-replacement proof for an intermediary command: it models percent and backslash escape-state parity, then executes the transformed published command under the actual shell with hostile-but-valid path characters; review challenges the adapter rather than rerunning the same idealized harness.",
+      "assertions": [
+        "Percent and backslash escape-state parity is checked instead of naive string replacement",
+        "The transformed command is executed under the actual shell with hostile but valid path characters",
+        "Review challenges the intermediary adapter rather than rerunning the same idealized harness"
+      ]
+    },
+    {
+      "id": "pinned-sdk-async-boundary",
+      "prompt": "/wgm review: our mocked integration tests pass with synchronous method-level stubs. Can I treat the async SDK integration as validated?",
+      "expected_output": "wgm inspects the pinned SDK contract and validates async behavior through the real SDK using a controlled transport or equivalent, including delayed or rejected operations, detached initialization, and credential cleanup, instead of trusting synchronous method-level mocks.",
+      "assertions": [
+        "The pinned SDK contract is inspected before the test strategy is accepted",
+        "Delayed or rejected async operations are injected through the real SDK, using a controlled transport where appropriate",
+        "Detached initialization and credential cleanup are covered, not hidden behind synchronous method-level mocks"
+      ]
     }
   ]
 }

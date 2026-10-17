@@ -11,6 +11,10 @@ Treat the harness as the product's first feature, not an afterthought.
 - **Headless, automated entry.** Add env-gated automation: scripted input, auto-advance past splash/
   menus, and a **fixed step/frame limit** so every run *terminates on its own*. A run that needs a
   human to close it is not a signal.
+- **Embedded hosts bootstrap before expansion.** If the code runs inside a shipped host runtime,
+  first prove a minimal real-host bootstrap against that runtime: loader, listener, and private
+  discovery path. Desktop compile/offline tests are supporting evidence only; keep host-startup
+  failures separate from offline success (`[learn]` issue #111).
 - **Capture the real output and look at it — at full fidelity.** Dump the framebuffer / render to an
   image or text file and **view it**. Do not trust a downscaled or blurry glance: crop and zoom the
   region in question before concluding. (Misreading a shrunk capture sends you debugging a bug that

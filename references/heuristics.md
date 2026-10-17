@@ -155,7 +155,38 @@ and result in the audit report.
   interop path, reachable at the WSL IPv4 address once published on all interfaces). **Landed in:**
   `scripts/test-wsl-windows-boundary.sh` · `scripts/test-wsl-reachability.ps1` ·
   `references/hard-to-test-domains.md` (Cross-OS boundary reachability) ·
-  `references/validation-env.md` · `docs/operator/containers.md`.
+  `references/validation-env.md` · `docs/operator/containers.md` · `evals/evals.json` ·
+  `scripts/test-check-evals.sh`.
+- **Heuristic:** keep offline proxy, live-service, and release evidence in separate tiers.
+  **Why:** a local stub or proxy can validate the path it exercised while the real managed service or
+  deploy path is still broken, absent, or unobserved. **Provenance:** `[learn]` issue #104.
+  **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/validation-env.md` · `evals/evals.json`.
+- **Heuristic:** verify omission-style tool arguments at the real model→adapter→CLI boundary, and
+  normalize only the contract-documented sentinel for that exact field.
+  **Why:** real models can serialize "missing" as a sentinel string that a fake harness never emits; global normalization erases
+  legitimate values and hides invalid input instead of rejecting it. **Provenance:** `[learn]`
+  issue #106. **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/subagents.md` · `evals/evals.json`.
+- **Heuristic:** for embedded-host integrations, make the first validation task a minimal real-host
+  bootstrap against the shipped runtime.
+  **Why:** desktop compilation and offline tests can pass while the real host cannot load, listen, or
+  discover the integration at all. **Provenance:** `[learn]` issue #111. **Landed in:**
+  `references/hard-to-test-domains.md` · `references/ralph-loop.md` (Backpressure in depth) ·
+  `evals/evals.json`.
+- **Heuristic:** when a validation adapter rewrites an intermediary's published command, model its
+  actual escape semantics and execute the transformed command under the real shell with
+  hostile-but-valid inputs.
+  **Why:** idealized string replacement can report green while the real intermediary or shell changes
+  meaning on `%`, `\`, or path characters the adapter ignored. **Provenance:** `[learn]` issue #112.
+  **Landed in:** `references/ralph-loop.md` (Backpressure in depth) · `references/subagents.md` ·
+  `evals/evals.json`.
+- **Heuristic:** inspect the pinned SDK contract and inject delayed or rejected async through the real
+  SDK before trusting mocks.
+  **Why:** synchronous or method-level mocks hide missing awaits, detached initialization failures,
+  and credential-cleanup bugs that appear only at the real async boundary. **Provenance:** `[learn]`
+  issue #113. **Landed in:** `references/ralph-loop.md` (Backpressure in depth) ·
+  `references/subagents.md` · `evals/evals.json`.
 - **Heuristic:** when a project has a deploy pipeline distinct from its per-PR CI, treat PR-level
   green as proof a change is safe to merge, never as proof it shipped — explicitly check the
   separate deploy workflow's own latest run whenever a task's acceptance criteria implies reaching
