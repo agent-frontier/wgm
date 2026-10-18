@@ -150,6 +150,11 @@ flowchart LR
   in an Agent-action table. Weight verification toward RED/AMBER findings because a false high-severity
   action is more damaging than a missed nit, and record rejected findings with the evidence that
   disproved them.
+- **Native filing shares the portable structural gate:** retain all four persona sections and the
+  consolidation, with non-empty Agent actions, Operator actions, Rejected findings, and Dissent
+  sections (explicit "None" dispositions when supported). Run the installed skill's
+  `scripts/audit.sh --check-report FILE` and record exit `0` before updating the audit index. This
+  read-only command needs no agent or lock and does not award qualitative GREEN.
 - **Trigger points** (not every iteration): Ship/Handoff (mandatory, Standard/Full) and, on the Full
   track, a Plan-exit baseline pass plus opportunistic passes on doc-touching diffs. Quick skips the
   swarm entirely and relies on `scripts/check-docs.sh`.
@@ -171,11 +176,15 @@ Ownership boundaries the dispatcher makes deterministic rather than merely askin
 | The writer runs last, on four real reports | A persona that fails, times out, or returns nothing blocks the writer and fails the audit. |
 | The writer consolidates; it does not review | Its brief carries the four report paths plus the dedupe/dissent/verify/label rules, and nothing else. |
 | A failed audit leaves no artifact | No report file is written unless the writer produced a real one — never a success-shaped stub. |
-| A banner is not a report | Each artifact is checked against the contract its prompt demanded (persona: `### <role>` heading + the four-column table header; writer: a consolidated heading + `Dissent`, `Rejected findings`, `Agent action`, `Operator action`). An exit-0 `Ready.` fails. |
-| A repository change is terminal | One baseline, never re-read, covering HEAD/branch, the stash, tracked+untracked+ignored paths, a content fingerprint of every ignored and untracked file, and diff content — because committing, stashing, or overwriting an ignored `.env` or an untracked scratch file all leave the status lines unchanged. Any change aborts the audit with no retry, prints the exact delta, and reverts nothing. |
+| A banner is not a report | Each artifact is checked against the contract its prompt demanded (persona: `### <role>` heading + the four-column table header; writer: four persona sections, consolidation, both action sections, rejected findings, and dissent — real headings and non-empty bodies). Native filing uses the same checker. |
+| A repository change is terminal | One baseline, never re-read, covering HEAD/branch, the stash, tracked+untracked+ignored paths including durable `.wgm/` state, content fingerprints, and staged/unstaged diffs. Only root holdouts and this run's exact lock/work directory are exempt. Any change aborts with no retry, prints the exact delta, and reverts nothing. |
 | Evidence, not accusation | A concurrent editor or build produces the same delta as a role write, so the message names the change and says the origin is unknown rather than blaming the role. |
 | One audit per tree | An atomic `.wgm/audit.lock` at the worktree root refuses a concurrent run — including one launched from a subdirectory — before any role starts; a non-git target is refused outright unless `--allow-unguarded` is passed. |
-| The holdout stays the validator's | `scenarios/` is never read, named, or modified by the dispatcher. |
+| The holdout stays the validator's | Root `scenarios/` and `.wgm/scenarios/` are excluded from all snapshot reads and never named in reports or modified by the dispatcher. |
+
+The dispatcher resolves canonical roles, discipline, and template from its installed skill root and
+refuses missing resources before dispatch. Exit `0` / `audit: COMPLETE` means report production,
+not qualitative GREEN; native checking makes the same structure-only claim.
 
 **Say what it is.** Five briefs against one agent buys independence of context and lens, not of model
 or tooling — the same recorded-limitation discipline the serial ruggedness fallback uses above. Prefer
@@ -308,8 +317,9 @@ grep exposed them. So before integrating:
 
 ## Host adapters and where they install
 A role definition only works if it sits where the host scans, and **a host scans for subagents in a
-different place than it scans for skills**. Copying `.github/agents/` inside the installed skill
-folder — which is what wgm used to do — ships the swarm and hides it in the same move.
+different place than it scans for skills**. Copying `.github/agents/` only inside the installed skill
+folder ships the briefs without registering native subagents. Both installers retain that canonical
+copy for portable audit dispatch and also install the host adapters in the discovery paths below.
 
 So the canonical file is authored once and translated deterministically:
 

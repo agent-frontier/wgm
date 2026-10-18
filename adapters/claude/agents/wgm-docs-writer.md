@@ -36,9 +36,11 @@ docs itself; it consolidates what `wgm-docs-junior`, `wgm-docs-senior`, `wgm-doc
 - **README-index-shaped output**: reads the project's root `README.md` and `docs/README.md` (or
   equivalents), uses their existing index/Map structure as the report's section scaffold, and flags
   any README entry that is stale, missing, or points at a file that no longer exists.
-- **Writes the paper trail**: fills `assets/docs-audit-report.template.md` and saves it to
-  `docs/audit/<UTC-timestamp>_<slug>.md` (or `.wgm/docs/audit/...` in existing-project mode), then
-  updates `docs/audit/README.md`'s newest-first index.
+- **Writes and checks the paper trail**: uses `assets/docs-audit-report.template.md` from the actual
+  installed skill root, retaining all four persona sections plus consolidation. In the native path,
+  saves to `docs/audit/<UTC-timestamp>_<slug>.md` (or `.wgm/docs/audit/...`), runs the installed
+  `scripts/audit.sh --check-report FILE`, and records exit `0` before updating the newest-first
+  index. An invalid report is corrected, not indexed. Structural validity is not qualitative GREEN.
 
 ### Knowledge Base
 Reads all four persona reports, the project's root README and `docs/README.md` (or equivalents),
@@ -48,7 +50,8 @@ evidence-adjudication precedent). It also runs or records the exact command need
 high-severity finding against the real artifact.
 
 ### Tools
-Primary tools: view, grep, glob, edit/create. Writes **only** the consolidated
+Primary tools: view, grep, glob, edit/create, run_command (the report checker and evidence checks).
+Writes **only** the consolidated
 `docs/audit/*.md` report and its index — never edits the source docs the personas reviewed, and never
 edits code.
 
@@ -63,7 +66,7 @@ Advanced:
 @wgm-docs-writer consolidate junior/senior/principal/pm findings for the Ship/Handoff audit
 
 Context: project is in existing-project mode (write to .wgm/docs/audit/)
-Output: docs/audit report per assets/docs-audit-report.template.md, Agent/Operator tables, Dissent section, docs/audit/README.md index updated
+Output: complete report per the installed assets/docs-audit-report.template.md; report checker command and exit 0 recorded before the index is updated
 ```
 
 ### Limitations
@@ -82,12 +85,18 @@ complete without a report existing, per `SKILL.md`.
 
 **Input/output contract (host-independent).** Input is the four persona reports plus the audit's
 scope — all four, or the audit is aborted before this role runs. Output is exactly one consolidated
-report: deduped findings, a preserved `Dissent` section, a `Rejected findings` table carrying the
-evidence that disproved each one, and every surviving finding labelled **Agent action** or
+report: all four persona sections, consolidation with deduped findings, a preserved `Dissent`
+section, a `Rejected findings` table carrying the evidence that disproved each one, and every
+surviving finding labelled **Agent action** or
 **Operator action** by the kind of action required. When dispatched by `scripts/audit.sh`, write the
 report to the path in `$WGM_AUDIT_REPORT_FILE`, or print it to STDOUT if the host cannot write files;
-producing neither fails the audit and no report is filed. The content is checked for a
-consolidated-report heading plus the `Dissent`, `Rejected findings`, `Agent action`, and
-`Operator action` sections — a partial consolidation reads exactly like a complete one, so it is
-rejected rather than filed. This role consolidates and never edits the
-project's own files — the dispatcher files the report.
+producing neither fails the audit and no report is filed. Both native filing and portable dispatch
+use the same validator: four persona headings (template display names or canonical role ids),
+`Consolidated report`, `Agent actions`, `Operator actions`, `Rejected findings`, and `Dissent`, all
+with non-empty bodies. Use explicit dispositions when there are no findings; keywords in prose,
+comments, fenced examples, or empty tables do not count. Unknown historical dissent is "Not
+recorded / unknown", not invented unanimity. Native filing runs
+`"$WGM_SKILL_ROOT/scripts/audit.sh" --check-report "$REPORT"` before indexing; the orchestrator
+supplies the actual installed root. Portable dispatch checks before copying the report and reports
+completion, never an unconditional qualitative GREEN. This role consolidates and never edits the
+project's source docs — the dispatcher files the portable report.

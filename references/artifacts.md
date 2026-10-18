@@ -11,6 +11,9 @@ continue the work. Fill them from the templates in `assets/`.
   `.wgm/scenarios/`, `.wgm/AGENTS.md`, `.wgm/docs/audit/` — to avoid clobbering the project's files.
 - **Never overwrite an existing `AGENTS.md`.** Touch root `AGENTS.md` only with explicit approval.
 - Decide root vs `.wgm/` **once, in Triage**, and stay consistent for the whole run.
+- **Placement is not an ignore policy.** Downstream plans, specs, and audit reports remain ordinary
+  trackable deliverables under either layout. Ignore explicit runtime scratch paths only, using
+  [the suggested exclusions](../docs/reference/artifacts.md#suggested-gitignore), never all `.wgm/`.
 - **One shared-deliverable placement exception to the root-vs-`.wgm/` split: `.github/wgm-hive.yml`.**
   It always lives at `.github/`, regardless of greenfield/existing-project status, because it is a
   one-time, team-wide decision meant to be committed and shared — not per-build state. See its own
@@ -244,6 +247,11 @@ discipline (cadence, personas, consolidation algorithm, severity taxonomy) is in
   guidance for a project wgm is building for someone else.
 - **Written by** the `wgm-docs-writer` role, after the four persona reviewers
   (`wgm-docs-junior` / `-senior` / `-principal` / `-pm`) have reported (`references/subagents.md`).
+- **Checked before indexing on both dispatch paths.** Native filing must run the installed skill's
+  `scripts/audit.sh --check-report FILE` and record exit `0` before adding an index row. Portable
+  dispatch applies the same validator before copying the report. It requires four non-empty persona
+  sections, consolidation, both action sections, rejected findings, and dissent; a valid structure
+  is not a qualitative GREEN verdict (`references/docs-audit.md`).
 
 ## `docs/handoff/*.md` — the morning-after run-report handoff
 A durable snapshot for a human (or a fresh agent) picking up a larger or multi-session build cold —

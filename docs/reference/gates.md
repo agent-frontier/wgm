@@ -41,6 +41,16 @@ These check artifacts and fail on drift. They are safe to run any time.
 | `check-harnesses.sh` | `compatibility/harnesses.json` — allow-listed keys at every level; only the four statuses `Verified`, `Expected`, `Degraded`, `Unknown`; non-empty discovery paths, invocation command, and `https://` sources; `Verified` only with discovery **and** invocation **and** end-to-end journey evidence; no duplicate or missing harness entries | `0` green, `1` red, `2` `jq` missing |
 | `check-trailers.sh` | Every commit in `BASE..HEAD` — **merge commits included** — carries the trailers the repository mandates | `0` green, `1` red |
 | `check-doc-sync.sh` | A successfully inspected diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or advisory finding, `1` undocumented surface, `2` invalid input / inspection error (even with `--warn`) |
+| `audit.sh --check-report FILE` | The shared native/portable report structure: four persona sections, consolidation, both action sections, rejected findings, and dissent, with real headings and non-empty bodies | `0` structure valid (not qualitative GREEN), `1` invalid report, `2` bad usage |
+
+### audit.sh --check-report
+
+Native docs-audit filing must run the installed skill's `scripts/audit.sh --check-report FILE`
+and record exit `0` before indexing a new report. Portable dispatch uses the same validator before
+filing. This standalone mode invokes no agent, needs no git checkout or lock, and changes no files.
+Missing/empty sections, keyword-only prose, and empty tables fail visibly; explicit dispositions
+such as "None" are allowed. Structural validity and successful dispatch (`audit: COMPLETE`) are not
+qualitative approval — RED/AMBER findings can remain. See [the audit CLI](cli-audit.md#the-report-contract).
 
 ### check-trailers.sh
 
@@ -130,7 +140,7 @@ operator authorization and `--allow-live` path.
 | `test-stage10-deferred-e2e.sh` | Final disposable composition of T10-T13, T7, prior T1-T9 gates, and the T14 ShellCheck/boundary gate; artifact-derived bounded reporting; unauthorized live refusal; authorized local-double labeling; positive/negative worktree lifecycle; explicit approval gating; and unchanged real/fixture checkout and remotes |
 | `test-loop.sh` | Limit knobs, capability probe, no-progress stall, project-gate execution, container selection, phase artifacts, watchdog timeout, harvest idempotency, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
 | `test-swarm.sh` | Parallel branches, worktree/artifact pinning, project-gate propagation, partial-setup failure, zero-commit failure, memory consolidation, telemetry summary |
-| `test-audit.sh` | Docs-audit dispatch: argument errors, dry-run, four independent personas, writer-after-four ordering, a failed/empty/banner persona blocking the writer, report-contract validation for personas and the writer, terminal (never-retried) repository-change detection including a role that commits, stashes, creates a gitignored path, or overwrites an existing ignored file such as `.env` or an untracked non-ignored scratch file, the unknown-origin delta report, worktree-root lock serialization from a subdirectory, bounded retries, the timeout bound and its cooperative fallback, the non-git refusal and `--allow-unguarded`, concurrency locking, report placement, argv/stdin agent modes |
+| `test-audit.sh` | Argument errors, dry-run, four independent personas and writer-last ordering; terminal HEAD/stash/tracked/untracked/ignored mutation detection, including durable `.wgm/` contents; exact scratch/holdout exclusions; unknown-origin deltas; locks, retries, timeouts, non-git refusal, placement, argv/stdin modes; downstream retention rules; shared native/portable complete-report validation without mutation or paid agents; RED/AMBER completion wording; real tracked-source installation with spaces and five fake roles reading installed canonical resources |
 | `test-devcontainer.sh` | Sandbox init, base-image build, run, prune |
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |

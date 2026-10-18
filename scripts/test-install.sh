@@ -41,6 +41,19 @@ contains() { printf '%s\n' "$1" | grep -qF -- "$2"; }   # contains HAYSTACK NEED
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/wgm-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# An operator override must not turn a simulated unresolved-Windows case into a real installation.
+unset WGM_WINDOWS_HOME
+
+# The installers intentionally copy their source tree. Prepare a disposable copy of the actual
+# tracked working-tree files first, so these tests never read/copy ignored private state, sibling
+# worktrees, or holdouts. Preserve uncommitted source fixes rather than testing a stale git archive.
+SOURCE="$WORK/source"
+mkdir -p "$SOURCE"
+git -C "$ROOT" ls-files -z -- . ':(top,exclude)scenarios' ':(top,exclude).wgm' \
+  | tar -C "$ROOT" --null -T - -cf - | tar -C "$SOURCE" -xf - || exit 1
+ROOT="$SOURCE"
+INSTALL="$ROOT/scripts/install.sh"
+[[ -f "$INSTALL" ]] || { echo "cannot prepare tracked installer source" >&2; exit 2; }
 
 WGM="wgm"   # installed dir basename
 SUB=".agents/skills/$WGM"
