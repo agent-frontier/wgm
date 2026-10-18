@@ -467,9 +467,11 @@ and result in the audit report.
   `references/subagents.md` · `.github/agents/wgm-spec-reviewer.agent.md`.
 - **Heuristic:** commit-message governance needs its own gate, and **merge commits are governed
   commits**. **Why:** product gates cannot see trailers, so a run reaches a green exact-tree gate
-  while a generated merge commit carries none of the mandated trailers every head commit has. Fix a
-  published offender with a replacement two-parent merge proving `old^{tree} == replacement^{tree}`
-  — never by rewriting shared history. **Provenance:** `[learn]` issue #82.
+  while a generated merge commit carries none of the mandated trailers every head commit has.
+  Preserve published history: record the offending SHA and a forward-only correction/attestation;
+  block handoff pending an explicit maintainer decision, never an automatic waiver. A sibling merge
+  does not erase the original violation, and the checker stays RED for any range containing it.
+  **Provenance:** `[learn]` issue #82.
   **Landed in:** `scripts/check-trailers.sh` · `scripts/test-check-trailers.sh` · `SKILL.md` Phase 4.
 - **Heuristic:** check same-iteration whether a diff's **new public surface** was documented, rather
   than leaving it to the batched Ship/Handoff audit. **Why:** the Record step commits on a green

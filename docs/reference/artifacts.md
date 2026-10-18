@@ -34,8 +34,9 @@ These are meant to be read, reviewed, and usually committed.
 
 ## Agent-only state
 
-Everything under `.wgm/` is wgm's own working memory. It is gitignored by this repository and should
-be gitignored in yours.
+Only explicit runtime paths are local working state. In existing-project mode `.wgm/` also holds
+human-facing plans, specs, and audit reports; do **not** ignore the entire directory downstream.
+The table below describes agent state, not a blanket ignore policy.
 
 | Path | Written by | Purpose |
 |---|---|---|
@@ -88,18 +89,28 @@ publish leg is governed by consent. See [self-improvement](../../references/self
 
 ## Suggested .gitignore
 
-If you let wgm work in your repository, add:
+Ignore known runtime scratch, not the directory that also contains your durable deliverables:
 
 ```gitignore
-/.wgm/
+/.wgm/memories.md
+/.wgm/metrics.tsv
+/.wgm/metrics/
+/.wgm/worktrees/
+/.wgm/audit.lock/
+/.wgm/audit-run-*/
+/.wgm/STOP
 /STOP
 ```
 
-Keep `IMPLEMENTATION_PLAN.md`, `specs/`, and `scenarios/` **tracked** — they are the durable record
-of what was decided and why, and reviewers need them.
+Keep `IMPLEMENTATION_PLAN.md`, `specs/`, `scenarios/`, and `docs/audit/` **tracked**, including their
+`.wgm/` equivalents in existing-project mode. They are the durable record of decisions and reviews.
+Holdouts stay unread by implementers regardless of tracking. If migrating from `/.wgm/`, remove
+that blanket rule; a child exception alone cannot re-include a directory Git never traverses.
+Additional local state can be excluded by its exact path after deciding whether it is evidence
+your team needs to retain.
 
-**Note:** This repository gitignores `IMPLEMENTATION_PLAN.md`, `specs/`, and `scenarios/` at the
-root, which looks like the opposite advice. The reason is narrow: wgm ships *templates*
+**Note:** This tool repository gitignores `IMPLEMENTATION_PLAN.md`, `specs/`, and `scenarios/` at the
+root, plus `/.wgm/`, which looks like the opposite advice. The reason is narrow: wgm ships *templates*
 (`assets/*.template.*`) and dogfoods itself in its own checkout, so live artifacts here would be
 confused with shipped ones. In your project, track them.
 

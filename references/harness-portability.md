@@ -20,9 +20,11 @@ wgm is two things wearing one name, and the difference is exactly what portabili
 | **Host adapters** | Everything the protocol delegates to the host: role-subagent dispatch (the two-stage review and the five-role docs-audit swarm), custom-agent formats, host-specific permission flags | A host primitive wgm does not implement — and, for the swarm, agent definitions in that host's format, installed where that host scans. wgm ships two formats today: the canonical Copilot files (`.github/agents/*.agent.md`) and a derived Claude set (`adapters/claude/agents/*.md`), mapped in [`../compatibility/agent-adapters.json`](../compatibility/agent-adapters.json). |
 
 A harness that lacks an adapter capability is not incompatible; it is **degraded in a named way**,
-with a named fallback (usually: run the passes inline and sequentially, preserving dissent — see
-[subagents](subagents.md)). For the docs-audit swarm the named fallback is `scripts/audit.sh`, which
-is *designed* to dispatch all five roles through whatever headless command the host documents, so a
+with a named fallback. Correctness still requires two independent non-author review passes via
+separate fresh reviewer invocations or an independent human handoff; if unavailable, the gate is
+blocked (see [subagents](subagents.md)). Inline ruggedness is a distinct permitted fallback.
+For the docs-audit swarm the named fallback is `scripts/audit.sh`, which is *designed* to dispatch
+all five roles through whatever headless command the host documents, so a
 host with no subagent primitive has a path to running the audit rather than only recording it
 unavailable. Whether that path has actually been exercised on a given harness is that entry's own
 evidence question — several entries record it as design intent against a documented interface, not as
@@ -86,8 +88,9 @@ Two adapter formats now install, and they are not equally proven:
   by recording a run, not by editing a word.
 - **Hosts with no subagent primitive get no adapter at all.** Pi, a generic `.agents` client, and any
   harness whose format wgm has not translated fall back explicitly: `scripts/audit.sh` for the
-  docs-audit swarm, inline sequential review passes for the two-stage review, with the weaker
-  independence recorded. The installers refuse to invent a directory such a host does not read.
+  docs-audit swarm; separate fresh non-author reviewer invocations or an independent human handoff
+  for the two-stage correctness review, blocked if unavailable. Inline ruggedness is distinct and
+  remains permitted. The installers refuse to invent a directory such a host does not read.
 
 `scripts/test-agent-adapters.sh` is the deterministic gate for the mapping, the install paths, and
 the ownership rules.
@@ -119,9 +122,11 @@ Pi is deliberately the next harness to actually run, not the next one to describ
 - It implements Agent Skills natively and reads `~/.agents/skills/`, which is already where
   [`scripts/install.sh`](../scripts/install.sh) puts wgm — so the install step needs no new code.
 - It ships **no sub-agent primitive on purpose**, which makes it the sharpest available test of the
-  kernel/adapter split: everything except role dispatch has to work, and role dispatch has to fall
-  back cleanly to inline sequential passes with dissent preserved. The installers make that explicit
-  rather than silent — no agent directory is created for a host that reads none.
+  kernel/adapter split. Correctness still needs two independent non-author review passes via separate
+  fresh reviewer invocations or an independent human handoff; if unavailable, the gate is blocked.
+  `scripts/audit.sh` supplies the separate docs-audit path, and inline ruggedness remains permitted.
+  The installers make the missing adapter explicit — no agent directory is created for a host that
+  reads none.
 - A single recorded journey there converts three claims from documented to verified, or produces a
   concrete defect list — either outcome is worth more than another Expected row.
 

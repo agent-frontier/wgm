@@ -49,6 +49,8 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/home"
+export HOME="$TMP/home"
 
 run_on() {  # $1 = record path; sets OUT/RC without tripping set -e
   OUT="$(WGM_HARNESSES="$1" bash "$CHECK" 2>&1)"; RC=$?
@@ -72,6 +74,21 @@ if [[ "$RC" -eq 0 ]] && grep -q "harnesses: GREEN" <<<"$OUT"; then
   pass "the shipped harness record passes the contract gate"
 else
   fail "the shipped record unexpectedly failed the gate (rc=$RC): $OUT"
+fi
+
+# Schema validity alone allowed inline author review to masquerade as independence. Pin the
+# corrected fallback in every active host entry without upgrading any capability/evidence label.
+if jq -e 'all(.harnesses[]; .fallback |
+    contains("non-author") and contains("fresh") and contains("human handoff") and
+    contains("blocked if unavailable") and contains("scripts/audit.sh") and contains("ruggedness"))' \
+    "$RECORD" >/dev/null \
+  && jq -e '[.fallback.review, (.hosts[] | select(.id == "agents") | .notes)] |
+    all(.[]; contains("non-author") and contains("fresh") and contains("human handoff") and
+      contains("blocked if unavailable") and contains("scripts/audit.sh") and contains("ruggedness"))' \
+    "$ROOT/compatibility/agent-adapters.json" >/dev/null; then
+  pass "all host/adapter fallbacks require independent review, blocking when unavailable"
+else
+  fail "a host/adapter fallback lost independent review or conflated it with docs audit/ruggedness"
 fi
 
 # 2) only the four contract statuses exist
@@ -111,7 +128,7 @@ jq '(.harnesses[] | select(.id == "aider")) |= (
       .status = "Degraded"
       | .subagents = {"capability": "none", "notes": "No dispatchable subagent primitive is documented."}
       | .missing_capability = "Agent Skills discovery and host-dispatched subagents."
-      | .fallback = "Hand the protocol to the model explicitly and run both review passes inline."
+      | .fallback = "Load the protocol explicitly; require independent non-author review via separate fresh reviewers or a human handoff, blocked if unavailable. Inline ruggedness and scripts/audit.sh docs audit remain separate."
       | .evidence = []
     )' "$RECORD" > "$TMP/degraded.json"
 run_on "$TMP/degraded.json"

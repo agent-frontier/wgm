@@ -8,7 +8,7 @@ about 20 minutes.
 - **For:** anyone using wgm for the first time.
 - **You'll get:** wgm installed, one real feature built and validated, and a clear idea of which
   knobs matter.
-- **The workflow:** check requirements → install → invoke `/wgm` → review the plan → let it build.
+- **The workflow:** install → `/wgm grill: REQUEST` → `/wgm plan` → review → `/wgm build only`.
 - **The one mental model:** wgm steers on **backpressure** — a deterministic pass/fail check. Your
   job is to sit *on* the loop, not *in* it.
 - **Watch out:** wgm asks a consent question on its very first run in a new project. Answer it once;
@@ -21,9 +21,9 @@ about 20 minutes.
 flowchart LR
   R[1. Check requirements] --> I[2. Install]
   I --> V[3. Verify]
-  V --> B["4. Invoke /wgm"]
+  V --> B["4. Invoke /wgm grill: REQUEST"]
   B --> G[5. Answer the grill]
-  G --> P[6. Review the plan]
+  G --> P["6. /wgm plan, then review"]
   P --> L[7. Let it build]
   L --> S[8. Ship or hand off]
 ```
@@ -87,10 +87,12 @@ If wgm is missing, see [Troubleshooting](../operator/troubleshooting.md#the-agen
 Open your agent in the project you want to build in, and state your request:
 
 ```
-/wgm add a dark-mode toggle
+/wgm grill: add a dark-mode toggle
 ```
 
-That is the whole interface. wgm parses the request, sizes the ceremony to the work, and starts.
+This walkthrough uses phase-stopped invocations: `grill:` stops after alignment, and the later
+`/wgm plan` stops for plan approval. A bare `/wgm REQUEST` runs the full lifecycle and can advance
+automatically when its gates pass.
 
 **Note:** A leading word counts as a *mode* only when it is a known keyword followed by `only`, `:`,
 or end of input. So `/wgm build the auth module` is a request, not `build` mode. Modes are listed in
@@ -111,7 +113,13 @@ If the questions feel excessive, say "proceed with defaults."
 
 ## Step 6: Review the plan before any code is written
 
-wgm writes its plan to disk and stops at a gate. Read these before letting it build:
+After Grill-exit, request the separate planning phase:
+
+```
+/wgm plan
+```
+
+This single-phase invocation writes the plan and stops at Plan-exit. Read these before letting it build:
 
 | File | What to check |
 |---|---|
@@ -129,8 +137,8 @@ writes under `.wgm/` instead so it never clobbers your files. See
 
 ## Step 7: Let it build
 
-wgm advances **one task per iteration**, running your project's own checks after each, until the
-plan is done and the holdout scenarios score above threshold.
+After approval, invoke `/wgm build only` for one iteration, or `/wgm build` to continue the loop.
+wgm advances **one task per iteration**, running your project's own checks after each.
 
 When a non-interactive agent invocation is available, drive the build with the external loop so each
 iteration gets genuinely fresh context. Ralph-lite remains the fallback for interactive-only hosts

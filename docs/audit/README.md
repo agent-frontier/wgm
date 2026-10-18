@@ -6,6 +6,8 @@ for the discipline and [`docs/operator/playbook.md`](../operator/playbook.md) fo
 
 | Date (UTC) | Verdict | Covers | Report |
 |---|---|---|---|
+| 2026-10-18T0648Z | GREEN | Bounded closure of A1–A12/O1–O2, final persona corrections and observed V1 read-boundary repair; delivery gates recorded separately | [2026-10-18T0648Z_audit-remediation.md](2026-10-18T0648Z_audit-remediation.md) |
+| 2026-10-18T0618Z | RED | Docs, wgm self-audit, and audit-of-audits at `c7b0317`: 5 RED and 9 AMBER findings | [2026-10-18T0618Z_docs-self-meta-review.md](2026-10-18T0618Z_docs-self-meta-review.md) |
 | 2026-08-20T1731Z | AMBER | Final growth-opportunities audit after gate, watchdog, harvest, plan, swarm, and plugin-boundary fixes | [2026-08-20T1731Z_growth-opportunities-final.md](2026-08-20T1731Z_growth-opportunities-final.md) |
 | 2026-08-20T1729Z | AMBER | Final growth-opportunities review: T1-T4 host boundaries, watchdogs, gates, harvest, and Stage 8.5 record | [2026-08-20T1729Z_growth-opportunities-final.md](2026-08-20T1729Z_growth-opportunities-final.md) |
 | 2026-08-20T0744Z | AMBER | Focused Ship/Handoff review for capability hardening (#87–#96) | [2026-08-20T0744Z_capability-hardening-final.md](2026-08-20T0744Z_capability-hardening-final.md) |

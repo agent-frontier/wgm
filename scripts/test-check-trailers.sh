@@ -20,7 +20,9 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; FAILED=1; }
 
 TMP="$(mktemp -d)"
 trap 'cd /; rm -rf "$TMP"' EXIT
-cd "$TMP" || exit 2
+mkdir -p "$TMP/home" "$TMP/repo"
+export HOME="$TMP/home"
+cd "$TMP/repo" || exit 2
 
 git init -q
 git config user.email "wgm-test@example.com"
@@ -83,8 +85,29 @@ else
   fail "the generated merge commit escaped the audit (rc=$RC): $OUT"
 fi
 
-# 5) the same merge WITH the trailers passes — proving (4) failed on the trailers, not on being a merge
-git reset -q --hard "$BASE_SHA"
+# 4b) An attestation is a forward-only record, not a waiver. Pin the offending history locally
+# (no remote publication) and prove the checker still names it after a compliant follow-up.
+PUBLISHED_SHA="$(git rev-parse HEAD)"
+PUBLISHED_MESSAGE="$(git show -s --format=%B "$PUBLISHED_SHA")"
+git branch fixture-published "$PUBLISHED_SHA"
+git commit -q --allow-empty -m "docs: attest trailer violation at ${PUBLISHED_SHA}${TRAILERS}"
+run --base "$BASE_SHA" --trailer Co-authored-by --trailer Copilot-Session
+if [[ "$RC" -eq 1 ]] && grep -qF "${PUBLISHED_SHA:0:9}" <<<"$OUT" \
+   && grep -qF "forward-only correction/attestation" <<<"$OUT" \
+   && grep -qF "blocked pending an explicit maintainer" <<<"$OUT" \
+   && grep -qF "never automatically waived" <<<"$OUT" \
+   && ! grep -qF "trailers: GREEN" <<<"$OUT" \
+   && [[ "$(git rev-parse fixture-published)" == "$PUBLISHED_SHA" ]] \
+   && [[ "$(git show -s --format=%B "$PUBLISHED_SHA")" == "$PUBLISHED_MESSAGE" ]] \
+   && git merge-base --is-ancestor "$PUBLISHED_SHA" HEAD; then
+  pass "forward-only attestation preserves the offending SHA and cannot waive the RED audit"
+else
+  fail "published-history handling changed or lost the original violation (rc=$RC): $OUT"
+fi
+
+# 5) A separately prepared compliant merge passes. Leave the offending history intact rather than
+# resetting it: preventing a new violation is not repair of the pinned, already-published history.
+git checkout -q -b compliant "$BASE_SHA"
 git merge -q --no-ff -m "Merge pull request #1 from topic${TRAILERS}" topic
 run --base "$BASE_SHA" --trailer Co-authored-by --trailer Copilot-Session
 if [[ "$RC" -eq 0 ]] && grep -q "1 merge" <<<"$OUT"; then

@@ -140,6 +140,13 @@ single artifact an operator actually reads. It does not add new opinions of its 
    declares — as the section scaffold for the consolidated report, rather than inventing a new
    taxonomy. As part of this step, verify the index itself: flag any README entry that links to a
    missing file, and any doc that exists but isn't indexed anywhere.
+6. **Retain and check the complete record.** Preserve all four persona sections as well as the
+   consolidation. Each required section needs findings or an explicit disposition; an absent or
+   empty section is not evidence that there were no findings. Before native-path indexing, run
+   `"$WGM_SKILL_ROOT/scripts/audit.sh" --check-report "$REPORT"` with the actual installed skill root
+   and report path. Record the command and exit `0`; a failure names the section to complete.
+   Portable dispatch uses the same validator before filing. This checks structure, not the truth
+   of a finding or a qualitative GREEN verdict.
 
 ## Fleet rewrite controls
 When a docs fleet applies a structural standard, structure is a compression device, not permission to
@@ -165,7 +172,8 @@ regeneration command so another reviewer can falsify it.
   once, in Triage, and stay consistent.
 - **Naming:** `docs/audit/<UTC-timestamp>_<slug>.md`, e.g. `docs/audit/2026-06-20T1830Z_auth-feature.md`.
 - **Index:** maintain `docs/audit/README.md`, newest-first, one line per report: date, one-line
-  verdict (worst severity found), link.
+  verdict (worst severity found), link. Native filing must pass `audit.sh --check-report FILE`
+  before adding that row; neither the checker nor successful portable dispatch supplies the verdict.
 - **Never gitignored by default.** This is the one hard rule to get right: the audit trail is
   *evidence of work done* for a human operator, so a downstream project must commit it like any other
   deliverable. The exception is wgm's own tool repository, whose `.gitignore` treats its own dogfood
@@ -186,6 +194,10 @@ headless agent command, configured exactly like `scripts/loop.sh` (`$WGM_AGENT`,
 `--` argv passthrough invoked without eval, and `WGM_PROMPT_STDIN=1` for stdin agents). It assumes no
 marketplace, no custom-agent registry, and no proprietary subagent API — only that a command can be
 handed a prompt. Full flags in [`docs/reference/cli-audit.md`](../docs/reference/cli-audit.md).
+Canonical briefs, discipline, and the report template resolve from the actual installed skill root,
+not the target project. The installers already include `.github/agents/` inside the skill copy,
+even when native host adapters are disabled. Missing required resources are named before any role
+is dispatched; restore them or reinstall rather than silently substituting generic roles.
 
 **Ownership boundary — the part that keeps the audit honest:**
 
@@ -205,8 +217,10 @@ What the dispatcher enforces rather than merely requests:
 - **A banner is not a report.** Delivery is flexible (`$WGM_AUDIT_REPORT_FILE` *or* stdout, so an
   agent that cannot write files is still a usable reviewer) — which is exactly why the *content* is
   checked. A persona artifact needs its `### <role>` heading and the four-column finding-table
-  header; the writer's needs a consolidated-report heading plus `Dissent`, `Rejected findings`,
-  `Agent action`, and `Operator action`. An agent that exits 0 after printing `Ready.` satisfies
+  header; the writer must retain four persona sections plus `Consolidated report`, `Agent actions`,
+  `Operator actions`, `Rejected findings`, and `Dissent`. Each needs a real heading and a non-empty
+  body (findings or an explicit disposition such as "None"), not prose keywords, a fenced example,
+  or a header-only table. An agent that exits 0 after printing `Ready.` satisfies
   every process-level check ever written and has reviewed nothing.
 - **No success-shaped artifact from a failed run.** A failing writer produces no file at all; the
   paper trail never gains an entry that implies a pass.
@@ -216,14 +230,26 @@ What the dispatcher enforces rather than merely requests:
   retry pass), and nothing is reverted, so the evidence survives.
   The baseline is not "is the tree dirty?": an agent that **commits**, **stashes**, or writes a
   **gitignored** path leaves a spotless `git status`, so the snapshot also covers HEAD and branch,
-  the stash ref and its depth, ignored paths outside `.wgm/`, and a content hash of the staged and
+  the stash ref and its depth, tracked/untracked/ignored paths including durable `.wgm/` artifacts,
+  and a content hash of the staged and
   unstaged diffs. Every file git knows only by **name** — ignored *and* untracked-but-not-ignored — is
   fingerprinted by **content**, not merely listed: a path list sees such a file appear or vanish but
   never an *overwrite* of one already there, and `.env`, `.envrc`, cached build artifacts, and
   not-yet-added scratch files are all present, all unlisted-by-content, and all worth overwriting.
   That scan hashes both sets on every attempt, with no size cap, because a cap is the hole an agent
   writing into `node_modules/` would fall through. Symlinks are recorded by target and never
-  followed.
+  followed. One shared exclusion set applies to fingerprints, status, and staged/unstaged diffs:
+  only root `scenarios/`, `.wgm/scenarios/`, the held `.wgm/audit.lock/`, and this run's exact work
+  directory are exempt. Kept runs and arbitrary lookalike directories are not exempt.
+- **An isolated index enforces the read boundary.** Git pathspecs alone can hide a holdout from
+  output while index refresh/writeback still opens it. Before each snapshot, the dispatcher copies
+  the caller's **current** index and removes excluded entries using metadata-only Git plumbing.
+  Worktree inspection uses that filtered copy; its `GIT_INDEX_FILE` override is command-local and
+  never reaches reviewers. The real index and pre-existing staged/unstaged split are preserved.
+  Rebuilding each time keeps new staging changes detectable. Index preparation or any snapshot
+  inspection failure aborts explicitly, with no retry, report, or fallback to the real index.
+  This adds an index-sized scratch copy and metadata passes per snapshot; it does not rely on
+  `--no-optional-locks` as a no-read guarantee.
 - **Evidence, not accusation.** The dispatcher cannot tell a role's write from a concurrent editor,
   watcher, or build in the same checkout — they produce the same delta. So it reports
   `repository state changed during <role>; origin unknown (role or concurrent process)`, prints the
@@ -231,7 +257,7 @@ What the dispatcher enforces rather than merely requests:
   hole stays named rather than pretended away: a change made and reverted *exactly* within one turn
   is invisible to a before/after comparison, whatever it touched.
 - **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
-  may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
+  may be retried (`--retries`). An inspection failure, tree mutation, and held lock never are — those are decisions, and
   repeating a decision does not improve it.
 - **One audit at a time per tree.** An atomic `.wgm/audit.lock` (`mkdir`) at the **worktree root** is
   taken before any role runs, so runs launched from different subdirectories serialize on the same
@@ -240,13 +266,20 @@ What the dispatcher enforces rather than merely requests:
 - **No guard, no run.** Outside a git working tree there is nothing to snapshot, so the dispatcher
   refuses by default rather than silently dropping its own safety property. `--allow-unguarded` is the
   explicit, loudly-announced escape hatch.
-- **The holdout stays holdout.** `scenarios/` is never read, named, or modified here — that is
+- **The holdout stays holdout.** `scenarios/` and `.wgm/scenarios/` are never read, hashed, named in
+  reports, or modified here — that is
   `wgm-validator`'s alone.
 
 **Placement is a real choice, not a synonym.** `docs/audit/` is the committed paper trail a human
-reads; `.wgm/docs/audit/` is wgm's own local path for a project that already owns its `docs/` tree.
+reads; `.wgm/docs/audit/` is the equally trackable paper trail for a project that already owns its
+`docs/` tree. Neither layout is blanket-ignored downstream.
 The dispatcher picks by the same rule as every other artifact (`references/artifacts.md`) and prints
 which rule it applied, so the choice stays visible instead of implied.
+
+**Completion is not approval.** Exit `0` and `audit: COMPLETE` mean four persona passes produced a
+structurally valid consolidated report. A report can legitimately retain RED or AMBER findings;
+read its verdict and dispositions before claiming a qualitative pass. Native `--check-report`
+likewise reports only structural validity, requires no agent or lock, and changes no files.
 
 **Honest boundary.** Running one agent five times buys independence of *context and lens*, not of
 model or tooling. It is a fallback, not an equal: prefer a host that genuinely dispatches

@@ -41,17 +41,44 @@ contains() { printf '%s\n' "$1" | grep -qF -- "$2"; }   # contains HAYSTACK NEED
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/wgm-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# An operator override must not turn a simulated unresolved-Windows case into a real installation.
+unset WGM_WINDOWS_HOME
+
+# The installers intentionally copy their source tree. Prepare a disposable copy of the actual
+# tracked working-tree files first, so these tests never read/copy ignored private state, sibling
+# worktrees, or holdouts. Preserve uncommitted source fixes rather than testing a stale git archive.
+SOURCE="$WORK/source"
+mkdir -p "$SOURCE"
+git -C "$ROOT" ls-files -z -- . ':(top,exclude)scenarios' ':(top,exclude).wgm' \
+  | tar -C "$ROOT" --null -T - -cf - | tar -C "$SOURCE" -xf - || exit 1
+ROOT="$SOURCE"
+INSTALL="$ROOT/scripts/install.sh"
+[[ -f "$INSTALL" ]] || { echo "cannot prepare tracked installer source" >&2; exit 2; }
 
 WGM="wgm"   # installed dir basename
 SUB=".agents/skills/$WGM"
 
 # ---- T1: WSL + --windows-home -> both targets planned (dry-run) -------------
 lh="$WORK/t1-lin"; wh="$WORK/t1-win"; mkdir -p "$lh" "$wh"
-out="$(HOME="$lh" WGM_FORCE_WSL=1 bash "$INSTALL" --user --client agents --windows-home "$wh" --dry-run 2>&1)"
+out="$(HOME="$lh" WGM_FORCE_WSL=1 bash "$INSTALL" --user --client agents --windows-home "$wh" --dry-run 2>&1)"; rc=$?
 if contains "$out" "$lh/$SUB" && contains "$out" "$wh/$SUB"; then
   ok "T1 WSL dry-run plans both Linux ($lh/$SUB) and Windows ($wh/$SUB) targets"
 else
   bad "T1 expected both Linux and Windows targets in dry-run output"
+fi
+
+# Missing native dispatch must not sell author self-review as a correctness gate. Exercise the
+# dry-run note as well as the real install/opt-out summaries below; no live host is needed.
+review_handoff() {
+  contains "$1" "separate fresh non-author reviewers" \
+    && contains "$1" "human handoff" && contains "$1" "blocked if unavailable" \
+    && contains "$1" "scripts/audit.sh" && contains "$1" "ruggedness is separate" \
+    && ! contains "$1" "inline sequential review"
+}
+if [[ "$rc" -eq 0 ]] && review_handoff "$out"; then
+  ok "T1 review handoff is mandatory; docs audit and inline ruggedness stay separate"
+else
+  bad "T1 dry-run fallback must require non-author review and block when unavailable"
 fi
 
 # ---- T2: --no-windows suppresses the Windows target ------------------------
@@ -210,11 +237,24 @@ else
 fi
 
 b_home="$WORK/t16"; mkdir -p "$b_home"
-HOME="$b_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client all --force --no-agents >/dev/null 2>&1
+out="$(HOME="$b_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client all --force --no-agents 2>&1)"; rc=$?
 if [[ -f "$b_home/.agents/skills/$WGM/SKILL.md" && ! -e "$b_home/.copilot/agents" && ! -e "$b_home/.claude/agents" ]]; then
   ok "T16 --no-agents installs the portable skill with no role adapters"
 else
   bad "T16 --no-agents still produced adapter directories under $b_home"
+fi
+if [[ "$rc" -eq 0 ]] && review_handoff "$out"; then
+  ok "T16 opting out of adapters does not waive independent review"
+else
+  bad "T16 --no-agents summary lost the blocked independent-review handoff"
+fi
+
+# The generic client's non-dry summary is a separate public branch from the opt-out message.
+out="$(HOME="$b_home" WGM_FORCE_WSL=0 bash "$INSTALL" --user --client agents 2>&1)"; rc=$?
+if [[ "$rc" -eq 0 ]] && review_handoff "$out" && contains "$out" "Role agents: none installed"; then
+  ok "T16 generic-client install keeps correctness review mandatory"
+else
+  bad "T16 generic-client summary lost the blocked independent-review handoff"
 fi
 
 # ---- T17: adapter ownership is proven by a marker, never by a matching name ------

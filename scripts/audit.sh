@@ -24,8 +24,11 @@
 #
 # Usage:
 #   ./scripts/audit.sh [flags] [-- agent argv...]
+#   ./scripts/audit.sh --check-report FILE
 #
 # Flags:
+#   --check-report FILE  check a completed native report using the dispatcher's report contract;
+#                        standalone, read-only, no agent or git/lock required
 #   --scope "TXT"        what this audit covers — the identical, bounded scope handed to all four
 #                        personas and the writer (default: the project's own doc set)
 #   --request "TXT"      alias for --scope
@@ -53,8 +56,9 @@
 #     report contract below.
 #   * Every role is read-only, and that is CHECKED against one run baseline after every attempt —
 #     covering HEAD and branch (a role that COMMITS leaves a clean tree), the stash ref and depth (a
-#     role that STASHES leaves a clean tree), every tracked, untracked, and IGNORED path outside
-#     .wgm/ — ignored AND untracked files by CONTENT, so overwriting an existing .env, build
+#     role that STASHES leaves a clean tree), every tracked, untracked, and IGNORED path except
+#     holdouts and this run's own lock/work directory — ignored AND untracked files by CONTENT,
+#     including durable .wgm/ artifacts, so overwriting an existing .env, build
 #     artifact, or not-yet-added scratch file counts — and a content hash of the staged and unstaged
 #     diffs. Any change fails the run
 #     TERMINALLY — no retry, no re-baseline, nothing reverted — and the exact delta is printed.
@@ -79,16 +83,20 @@
 #   "is it non-empty?" check cannot see:
 #     * a PERSONA report needs a `### <role>` heading AND the four-column finding-table header
 #       `| Doc | Observation | Severity | Recommended action |`;
-#     * the WRITER's report needs a consolidated-report heading (`# Docs Audit Report …` or
-#       `## Consolidated report …`) AND all four of `Dissent`, `Rejected findings`, `Agent action`,
-#       and `Operator action`.
+#     * the WRITER's report needs four persona sections, a `Consolidated report` section, and
+#       `Agent actions`, `Operator actions`, `Rejected findings`, and `Dissent` sections. Use the
+#       template's display names or the persona role ids. Every section needs findings or an
+#       explicit disposition (such as "None"); prose keywords, examples, and empty tables do not
+#       satisfy the contract. Native --check-report uses this same structural check.
 #   Anything looser lets a banner become the paper trail.
 #
-# Exit 0 = a consolidated report was produced.
-# Exit 1 = a role failed, timed out, broke its report contract, or the repository changed mid-run
-#          (no report is written in any of those cases).
+# Exit 0 = a consolidated report was produced, or --check-report found valid structure.
+#          Neither means the qualitative verdict is GREEN.
+# Exit 1 = a role failed, timed out, broke its report contract, repository inspection failed, or
+#          the repository changed mid-run
+#          (no report is written in any of those cases); or --check-report found an invalid report.
 # Exit 2 = refused before any role ran: bad flag, bad slug, no agent, a non-git target without
-#          --allow-unguarded, or another audit already holding this tree's lock.
+#          --allow-unguarded, missing canonical resources, or another audit holding this tree's lock.
 
 set -euo pipefail
 
@@ -112,6 +120,145 @@ STATE_DELTA_LINES=40
 WRITER="wgm-docs-writer"
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
+
+has_content() { [[ -f "$1" ]] && grep -q -- '[^[:space:]]' "$1" 2>/dev/null; }
+
+# Shared by portable dispatch and native filing. Recognize actual Markdown sections, not keywords
+# in a paragraph, comment, or fenced example. A header-only table is empty; an explicit "None"
+# disposition is not. This checks structure, never the truth or qualitative severity of findings.
+# Like persona_violation below, print the first violation, or nothing on success.
+writer_violation() {  # $1 = file
+  local f="$1"
+  # Keep a relative filename like "-report.md" or "name=value.md" from becoming an awk argument.
+  [[ "$f" == /* ]] || f="./$f"
+  if [[ ! -f "$f" || ! -r "$f" ]]; then echo "missing or unreadable report: $f"; return; fi
+  if ! has_content "$f"; then echo "empty report: $f"; return; fi
+  awk '
+    function section(title) {
+      if (title ~ /^(junior developer|wgm-docs-junior)([[:space:]]|$)/) return 1
+      if (title ~ /^(senior developer|wgm-docs-senior)([[:space:]]|$)/) return 2
+      if (title ~ /^(principal developer|wgm-docs-principal)([[:space:]]|$)/) return 3
+      if (title ~ /^(project manager|wgm-docs-pm)([[:space:]]|$)/) return 4
+      if (title ~ /^consolidated report([[:space:]]|$)/) return 5
+      if (title ~ /^agent actions?([[:space:]]|$)/) return 6
+      if (title ~ /^operator actions?([[:space:]]|$)/) return 7
+      if (title ~ /^rejected findings([[:space:]]|$)/) return 8
+      if (title ~ /^dissent([[:space:]]|$)/) return 9
+      return 0
+    }
+    function mask_escapes(row) {
+      # Keep an escaped-only cell occupied: deleting it exposes an interior pipe as a border.
+      gsub(/\\./, ".", row)
+      return row
+    }
+    function pipe_row(row) {
+      return index(mask_escapes(row), "|") > 0
+    }
+    function table_columns(row, cells) {
+      row=mask_escapes(row)
+      sub(/^[[:space:]]*\|/, "", row)
+      sub(/\|[[:space:]]*$/, "", row)
+      return split(row, cells, /\|/)
+    }
+    function table_delimiter(row) {
+      sub(/^[[:space:]]*\|/, "", row)
+      sub(/\|[[:space:]]*$/, "", row)
+      return row ~ /^[[:space:]]*:?-+:?[[:space:]]*(\|[[:space:]]*:?-+:?[[:space:]]*)*$/
+    }
+    function record_content(text) {
+      # Ignore blank/separator lines and the templates quoted instructions.
+      if (text !~ /[[:alnum:]]/ || text ~ /^[[:space:]]*>/) return
+      if (active) content[active]=1
+      if (consolidating) content[5]=1
+    }
+    BEGIN {
+      names[1]="Junior developer (wgm-docs-junior)"
+      names[2]="Senior developer (wgm-docs-senior)"
+      names[3]="Principal developer (wgm-docs-principal)"
+      names[4]="Project manager (wgm-docs-pm)"
+      names[5]="Consolidated report"
+      names[6]="Agent actions"; names[7]="Operator actions"
+      names[8]="Rejected findings"; names[9]="Dissent"
+    }
+    {
+      line=$0; sub(/\r$/, "", line)
+      trimmed=line; sub(/^[[:space:]]*/, "", trimmed)
+      if (fence != "") {
+        match(trimmed, /^(`+|~+)/)
+        if (substr(trimmed, 1, 1) == fence && RLENGTH >= fence_length &&
+            substr(trimmed, RLENGTH+1) ~ /^[[:space:]]*$/) fence=""
+        next
+      }
+      # Mask comments without erasing cell occupancy or treating their headings as evidence.
+      # A punctuation marker is non-whitespace for border detection but is not substantive text.
+      visible=""
+      while (comment || index(line, "<!--")) {
+        if (comment) {
+          end=index(line, "-->")
+          if (!end) { line=""; break }
+          line=substr(line, end+3); comment=0
+        } else {
+          start=index(line, "<!--")
+          visible=visible substr(line, 1, start-1) "."
+          line=substr(line, start+4); comment=1
+        }
+      }
+      line=visible line
+      # Delay a possible header until its delimiter row confirms a table, with either outer
+      # pipe optional and no fixed column names. Otherwise preserve it as ordinary prose.
+      if (pending != "") {
+        if (table_delimiter(line) && table_columns(line) == table_columns(pending)) {
+          pending=""; table=1; next
+        }
+        record_content(pending); pending=""
+      }
+      trimmed=line; sub(/^[[:space:]]*/, "", trimmed)
+      if (match(trimmed, /^(```+|~~~+)/)) {
+        fence=substr(trimmed, 1, 1); fence_length=RLENGTH; table=0; next
+      }
+      if (line ~ /^#+[[:space:]]+/) {
+        match(line, /^#+/); level=RLENGTH
+        if (active && level <= depth) active=0
+        if (consolidating && level <= consolidation_depth) consolidating=0
+        title=tolower(line); sub(/^#+[[:space:]]+/, "", title)
+        sub(/[[:space:]]+#+[[:space:]]*$/, "", title)
+        id=section(title)
+        if (id) { seen[id]=1; active=id; depth=level }
+        if (id == 5) { consolidating=1; consolidation_depth=level }
+        table=0
+        next
+      }
+      if (pipe_row(line)) {
+        if (!table) { pending=line; next }
+      } else table=0
+      record_content(line)
+    }
+    END {
+      record_content(pending)
+      for (i=1; i<=9; i++) {
+        if (!seen[i]) { printf "no \047%s\047 section heading\n", names[i]; exit }
+        if (!content[i]) { printf "empty \047%s\047 section — add findings or an explicit disposition\n", names[i]; exit }
+      }
+    }
+  ' "$f" || echo "could not inspect report structure: $f"
+}
+
+# Check mode must exit before any dispatch setup: no agent, canonical resources, git, output
+# directory, or lock is needed. Keep it standalone so dispatch flags cannot imply side effects.
+if [[ "${1:-}" == --check-report ]]; then
+  if [[ $# -ne 2 || -z "${2:-}" ]]; then
+    echo "--check-report requires exactly one FILE and no dispatch flags" >&2
+    exit 2
+  fi
+  violation="$(writer_violation "$2")"
+  if [[ -n "$violation" ]]; then
+    printf 'audit report: INVALID — %s: %s\n' "$2" "$violation" >&2
+    echo "  Complete the required sections and re-run --check-report before indexing the report." >&2
+    exit 1
+  fi
+  printf 'audit report: structure valid — %s (not a qualitative verdict)\n' "$2"
+  exit 0
+fi
 
 # ----- parse args -----------------------------------------------------------
 while [[ $# -gt 0 ]]; do
@@ -144,6 +291,30 @@ done
 
 [[ -n "$SCOPE" ]] || SCOPE="the project's documentation set: docs/, README.md, references/ (or their equivalents), and any AGENTS.md"
 
+# Canonical resources belong to the skill, not the audited project. Both installers already copy
+# .github/agents inside the skill tree, independently of native host adapter installation.
+SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+DISCIPLINE="${SKILL_ROOT}/references/docs-audit.md"
+REPORT_TEMPLATE="${SKILL_ROOT}/assets/docs-audit-report.template.md"
+missing=0
+for resource in "${PERSONAS[@]}" "$WRITER"; do
+  brief="${SKILL_ROOT}/.github/agents/${resource}.agent.md"
+  if [[ ! -r "$brief" || ! -s "$brief" ]]; then
+    printf 'missing or unreadable required audit resource: %s\n' "$brief" >&2
+    missing=1
+  fi
+done
+for resource in "$DISCIPLINE" "$REPORT_TEMPLATE"; do
+  if [[ ! -r "$resource" || ! -s "$resource" ]]; then
+    printf 'missing or unreadable required audit resource: %s\n' "$resource" >&2
+    missing=1
+  fi
+done
+if [[ "$missing" -ne 0 ]]; then
+  echo "Restore the named resources or reinstall the complete wgm skill before dispatching an audit." >&2
+  exit 2
+fi
+
 if [[ "$AGENT_TIMEOUT" -ne 0 ]]; then
   if command -v timeout >/dev/null 2>&1 && timeout --help 2>&1 | grep -q -- '--kill-after'; then
     TIMEOUT_BIN="$(command -v timeout)"
@@ -164,7 +335,7 @@ fi
 PLACEMENT="explicit (--out)"
 if [[ -z "$OUT_DIR" ]]; then
   if [[ -f AGENTS.md || -f IMPLEMENTATION_PLAN.md || -d specs ]]; then
-    OUT_DIR=".wgm/docs/audit"; PLACEMENT="existing-project default (.wgm/ — local, wgm-owned)"
+    OUT_DIR=".wgm/docs/audit"; PLACEMENT="existing-project default (.wgm/docs/audit — committed paper trail)"
   else
     OUT_DIR="docs/audit"; PLACEMENT="greenfield default (docs/audit — committed paper trail)"
   fi
@@ -189,9 +360,11 @@ persona_prompt() {
   cat <<EOF
 wgm docs audit — independent persona pass. You are ${role} (lens: $(lens_for "$role")).
 
-Role brief: .github/agents/${role}.agent.md — read it if it is present and follow it exactly.
-Discipline: references/docs-audit.md — severity taxonomy RED / AMBER / GREEN, and every finding is
-observation → severity → recommended action.
+Role brief: ${SKILL_ROOT}/.github/agents/${role}.agent.md
+Discipline: ${DISCIPLINE}
+Read these canonical skill resources and follow them exactly. Severity taxonomy: RED / AMBER / GREEN;
+every finding is observation → severity → recommended action.
+Resolve wgm reference/template paths from ${SKILL_ROOT}, not from the audited project.
 
 Scope (identical for all four personas — review this and nothing wider):
 ${SCOPE}
@@ -223,9 +396,11 @@ writer_prompt() {
   {
     printf 'wgm docs audit — consolidation pass. You are %s, and you run LAST: all four persona\n' "$WRITER"
     printf 'reports below already exist.\n\n'
-    printf 'Role brief: .github/agents/%s.agent.md — read it if present and follow it exactly.\n' "$WRITER"
-    printf 'Discipline: references/docs-audit.md ("The technical writer (consolidation)").\n'
-    printf 'Report shape: assets/docs-audit-report.template.md.\n\n'
+    printf 'Role brief: %s/.github/agents/%s.agent.md\n' "$SKILL_ROOT" "$WRITER"
+    printf 'Discipline: %s\n' "$DISCIPLINE"
+    printf 'Report shape: %s\n' "$REPORT_TEMPLATE"
+    printf 'Read these canonical skill resources and follow them exactly.\n'
+    printf 'Resolve wgm reference/template paths from %s, not from the audited project.\n\n' "$SKILL_ROOT"
     printf 'Persona reports to consolidate (read all four):\n'
     for role in "${PERSONAS[@]}"; do printf '  * %s — %s\n' "$role" "${WORK}/${role}.md"; done
     printf '\nScope this audit covered:\n%s\n\n' "$SCOPE"
@@ -250,10 +425,15 @@ trail is filed, because a partial consolidation reads exactly like a complete on
 Write the complete report to ${report_path} if you can write files; otherwise print it to STDOUT and
 the dispatcher will capture it. \$WGM_AUDIT_REPORT_FILE and \$WGM_AUDIT_ROLE are exported for you.
 The report must contain:
-1. a consolidated-report heading — "# Docs Audit Report — <stamp> — <slug>" or "## Consolidated report";
-2. a "Dissent" section (say "Unanimous: no dissent recorded" when there is none);
-3. a "Rejected findings" section (say so explicitly when nothing was rejected);
-4. an "Agent action" section;  5. an "Operator action" section.
+1. all four persona finding sections, using their role ids or the template's display names;
+2. a "Consolidated report" section;
+3. an "Agent actions" section; 4. an "Operator actions" section;
+5. a "Rejected findings" section (say so explicitly when nothing was rejected);
+6. a "Dissent" section (say "Unanimous: no dissent recorded" only when the evidence supports it).
+Use real Markdown headings and non-empty bodies, not keyword mentions or header-only tables.
+Keep an explicit disposition such as "None" when a section has no findings. The dispatcher applies
+the same structural check as "${SKILL_ROOT}/scripts/audit.sh" --check-report FILE before filing.
+A structurally valid RED or AMBER report is still RED or AMBER; completion is not qualitative GREEN.
 EOF
   }
 }
@@ -362,9 +542,16 @@ fi
 
 # ----- per-run working directory -------------------------------------------
 # `mktemp -d` with a unique template: even under the lock, a kept working dir from an earlier run
-# must never be reused or clobbered. It lives under .wgm/ (wgm's own scratch space, gitignored) so
-# the run leaves no residue in the project's tree.
+# must never be reused or clobbered. Only this exact directory and the held lock are dispatcher
+# scratch; other .wgm/ paths may be durable deliverables, even when the project ignores them.
 WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
+SNAPSHOT_PATHS=(.)
+INDEX_EXCLUDES=()
+for excluded in scenarios .wgm/scenarios .wgm/audit.lock "${WORK#"$REPO_ROOT"/}"; do
+  SNAPSHOT_PATHS+=(":(top,exclude,literal)$excluded")
+  INDEX_EXCLUDES+=(":(top,literal)$excluded")
+done
+INSPECTION_INDEX="${WORK}/inspection.index"
 
 # ----- read-only guard ------------------------------------------------------
 # Roles report; they never edit. The prompt says so, but a prompt is not a gate. ONE baseline is
@@ -381,10 +568,12 @@ WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
 # ref and its depth), every path state including ignored ones, a CONTENT fingerprint of every regular
 # file git knows only by name — ignored AND untracked-but-not-ignored (a path list alone sees such a
 # file appear or vanish, never an overwrite of one that was already there), and a content hash of the
-# staged and unstaged diffs. Only `.wgm/` is
-# excluded — that is the dispatcher's own scratch, which it is entitled to write. Every git command
-# is anchored at the worktree root, so the exclusion means the root `.wgm/` no matter which
-# subdirectory the audit was launched from.
+# staged and unstaged diffs. Pathspecs alone are NOT a no-read boundary: Git can read excluded,
+# racily-clean entries during index writeback. Every snapshot copies the caller's CURRENT index
+# and removes excluded entries using metadata-only plumbing BEFORE any worktree inspection.
+# The shared exclusions still filter status/diff output and untracked/ignored enumeration. Durable
+# .wgm/ state and kept or lookalike run directories stay protected. Git inspection is anchored at
+# the worktree root, independent of the subdirectory the audit was launched from.
 #
 # The snapshot is a FILE of stable, sorted lines rather than a bare hash, because a hash can only
 # say "something changed". A file can be diffed, and the exact delta is what turns an accusation
@@ -409,61 +598,135 @@ WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
 # node by name only. An ignored symlink pointing at /dev/zero or an unread FIFO would otherwise hang
 # the snapshot on every attempt — a denial of service wearing a safety check's clothes. Hashing runs
 # in batched xargs calls rather than one process per file.
+inspection_error() {
+  printf '✗ audit inspection failed: %s\n' "$*" >&2
+  return 1
+}
+
+inspection_git() {
+  # Command-local override only: reviewer commands keep the caller's original environment/index.
+  GIT_INDEX_FILE="$INSPECTION_INDEX" git -C "$REPO_ROOT" "$@"
+}
+
+prepare_inspection_index() {
+  local source excluded_list="${WORK}/excluded-index-paths"
+  # Resolve in the caller's cwd, including a relative caller-supplied GIT_INDEX_FILE.
+  source="$(git rev-parse --git-path index)" \
+    || { inspection_error "resolving the caller index"; return 1; }
+  [[ -n "$source" ]] || { inspection_error "empty caller index path"; return 1; }
+  [[ "$source" == /* ]] || source="$PWD/$source"
+  # Metadata-only validation distinguishes a genuinely absent index from a corrupt/unreadable one.
+  # It does not refresh the real index or open tracked worktree files.
+  GIT_INDEX_FILE="$source" git -C "$REPO_ROOT" ls-files -z --cached -- "${SNAPSHOT_PATHS[@]}" >/dev/null \
+    || { inspection_error "reading caller index metadata: $source"; return 1; }
+  if [[ -e "$source" || -L "$source" ]]; then
+    cp "$source" "$INSPECTION_INDEX" \
+      || { inspection_error "copying caller index: $source"; return 1; }
+  else
+    inspection_git read-tree --empty \
+      || { inspection_error "preparing an empty inspection index"; return 1; }
+  fi
+  # Check enumeration BEFORE starting the writer: a failed producer must never leave an unfiltered
+  # index eligible for worktree refresh. Copying preserves staging flags as well as entry stages.
+  inspection_git ls-files -z --cached -- "${INDEX_EXCLUDES[@]}" > "$excluded_list" \
+    || { inspection_error "enumerating excluded inspection-index entries"; return 1; }
+  inspection_git update-index --force-remove -z --stdin < "$excluded_list" \
+    || { inspection_error "filtering the inspection index"; return 1; }
+  rm -f "$excluded_list"
+}
+
 fingerprint_others() {  # $1 = label, $2 = scratch list path, $3.. = extra git ls-files flags
-  local label="$1" list="$2"
+  local label="$1" list="$2" names="${2}.all" f target
   shift 2
   (
-    cd "$REPO_ROOT" || exit 0
-    : > "$list"
+    cd "$REPO_ROOT" || return 1
+    inspection_git ls-files -z --others --exclude-standard "$@" -- "${SNAPSHOT_PATHS[@]}" > "$names" \
+      || return 1
+    : > "$list" || return 1
     while IFS= read -r -d '' f; do
       if [[ -L "$f" ]]; then
-        printf '%s-symlink: %s -> %s\n' "$label" "$f" "$(readlink "$f" 2>/dev/null || echo '?')"
+        target="$(readlink "$f")" || return 1
+        printf '%s-symlink: %s -> %s\n' "$label" "$f" "$target" || return 1
       elif [[ -f "$f" ]]; then
-        printf '%s\0' "$f" >> "$list"
+        printf '%s\0' "$f" >> "$list" || return 1
       else
-        printf '%s-special: %s\n' "$label" "$f"
+        printf '%s-special: %s\n' "$label" "$f" || return 1
       fi
-    done < <(git ls-files -z --others --exclude-standard "$@" -- ':(exclude).wgm' 2>/dev/null)
+    done < "$names"
     if [[ -s "$list" ]]; then
-      xargs -0 cksum < "$list" 2>/dev/null | sed "s/^/${label}: /" || true
+      xargs -0 cksum < "$list" | sed "s/^/${label}: /" || return 1
     fi
-    rm -f "$list"
-  ) | LC_ALL=C sort || true
+    rm -f "$list" "$names"
+  ) | LC_ALL=C sort
+}
+
+optional_snapshot_ref() {  # $1 = normal absence value, $2.. = Git ref query
+  local absent="$1" value rc=0
+  shift
+  value="$(git -C "$REPO_ROOT" "$@" 2>/dev/null)" || rc=$?
+  case "$rc" in
+    0) printf '%s\n' "$value" ;;
+    1) printf '%s\n' "$absent" ;; # unborn HEAD, detached branch, or no stash
+    *) inspection_error "git $*"; return 1 ;;
+  esac
 }
 
 snapshot_state() {  # $1 = file to write the snapshot into
-  local out="$1"
+  local out="$1" head branch stash stashdepth content
   if [[ "$GIT_GUARD" -ne 1 ]]; then
     echo "no-git-guard" > "$out"
     return 0
   fi
+  prepare_inspection_index || return 1
+  head="$(optional_snapshot_ref none rev-parse --quiet --verify HEAD)" || return 1
+  branch="$(optional_snapshot_ref detached symbolic-ref --quiet --short HEAD)" || return 1
+  stash="$(optional_snapshot_ref none rev-parse --quiet --verify refs/stash)" || return 1
+  stashdepth=0
+  if [[ "$stash" != none ]]; then
+    stashdepth="$(git -C "$REPO_ROOT" rev-list --walk-reflogs --count refs/stash)" \
+      || { inspection_error "reading stash depth"; return 1; }
+  fi
   {
-    echo "head:$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo none)"
-    echo "branch:$(git -C "$REPO_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo detached)"
-    echo "stash:$(git -C "$REPO_ROOT" rev-parse --quiet --verify refs/stash 2>/dev/null || echo none)"
-    echo "stashdepth:$(git -C "$REPO_ROOT" rev-list --walk-reflogs --count refs/stash 2>/dev/null || echo 0)"
+    printf 'head:%s\nbranch:%s\nstash:%s\nstashdepth:%s\n' "$head" "$branch" "$stash" "$stashdepth" || return 1
     # Content hashes keep an in-place edit to an already-modified file visible; the name-status lines
     # below keep the delta readable.
-    echo "unstaged-content:$(git -C "$REPO_ROOT" diff -- ':(exclude).wgm' 2>/dev/null | cksum)"
-    echo "staged-content:$(git -C "$REPO_ROOT" diff --cached -- ':(exclude).wgm' 2>/dev/null | cksum)"
-    git -C "$REPO_ROOT" status --porcelain --untracked-files=all --ignored -- ':(exclude).wgm' 2>/dev/null \
-      | LC_ALL=C sort | sed 's/^/status: /' || true
-    git -C "$REPO_ROOT" diff --name-status -- ':(exclude).wgm' 2>/dev/null \
-      | LC_ALL=C sort | sed 's/^/unstaged: /' || true
-    git -C "$REPO_ROOT" diff --cached --name-status -- ':(exclude).wgm' 2>/dev/null \
-      | LC_ALL=C sort | sed 's/^/staged: /' || true
+    content="$(inspection_git diff -- "${SNAPSHOT_PATHS[@]}" | cksum)" \
+      || { inspection_error "hashing git diff (unstaged)"; return 1; }
+    printf 'unstaged-content:%s\n' "$content" || return 1
+    content="$(inspection_git diff --cached -- "${SNAPSHOT_PATHS[@]}" | cksum)" \
+      || { inspection_error "hashing git diff (staged)"; return 1; }
+    printf 'staged-content:%s\n' "$content" || return 1
+    inspection_git status --porcelain --untracked-files=all --ignored -- "${SNAPSHOT_PATHS[@]}" \
+      | LC_ALL=C sort | sed 's/^/status: /' \
+      || { inspection_error "git status"; return 1; }
+    inspection_git diff --name-status -- "${SNAPSHOT_PATHS[@]}" \
+      | LC_ALL=C sort | sed 's/^/unstaged: /' \
+      || { inspection_error "git diff --name-status"; return 1; }
+    inspection_git diff --cached --name-status -- "${SNAPSHOT_PATHS[@]}" \
+      | LC_ALL=C sort | sed 's/^/staged: /' \
+      || { inspection_error "git diff --cached --name-status"; return 1; }
     # Files git is not tracking the CONTENT of — ignored ones, and untracked-but-not-ignored ones —
     # are fingerprinted by content, not merely listed. `git status` reports that such a path exists
     # (`!!` or `??`); it reports exactly the same thing after the file is overwritten, because the
     # path did not change. Overwriting an existing .env, .envrc, cached build artifact, or a
     # not-yet-added scratch file is a write like any other, and only a content fingerprint sees it.
-    fingerprint_others ignored   "${out}.ignored-paths"   --ignored
-    fingerprint_others untracked "${out}.untracked-paths"
+    fingerprint_others ignored   "${out}.ignored-paths"   --ignored \
+      || { inspection_error "fingerprinting ignored paths"; return 1; }
+    fingerprint_others untracked "${out}.untracked-paths" \
+      || { inspection_error "fingerprinting untracked paths"; return 1; }
   } > "$out"
 }
 
+abort_inspection() {
+  printf '✗ docs audit aborted: repository inspection failed %s.\n' "$1" >&2
+  echo "  No report filed; no retry or fallback to the caller's index." >&2
+  echo "  Fix the reported inspection error and rerun the audit." >&2
+  echo "audit: RED" >&2
+  exit 1
+}
+
 BASELINE_FILE="${WORK}/state-baseline.txt"
-snapshot_state "$BASELINE_FILE"
+snapshot_state "$BASELINE_FILE" || abort_inspection "before dispatch"
 
 # Print a bounded, exact delta so the operator can see WHAT changed instead of being told THAT
 # something did. Bounded because a role that ran a build could otherwise dump thousands of lines.
@@ -512,8 +775,6 @@ invoke_agent() {  # $1 = prompt, $2 = stdout capture file
   return "$rc"
 }
 
-has_content() { [[ -f "$1" ]] && grep -q '[^[:space:]]' "$1" 2>/dev/null; }
-
 # ----- report contracts -----------------------------------------------------
 # "The process exited 0 and the file is non-empty" is not evidence of a review. An agent that prints
 # `Ready.` or `I could not read that path.` satisfies it perfectly, and the audit then looks complete
@@ -529,20 +790,6 @@ persona_violation() {  # $1 = role, $2 = file
     echo "no '| Doc | Observation | Severity | Recommended action |' table header"
     return 0
   fi
-}
-
-writer_violation() {  # $1 = file
-  local f="$1" marker
-  if ! grep -Eqi '^#{1,3}[[:space:]]+(docs audit report|consolidated report)' "$f"; then
-    echo "no consolidated-report heading ('# Docs Audit Report …' or '## Consolidated report …')"
-    return 0
-  fi
-  for marker in "Dissent" "Rejected findings" "Agent action" "Operator action"; do
-    if ! grep -qiF "$marker" "$f"; then
-      echo "no '${marker}' section — the consolidation contract needs all four"
-      return 0
-    fi
-  done
 }
 
 contract_violation() {  # $1 = role, $2 = file
@@ -570,7 +817,7 @@ run_role() {
     # Checked FIRST, and against the run baseline: if the repository moved, the one property the
     # dispatcher exists to hold is gone, so the role's exit status no longer matters.
     after="${WORK}/state-${role}-${attempt}.txt"
-    snapshot_state "$after"
+    snapshot_state "$after" || abort_inspection "during ${role}"
     if ! cmp -s "$BASELINE_FILE" "$after"; then
       # Deliberately NOT "the role edited the tree": a concurrent editor, watcher, formatter, or
       # build in the same checkout produces an identical delta, and a guard that names a culprit it
@@ -699,4 +946,4 @@ echo ""
 echo "✓ docs audit complete — 4 persona passes consolidated by ${WRITER}."
 echo "  report: ${REPORT}"
 echo "  next:   add a newest-first row for it in ${OUT_DIR}/README.md (date, verdict, coverage, link)."
-echo "audit: GREEN"
+echo "audit: COMPLETE — report produced; see the report for the qualitative verdict."

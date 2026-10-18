@@ -71,7 +71,7 @@ command string assembled from untrusted input.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--max-runtime-seconds N` | `0` (unlimited) | Hard wall-clock cap for the whole loop. |
+| `--max-runtime-seconds N` | `0` (unlimited) | Elapsed-runtime limit checked between iterations; once reached, no next iteration starts. Active work can overrun it. |
 | `--idle-timeout N` | `0` (disabled) | Stop if the plan makes no progress for N seconds. |
 | `--agent-timeout-seconds N` | `0` (disabled) | Terminate the active agent process group after N seconds with GNU `timeout`/`gtimeout`; otherwise report the cooperative fallback. |
 | `--max-no-progress-iterations N` | `3` | Fail after N successful build iterations leave the plan unchanged; `0` disables this guard. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |

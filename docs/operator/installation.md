@@ -150,8 +150,10 @@ select a host client, the installer also writes that host's role files where the
 The cross-client column is empty on purpose: the Agent Skills standard defines skills, not
 subagents, so there is no directory to write to and wgm invents none. Those clients — and any host
 without a subagent primitive, such as Pi — get the portable skill plus wgm's explicit fallback:
-`scripts/audit.sh` for the docs-audit swarm, and the two review passes run inline and sequentially
-with the weaker independence recorded. The Copilot adapter is the one wgm dispatches today; the
+`scripts/audit.sh` for the docs-audit swarm. Correctness still requires two independent non-author
+review passes: use separate fresh reviewer invocations or an independent human handoff; if unavailable,
+the gate is blocked. Inline ruggedness is a distinct permitted fallback, not correctness self-review.
+The Copilot adapter is the one wgm dispatches today; the
 Claude adapter matches Claude Code's documented format but has not been dispatched from a live run,
 and each file says so.
 

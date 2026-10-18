@@ -4,6 +4,9 @@
 > `.wgm/docs/audit/...` in existing-project mode) and fill it in. See `references/docs-audit.md` for
 > the full discipline and `references/subagents.md` for who produces each section.
 > Never gitignore this file by default — it is the operator's evidence of work done.
+> Before native-path indexing, run `"$WGM_SKILL_ROOT/scripts/audit.sh" --check-report "$REPORT"`
+> using the actual installed skill root and this report's path, and record the command and exit `0`.
+> Portable dispatch applies the same check. Structural validity is not qualitative GREEN.
 
 # Docs Audit Report — <UTC timestamp> — <slug>
 
@@ -17,6 +20,10 @@
 - **Overall verdict:** <GREEN | AMBER | RED>
 
 ## Persona findings
+
+Retain all four persona sections. Every required section needs findings or an explicit disposition
+(such as "None"); missing sections, prose keywords, and header-only tables fail the report checker.
+Use these display names or the canonical `wgm-docs-junior` / `-senior` / `-principal` / `-pm` headings.
 
 ### Junior developer — clarity & onboarding
 | Doc | Observation | Severity | Recommended action |
@@ -66,8 +73,9 @@
 | <finding> | <persona(s)> | <exact command or source check> | <why it was rejected or already covered> |
 
 ### Dissent
-> Disagreements between personas, preserved rather than averaged away. Leave empty (with "none this
-> run") if the four personas agreed on every finding.
+> Disagreements between personas, preserved rather than averaged away. Never leave this empty.
+> Say "Unanimous: no dissent recorded" only when all four reports support that disposition.
+> If source evidence is unavailable, say "Not recorded / unknown"; never invent historical agreement.
 
 | Finding | Persona A view | Persona B view | Preserved as |
 |---|---|---|---|

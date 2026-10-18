@@ -116,6 +116,12 @@ jobs:
       - name: Swarm harness (bash)
         run: bash scripts/test-swarm.sh
 
+      - name: Audit harness (bash, fixture agents)
+        run: bash scripts/test-audit.sh
+
+      - name: Devcontainer harness (bash, Podman/Docker when available)
+        run: bash scripts/test-devcontainer.sh
+
       - name: Harvest-hive harness (bash)
         run: bash scripts/test-harvest-hive.sh
 

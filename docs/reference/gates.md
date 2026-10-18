@@ -12,14 +12,22 @@ there, the backpressure is your own project's test, build, lint, or probe comman
 make validate
 ```
 
-This is the full local suite, and it is what CI runs (minus `skills-ref`, `actionlint`, and the
-PowerShell harness, which CI adds). Expect roughly a minute.
+This is the complete portable local suite. CI includes the same bash harness inventory, including
+audit and devcontainer checks, plus the `skills-ref`, PowerShell, and separate `actionlint` checks
+listed below.
+
+`check-docs.sh` compares literal `bash scripts/test-*.sh` commands in `Makefile`'s `test` recipe
+with single-line and literal-block (`run: |`) steps in `.github/workflows/ci.yml`. Every local entry
+must appear in CI; missing inputs or an empty local inventory fail. Comments, step names, and echoed
+commands do not count. This is an inventory check, not a general Make/shell/YAML interpreter: it
+does not evaluate conditional execution. Keep these invocations literal; `actionlint` separately
+checks workflow syntax.
 
 | Target | Runs | Purpose |
 |---|---|---|
 | `make lint` | `shellcheck` plus `bash -n` on every script | Shell correctness and style. |
-| `make docs` | `check-docs.sh`, `check-evals.sh`, `check-harnesses.sh` | Documentation, fixture, and harness-contract structure. |
-| `make test` | Every `test-*.sh` harness | Behavior of the shipped scripts. |
+| `make docs` | `check-docs.sh`, `check-evals.sh`, `check-harnesses.sh`, `sync-agent-adapters.sh --check` | Documentation, fixture, harness-contract structure, and role-adapter derivation. |
+| `make test` | Bash harnesses explicitly listed in `Makefile`'s `test` recipe | Behavior of the shipped scripts; not every manual/platform-specific `test-*.sh` file. |
 | `make validate` | All three | The complete gate. Alias: `make check`. |
 
 ## Structural gates
@@ -28,11 +36,21 @@ These check artifacts and fail on drift. They are safe to run any time.
 
 | Script | Checks | Exit |
 |---|---|---|
-| `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding; marked complete tables have no blank cells; review/evidence/executability protocol contracts remain present | `0` green, `1` red |
+| `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding; marked complete tables have no blank cells; review/evidence/executability protocol contracts remain present; local bash harness inventory is included in CI run steps | `0` green, `1` red |
 | `check-evals.sh` | `evals/evals.json` is valid JSON with an allow-listed key set, and every case carries `id`, `prompt`, `expected_output`, and a non-empty `assertions` array | `0` green, `1` red, `2` `jq` missing |
 | `check-harnesses.sh` | `compatibility/harnesses.json` — allow-listed keys at every level; only the four statuses `Verified`, `Expected`, `Degraded`, `Unknown`; non-empty discovery paths, invocation command, and `https://` sources; `Verified` only with discovery **and** invocation **and** end-to-end journey evidence; no duplicate or missing harness entries | `0` green, `1` red, `2` `jq` missing |
 | `check-trailers.sh` | Every commit in `BASE..HEAD` — **merge commits included** — carries the trailers the repository mandates | `0` green, `1` red |
-| `check-doc-sync.sh` | A diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or `--warn`, `1` red |
+| `check-doc-sync.sh` | A successfully inspected diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or advisory finding, `1` undocumented surface, `2` invalid input / inspection error (even with `--warn`) |
+| `audit.sh --check-report FILE` | The shared native/portable report structure: four persona sections, consolidation, both action sections, rejected findings, and dissent, with real headings and non-empty bodies | `0` structure valid (not qualitative GREEN), `1` invalid report, `2` bad usage |
+
+### audit.sh --check-report
+
+Native docs-audit filing must run the installed skill's `scripts/audit.sh --check-report FILE`
+and record exit `0` before indexing a new report. Portable dispatch uses the same validator before
+filing. This standalone mode invokes no agent, needs no git checkout or lock, and changes no files.
+Missing/empty sections, keyword-only prose, and empty tables fail visibly; explicit dispositions
+such as "None" are allowed. Structural validity and successful dispatch (`audit: COMPLETE`) are not
+qualitative approval — RED/AMBER findings can remain. See [the audit CLI](cli-audit.md#the-report-contract).
 
 ### check-trailers.sh
 
@@ -48,9 +66,12 @@ Required keys come from `--trailer` flags, or one-per-line from `.wgm/required-t
 `.github/required-trailers`. With neither present the check is an explicit no-op — this is opt-in
 governance, not an imposed policy.
 
-**Caution:** If a non-compliant merge is already published, do not rewrite shared history. Build a
-replacement two-parent merge from the same parents with the trailers present, and prove
-`old^{tree} == replacement^{tree}` before promoting it.
+**Caution:** If a non-compliant commit is already published, do not rewrite shared history or
+promote a sibling replacement merge. Record the offending SHA, missing trailers, and a forward-only
+correction/attestation. Handoff stays blocked pending an explicit, recorded maintainer decision;
+there is no automatic waiver. A later attestation does not erase the original violation: the checker
+remains RED for any audit range containing it. Prevent future violations with explicit merge
+`--subject`/`--body` trailers before publishing.
 
 ### check-doc-sync.sh
 
@@ -61,7 +82,17 @@ when a batch audit finally notices.
 scripts/check-doc-sync.sh --base HEAD~1 --warn
 ```
 
-Use `--warn` for the advisory mode the Record step uses: it reports and exits `0`. Omit it to fail.
+The default compares HEAD's first parent with HEAD. `--base REF` must resolve to a commit
+(commit-ish tags are accepted); if it resolves to current HEAD, inspection covers staged and
+unstaged worktree changes plus non-ignored untracked files. With no parent commit, the default
+also inspects that worktree. A repository without a committed HEAD is an error, not a clean diff.
+Paths and untracked-file discovery use the Git worktree root, even when invoked from a subdirectory.
+
+Use `--warn` for the advisory mode the Record step uses: an undocumented-surface finding prints
+`WARN` and exits `0`; without it that finding exits `1`. A successful inspection with no finding
+prints `GREEN`. Invalid/empty/non-commit bases or failed Git operations (including diff, tree, or
+untracked-file inspection) identify the input or operation, print `ERROR`, and exit `2`, **even with
+`--warn`**, without a GREEN verdict. Correct the ref or repository/inspection failure and retry.
 
 ### check-harnesses.sh
 
@@ -84,8 +115,11 @@ any harness wgm publishes a claim about. It needs no network and no vendor CLI �
 
 ## Behavior harnesses
 
-Each shipped script has a harness proving it does what it claims. They use fake agents and throwaway
-repositories, so **no real agent, model, network, or token is needed**.
+The harnesses use fixture agents and throwaway repositories, so **no paid agent/model calls or
+provider credentials are needed**. The devcontainer harness prefers Podman and falls back to Docker;
+real build/run/prune cases visibly skip only when neither is installed. With an engine present it
+uses a dedicated disposable test image (building it may need registry/network access), not the
+operator's shared base image. These fixtures are not live-provider evidence.
 
 Stage 10's live-qualification harness is explicitly a local contract test: CI sets
 `WGM_STAGE10_LIVE_ALLOWED=false`, rejects live-authorization files, and runs only disposable doubles.
@@ -98,7 +132,7 @@ operator authorization and `--allow-live` path.
 | `test-install.ps1` | The same, for the PowerShell installer |
 | `test-plugin-registry.sh` | Isolated no-dependency discovery and execution of a real plugin `invoke` handler through `wgm_plugin_registry.py` |
 | `test-stage10-memory.sh` | Deterministic Stage 10 observations, system map, human brief, safe host signals, standing, migration, redaction, staleness, and `.wgm` confinement |
-| `test-stage10-runner.sh` | Direct argv execution, process-group timeout cleanup, bounded/redacted diagnostics, safe environment input, evidence classification, and path/authority confinement |
+| `test-stage10-runner.sh` | Published JSON/Bash example executed unchanged; direct argv execution, process-group timeout cleanup, bounded/redacted diagnostics, safe environment input, evidence classification, and path/authority confinement |
 | `test-stage10-qualification.sh` | Phase-aware harness qualification, bounded commands, fixture/live separation, timeout handling, redacted diagnostics, and `.wgm` confinement |
 | `test-stage10-live-qualification.sh` | Offline test doubles proving manifest opt-in, explicit confirmation, exact scope/hash/expiry/budget authorization, T10-backed execution, and fixture/live evidence separation |
 | `test-stage10-router.sh` | Transparent capability/evidence filtering, deterministic route ordering, decision cards, and safe output confinement |
@@ -109,15 +143,15 @@ operator authorization and `--allow-live` path.
 | `test-stage10-deferred-e2e.sh` | Final disposable composition of T10-T13, T7, prior T1-T9 gates, and the T14 ShellCheck/boundary gate; artifact-derived bounded reporting; unauthorized live refusal; authorized local-double labeling; positive/negative worktree lifecycle; explicit approval gating; and unchanged real/fixture checkout and remotes |
 | `test-loop.sh` | Limit knobs, capability probe, no-progress stall, project-gate execution, container selection, phase artifacts, watchdog timeout, harvest idempotency, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
 | `test-swarm.sh` | Parallel branches, worktree/artifact pinning, project-gate propagation, partial-setup failure, zero-commit failure, memory consolidation, telemetry summary |
-| `test-audit.sh` | Docs-audit dispatch: argument errors, dry-run, four independent personas, writer-after-four ordering, a failed/empty/banner persona blocking the writer, report-contract validation for personas and the writer, terminal (never-retried) repository-change detection including a role that commits, stashes, creates a gitignored path, or overwrites an existing ignored file such as `.env` or an untracked non-ignored scratch file, the unknown-origin delta report, worktree-root lock serialization from a subdirectory, bounded retries, the timeout bound and its cooperative fallback, the non-git refusal and `--allow-unguarded`, concurrency locking, report placement, argv/stdin agent modes |
+| `test-audit.sh` | Argument errors, dry-run, four independent personas and writer-last ordering; terminal HEAD/stash/tracked/untracked/ignored mutation detection, including durable `.wgm/` contents; filtered-index inspection with real-index/staging preservation and no reviewer override; fail-closed preparation/inspection errors; Linux inotify positive-control and tracked-canary open/read regression (explicitly skipped off Linux); exact scratch/holdout exclusions; unknown-origin deltas; locks, retries, timeouts, non-git refusal, placement, argv/stdin modes; downstream retention rules; shared native/portable complete-report validation without mutation or paid agents; RED/AMBER completion wording; real tracked-source installation with spaces and five fake roles reading installed canonical resources |
 | `test-devcontainer.sh` | Sandbox init, base-image build, run, prune |
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
 | `test-check-evals.sh` | The schema gate rejects unknown and missing keys, and the shipped fixture keeps its pinned ruggedness, evidence-boundary, numerical/API/performance, and cleanup ids and assertions |
 | `test-check-harnesses.sh` | The harness-contract gate rejects an invalid status, a missing discovery path, a `Verified` entry with no evidence, malformed JSON, a deleted harness entry, and a duplicate id — while still accepting a valid `Degraded` entry |
-| `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, and blank marked-table cells |
-| `test-check-trailers.sh` | The trailer audit catches a bare generated merge commit |
-| `test-check-doc-sync.sh` | The doc-sync gate fires on undocumented surface and stays quiet otherwise |
+| `test-check-docs.sh` | The docs gate rejects missing phase/runtime/action/authority/governance contracts, mojibake, broken links, unbalanced fences, blank marked-table cells, and missing local harnesses in CI; comments/echoes do not satisfy inventory parity, while literal run blocks do |
+| `test-check-trailers.sh` | Bare generated merges fail; forward-only attestations preserve history and cannot clear the original violation |
+| `test-check-doc-sync.sh` | Undocumented surface is caught; valid default/ref/HEAD, staged/unstaged/untracked, and advisory paths are preserved; invalid/non-commit refs and injected Git inspection failures cannot become GREEN or advisory success |
 
 **Note:** A gate is only proven by watching it go **red** on the class it claims to catch. A
 mojibake sweep once shipped here matching nothing at all, because PCRE reads `\xNN` as a character
@@ -133,13 +167,13 @@ with a harness that fails it deliberately.
 
 ## Additional gates in CI
 
-`.github/workflows/ci.yml` adds three checks you can also run locally:
+In addition to the portable local suite, CI runs these checks you can also run locally:
 
 | Check | Local equivalent |
 |---|---|
-| `skills-ref validate` on wgm and all three companions | `pip install skills-ref`, then `skills-ref validate wgm` from the parent directory |
-| `actionlint` on the workflow files | `actionlint .github/workflows/ci.yml` |
-| PowerShell parse plus `test-install.ps1` | `pwsh ./scripts/test-install.ps1` |
+| `skills-ref validate` on wgm and all three companions (`ci.yml`) | `pip install skills-ref`, then `skills-ref validate wgm` from the parent directory |
+| `actionlint` on the workflow files (`lint.yml`) | `actionlint .github/workflows/*.yml` |
+| PowerShell parse plus `test-install.ps1` (`ci.yml`) | `pwsh ./scripts/test-install.ps1` |
 
 **Note:** `skills-ref` requires the skill directory's basename to equal the skill name, so validate
 `wgm` from the repository's parent directory and the companions from inside `companions/`.

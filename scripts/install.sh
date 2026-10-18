@@ -23,7 +23,7 @@
 #   --force           overwrite/replace an existing install
 #   --no-companions   do NOT install the teach-me / quiz-me / rugged companion skills alongside wgm
 #   --no-agents       do NOT install the role-agent adapters (.github/agents, .claude/agents); the
-#                       portable skill and its explicit inline fallback still install
+#                       portable skill still installs; independent review remains required
 #   --no-windows      (WSL only) do NOT mirror into your Windows home
 #   --windows-home P  (WSL only) mirror into Windows home P (default: auto-detect via /mnt)
 #   --ref REF         ref to self-fetch when piped: a branch/tag/sha, or "latest" for the newest
@@ -52,7 +52,8 @@
 #   copilot  user -> ~/.copilot/agents/     project -> .github/agents/
 #   claude   user -> ~/.claude/agents/      project -> .claude/agents/
 # The generic `.agents` client gets NO adapters: the Agent Skills standard defines skills, not
-# subagents, so wgm falls back to scripts/audit.sh and inline sequential review passes there.
+# subagents. Use scripts/audit.sh for docs audit; correctness needs separate fresh non-author
+# reviewers or a human handoff and is blocked if unavailable. Inline ruggedness is separate.
 # Ownership is proven, never inferred: every adapter wgm writes ends with a `wgm-role-agent-adapter`
 # marker comment naming the host, the canonical source file, and the adapter version. Ownership is
 # structural, not textual — the marker must be the file's LAST non-blank line (CRLF tolerated), and
@@ -294,7 +295,7 @@ fi
 # ----- compute role-adapter target dirs -------------------------------------
 # A role adapter only makes sense where a host actually scans for one. `agents` (the Agent Skills
 # standard) has no subagent format, and `--dir` names a bare path rather than a host, so neither
-# gets an adapter — they get the portable skill and wgm's explicit inline fallback instead.
+# gets an adapter — they get the portable skill and an explicit independent-review handoff instead.
 AGENT_HOSTS=()
 AGENT_DIRS=()
 AGENT_NOTES=()
@@ -329,7 +330,7 @@ if [[ "$NO_AGENTS" -eq 0 ]]; then
     collect_agent_targets "$AGENT_BASE" "$SCOPE" "${CLIENTS[@]}"
     for c in "${CLIENTS[@]}"; do
       [[ "$c" == "agents" ]] || continue
-      AGENT_NOTES+=("the .agents client gets no role adapters: the Agent Skills standard defines skills, not subagents. wgm falls back to scripts/audit.sh and inline sequential review passes there.")
+      AGENT_NOTES+=("the .agents client gets no role adapters: the Agent Skills standard defines skills, not subagents. Use scripts/audit.sh for docs audit; correctness needs separate fresh non-author reviewers or a human handoff and is blocked if unavailable. Inline ruggedness is separate.")
     done
   fi
 fi
@@ -902,7 +903,7 @@ if [[ "$NO_COMPANIONS" -eq 0 ]]; then
   say "Companions: /teach-me to learn a repo, /quiz-me to be tested on it, /rugged to stress-test a design."
 fi
 if [[ "$NO_AGENTS" -eq 1 ]]; then
-  say "Role agents: skipped (--no-agents). wgm runs the review passes inline and sequentially instead."
+  say "Role agents: skipped (--no-agents). Correctness needs separate fresh non-author reviewers or a human handoff; blocked if unavailable. Use scripts/audit.sh for docs audit; inline ruggedness is separate."
 elif [[ ${#AGENT_DIRS[@]} -eq 0 ]]; then
-  say "Role agents: none installed — no host with a subagent format was selected. wgm falls back to scripts/audit.sh and inline sequential review passes."
+  say "Role agents: none installed — no host with a subagent format was selected. Correctness needs separate fresh non-author reviewers or a human handoff; blocked if unavailable. Use scripts/audit.sh for docs audit; inline ruggedness is separate."
 fi

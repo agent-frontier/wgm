@@ -26,6 +26,9 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; FAILED=1; }
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/wgm-audit-test-XXXXXX")"
 trap 'cd /; rm -rf "$TMP"' EXIT
+export HOME="$TMP/home"
+mkdir -p "$HOME"
+VALID_REPORT="$TMP/valid-report.md"
 
 # The sandbox project lives in a SUBDIRECTORY, and every piece of harness instrumentation (the
 # order log, the captured prompts, the fake agent itself) lives outside it. Otherwise the harness's
@@ -91,8 +94,8 @@ restore_side_files() {  # put the pre-existing ignored/untracked fixtures back b
 #                    FAKE_UNTRACKED_ROLE appends to an existing untracked non-ignored one.
 #   FAKE_FLAKY_ROLE  this role fails its FIRST attempt only, then succeeds (for the retry path)
 #   FAKE_STDIN       read the prompt from stdin instead of "$1"
-# The writer emits the five markers the consolidation contract requires; FAKE_THIN_WRITER makes it
-# emit a plausible-looking but incomplete report instead.
+# The writer retains all four persona sections; FAKE_THIN_WRITER and FAKE_WRITER_KEYWORDS exercise
+# incomplete reports. Optional mutations and resource checks below are confined to this sandbox.
 cat > "$TMP/fake-agent.sh" <<'FAKE'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -100,6 +103,52 @@ role="${WGM_AUDIT_ROLE:-unknown}"
 if [[ "${FAKE_STDIN:-0}" == "1" ]]; then prompt="$(cat)"; else prompt="${1:-}"; fi
 printf '%s\n' "$role" >> "$FAKE_LOG"
 printf '%s' "$prompt" > "${FAKE_PROMPT_DIR}/${role}.prompt"
+if [[ "${FAKE_CHECK_INDEX_SCOPE:-0}" == 1 \
+   && "${GIT_INDEX_FILE-UNSET}" != "${FAKE_CALLER_INDEX:-UNSET}" ]]; then
+  echo "fake agent: inspection index leaked into reviewer environment" >&2
+  exit 8
+fi
+if [[ "${FAKE_STAGE_ROLE:-}" == "$role" ]]; then git add -- README.md; fi
+if [[ "${FAKE_INSPECTION_FAIL_ROLE:-}" == "$role" ]]; then : > "$FAKE_INSPECTION_SENTINEL"; fi
+if [[ -n "${FAKE_EXPECT_ROOT:-}" ]]; then
+  # Read the actual installed resources, not similarly named files in the audited project.
+  check_resource() {
+    local label="$1" relative="$2" resource
+    resource="$(sed -n "s/^${label}: //p" <<<"$prompt")"
+    [[ "$resource" == "$FAKE_EXPECT_ROOT/$relative" && -r "$resource" ]] \
+      && cmp -s "$resource" "$FAKE_SOURCE_ROOT/$relative" || {
+        echo "fake agent: wrong or unreadable ${label}: $resource" >&2; exit 8;
+      }
+  }
+  check_resource "Role brief" ".github/agents/${role}.agent.md"
+  check_resource "Discipline" "references/docs-audit.md"
+  if [[ "$role" == wgm-docs-writer ]]; then
+    check_resource "Report shape" "assets/docs-audit-report.template.md"
+  fi
+  printf '%s\n' "$role" >> "$FAKE_RESOURCE_LOG"
+fi
+if [[ "${FAKE_MUTATE_ROLE:-}" == "$role" ]]; then
+  if [[ "${FAKE_MUTATE_KIND:-}" == delete ]]; then
+    rm -f "$FAKE_MUTATE_PATH"
+  else
+    mkdir -p "$(dirname "$FAKE_MUTATE_PATH")"
+    printf 'APPENDED by %s\n' "$role" >> "$FAKE_MUTATE_PATH"
+  fi
+  if [[ "${FAKE_MUTATE_STAGE:-0}" == 1 ]]; then git add -f -- "$FAKE_MUTATE_PATH"; fi
+fi
+if [[ "${FAKE_SCRATCH_ROLE:-}" == "$role" ]]; then
+  printf 'run scratch\n' > "${WGM_AUDIT_REPORT_FILE%/*}/extra.txt"
+  printf 'lock scratch\n' > .wgm/audit.lock/extra.txt
+fi
+if [[ "${FAKE_HOLDOUT_ROLE:-}" == "$role" ]]; then
+  # Synthetic holdouts only: writes expose an accidental status/diff/content read by the guard.
+  for prefix in scenarios .wgm/scenarios; do
+    for kind in tracked untracked ignored; do
+      printf 'CANARY-HOLDOUT-MUTATION\n' >> "$prefix/$kind.yaml"
+    done
+    git add -f -- "$prefix/tracked.yaml"
+  done
+fi
 if [[ "${FAKE_EDIT_ROLE:-}" == "$role" ]]; then printf 'sneaky edit by %s\n' "$role" >> README.md; fi
 if [[ "${FAKE_SLEEP_ROLE:-}" == "$role" ]]; then sleep "${FAKE_SLEEP_SECS:-5}"; fi
 # Three ways to change a repository that leave `git status` looking pristine. Each is a real thing a
@@ -149,11 +198,23 @@ if [[ "${FAKE_BANNER_ROLE:-}" == "$role" ]]; then
   exit 0
 fi
 if [[ "$role" == "wgm-docs-writer" ]]; then
-  if [[ "${FAKE_THIN_WRITER:-0}" == "1" ]]; then
+  if [[ -n "${FAKE_WRITER_REPORT:-}" ]]; then
+    # Replay the same complete-report fixture through portable and native structural validation.
+    body="$(cat "$FAKE_WRITER_REPORT")"
+  elif [[ "${FAKE_THIN_WRITER:-0}" == "1" ]]; then
     body="# Docs Audit Report — fake
 Everything was fine, nothing else to say."
   else
     body="# Docs Audit Report — fake stamp — fake slug
+
+Overall verdict: ${FAKE_VERDICT:-GREEN}
+
+## Persona findings
+
+$(for persona in wgm-docs-junior wgm-docs-senior wgm-docs-principal wgm-docs-pm; do
+  cat "${WGM_AUDIT_REPORT_FILE%/*}/${persona}.md"
+  printf '\n'
+done)
 
 ## Consolidated report (wgm-docs-writer)
 
@@ -171,11 +232,14 @@ None rejected.
 ### Dissent
 Unanimous: no dissent recorded."
   fi
+  if [[ "${FAKE_WRITER_KEYWORDS:-0}" == 1 ]]; then
+    body="$(sed -E 's/^### (Agent actions|Operator actions|Rejected findings|Dissent)$/\1/' <<<"$body")"
+  fi
 else
   body="### ${role} — fake lens
 | Doc | Observation | Severity | Recommended action |
 |---|---|---|---|
-| README.md | fake finding from ${role} | GREEN | none |"
+| README.md | fake finding from ${role} | ${FAKE_VERDICT:-GREEN} | none |"
 fi
 if [[ "${FAKE_STDOUT_ROLE:-}" == "$role" ]]; then printf '%s\n' "$body"; else printf '%s\n' "$body" > "$WGM_AUDIT_REPORT_FILE"; fi
 exit 0
@@ -288,11 +352,13 @@ if [[ "$RC" -eq 0 ]] \
    && [[ -f "${REPORTS[0]}" ]] \
    && [[ "${#REPORTS[@]}" -eq 1 ]] \
    && grep -q "Docs Audit Report" "${REPORTS[0]}" \
-   && grep -q "audit: GREEN" <<<"$OUT"; then
+   && grep -q "audit: COMPLETE" <<<"$OUT" \
+   && ! grep -q "audit: GREEN" <<<"$OUT"; then
   pass "four personas run, the writer runs last, and one consolidated report is written"
 else
   fail "happy path did not produce the expected order/report (rc=$RC, order='$ORDER'): $OUT"
 fi
+if [[ -f "${REPORTS[0]}" ]]; then cp "${REPORTS[0]}" "$VALID_REPORT"; fi
 
 # 3a) Report placement: the timestamped name and the greenfield docs/audit/ default.
 if [[ "${REPORTS[0]}" =~ ^docs/audit/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{4}Z_happy\.md$ ]] \
@@ -550,7 +616,7 @@ reset_runs
 #     exactly like a complete one — no Dissent section looks identical to "there was no dissent".
 FAKE_THIN_WRITER=1 run --scope "docs/" --slug thin -- "${AGENT_ARGV[@]}"
 if [[ "$RC" -ne 0 ]] \
-   && grep -qE "no '(Dissent|Rejected findings|Agent action|Operator action)' section" <<<"$OUT" \
+   && grep -qE "no '.*' section" <<<"$OUT" \
    && [[ ! -d docs/audit ]]; then
   pass "a writer report missing Dissent/Rejected/Agent/Operator markers is rejected"
 else
@@ -727,9 +793,8 @@ fi
 git checkout -q -- README.md
 reset_runs
 
-# 15d) The dispatcher's OWN scratch under .wgm/ is not a role mutation — it is ignored by the guard
-#      on purpose, or every single run would fail itself.
-run --scope "docs/" --slug selfscratch --keep -- "${AGENT_ARGV[@]}"
+# 15d) Only this run's work directory and lock are exempt, or every run would fail on its own writes.
+FAKE_SCRATCH_ROLE=wgm-docs-junior run --scope "docs/" --slug selfscratch --keep -- "${AGENT_ARGV[@]}"
 SELF_REPORT=(docs/audit/*_selfscratch.md)
 if [[ "$RC" -eq 0 ]] && [[ -f "${SELF_REPORT[0]}" ]]; then
   pass "the dispatcher's own .wgm/ scratch does not trip its read-only guard"
@@ -869,6 +934,536 @@ else
 fi
 rm -rf "$TMP/stub"
 reset_runs
+
+# 20) Exercise the published downstream ignore block, not a second hand-maintained policy.
+# Durable artifacts must be trackable in BOTH layouts, while explicit runtime scratch stays local.
+retention="$TMP/retention"
+git init -q "$retention"
+awk '/^```gitignore$/ { copying=1; next } copying && /^```$/ { exit } copying' \
+  "$ROOT/docs/reference/artifacts.md" > "$retention/.gitignore"
+retention_ok=1
+for path in IMPLEMENTATION_PLAN.md specs/slice.md docs/audit/report.md \
+    .wgm/IMPLEMENTATION_PLAN.md .wgm/specs/slice.md .wgm/docs/audit/report.md; do
+  if git -C "$retention" check-ignore -q "$path"; then retention_ok=0; fi
+done
+for path in .wgm/memories.md .wgm/metrics.tsv .wgm/audit.lock/owner .wgm/audit-run-old/report.md; do
+  git -C "$retention" check-ignore -q "$path" || retention_ok=0
+done
+if [[ "$retention_ok" -eq 1 ]]; then
+  pass "published ignore rules retain downstream plans/specs/audits and exclude explicit scratch"
+else
+  fail "published ignore rules hide durable artifacts or fail to exclude runtime scratch"
+fi
+
+# 21) A .wgm prefix does not make plans/specs/audits disposable. Include pre-existing staged
+# changes: an in-place index overwrite keeps the same status line and needs the diff-content hash.
+for tracking in tracked untracked ignored; do
+  for mutation in overwrite delete create; do
+    case "$tracking" in
+      tracked) path=.wgm/IMPLEMENTATION_PLAN.md ;;
+      untracked) path=.wgm/specs/slice.md ;;
+      ignored) path=.wgm/docs/audit/prior.md; printf '/.wgm/\n' >> .git/info/exclude ;;
+    esac
+    mkdir -p "$(dirname "$path")"
+    printf 'ORIGINAL\n' > "$path"
+    stage=0
+    if [[ "$tracking" == tracked ]]; then git add -f -- "$path"; stage=1; fi
+    if [[ "$mutation" == create ]]; then rm -f "$path"; fi
+    FAKE_MUTATE_ROLE=wgm-docs-junior FAKE_MUTATE_PATH="$path" FAKE_MUTATE_KIND="$mutation" \
+      FAKE_MUTATE_STAGE="$stage" run --slug durable --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+    # An already-staged overwrite changes only the content hash, not the name/status line.
+    evidence="$path"
+    if [[ "$tracking" == tracked && "$mutation" == overwrite ]]; then evidence="staged-content:"; fi
+    retained=0
+    if [[ "$mutation" == delete ]]; then
+      [[ ! -e "$path" ]] && retained=1
+    elif grep -q "APPENDED by wgm-docs-junior" "$path"; then retained=1; fi
+    if [[ "$RC" -eq 1 && "$(count_role wgm-docs-junior)" -eq 1 ]] \
+       && [[ "$retained" -eq 1 ]] \
+       && grep -q "origin unknown" <<<"$OUT" && grep -qF "$evidence" <<<"$OUT" \
+       && ! grep -q "wgm-docs-writer" "$FAKE_LOG" && [[ ! -d docs/audit ]]; then
+      pass "$tracking durable .wgm $mutation is terminal, visible, and never retried"
+    else
+      fail "$tracking durable .wgm $mutation lacked terminal/retained evidence (rc=$RC): $OUT"
+    fi
+    git reset -q "$SEED" -- .wgm
+    rm -f .git/info/exclude
+    reset_runs
+  done
+done
+
+# Kept runs and similarly named directories are not owned by the current dispatcher. Nor is a
+# nested directory named scenarios a root holdout: an over-broad glob would hide real project data.
+for path in .wgm/audit-run-kept/report.md .wgm/audit.lock-other/report.md notes/scenarios/data.md; do
+  mkdir -p "$(dirname "$path")"
+  printf 'ORIGINAL\n' > "$path"
+  FAKE_MUTATE_ROLE=wgm-docs-junior FAKE_MUTATE_PATH="$path" \
+    run --slug lookalike -- "${AGENT_ARGV[@]}"
+  if [[ "$RC" -eq 1 ]] && grep -qF "$path" <<<"$OUT"; then
+    pass "lookalike path stays mutation-guarded: $path"
+  else
+    fail "lookalike path escaped the guard: $path (rc=$RC)"
+  fi
+  rm -f "$path"
+  reset_runs
+done
+
+# 22) Synthetic tracked (staged AND unstaged), untracked, and ignored holdouts in both layouts.
+# Instrument explicit fingerprint inputs and inspect saved snapshots. This alone cannot detect
+# Git-internal reads during index refresh/writeback; the real access observer below covers those.
+mkdir -p "$TMP/hash-bin" scenarios .wgm/scenarios
+export REAL_CKSUM
+REAL_CKSUM="$(command -v cksum)"
+export FAKE_HASH_LOG="$TMP/hash.log"
+: > "$FAKE_HASH_LOG"
+cat > "$TMP/hash-bin/cksum" <<'HASH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$FAKE_HASH_LOG"
+if [[ "$#" -eq 0 ]]; then
+  content="$(cat)"
+  if [[ "$content" == *CANARY-HOLDOUT* ]]; then printf 'HOLDOUT-DIFF-READ\n' >> "$FAKE_HASH_LOG"; fi
+  printf '%s' "$content" | "$REAL_CKSUM"
+else
+  exec "$REAL_CKSUM" "$@"
+fi
+HASH
+chmod +x "$TMP/hash-bin/cksum"
+for prefix in scenarios .wgm/scenarios; do
+  for kind in tracked untracked ignored; do printf 'CANARY-HOLDOUT-BASELINE\n' > "$prefix/$kind.yaml"; done
+  printf '/%s/ignored.yaml\n' "$prefix" >> .git/info/exclude
+  git add -f -- "$prefix/tracked.yaml"
+  printf 'CANARY-HOLDOUT-UNSTAGED\n' >> "$prefix/tracked.yaml"
+done
+PATH="$TMP/hash-bin:$PATH" FAKE_HOLDOUT_ROLE=wgm-docs-junior \
+  run --slug holdout --keep -- "${AGENT_ARGV[@]}"
+kept=(.wgm/audit-run-*)
+if [[ "$RC" -eq 0 ]] \
+   && ! grep -qE 'scenarios/|HOLDOUT-DIFF-READ' "$FAKE_HASH_LOG" \
+   && ! grep -qE 'scenarios/|CANARY-HOLDOUT' "${kept[0]}"/state-*.txt; then
+  pass "both holdout layouts are excluded from fingerprints, status, and staged/unstaged diffs"
+else
+  fail "holdouts were read, hashed, or included in the mutation snapshot (rc=$RC)"
+fi
+git reset -q "$SEED" -- .wgm scenarios
+rm -f scenarios/tracked.yaml scenarios/untracked.yaml scenarios/ignored.yaml .git/info/exclude
+reset_runs
+
+# 22a) A pathspec filters output, not every Git-internal read. Observe real file access across the
+# ENTIRE dispatcher, including index preparation. A positive inotify control prevents a broken
+# observer from passing silently. Python/ctypes are test-only; audit.sh gains no runtime dependency.
+if [[ "$(uname -s)" == Linux ]]; then
+  access_repo="$TMP/access repo"
+  mkdir -p "$access_repo"/{docs,scenarios,.wgm/scenarios}
+  git init -q "$access_repo"
+  git -C "$access_repo" config user.name "wgm access test"
+  git -C "$access_repo" config user.email "wgm-test@example.com"
+  git -C "$access_repo" config commit.gpgsign false
+  printf 'seed\n' > "$access_repo/README.md"
+  printf 'refresh without a content change\n' > "$access_repo/refresh.txt"
+  for prefix in scenarios .wgm/scenarios; do
+    for name in canary.yaml .gitignore; do
+      printf '#%051d\n' 0 > "$access_repo/$prefix/$name" # exactly 53 synthetic bytes
+    done
+  done
+  git -C "$access_repo" add -f -- README.md refresh.txt scenarios .wgm/scenarios
+  git -C "$access_repo" commit -qm seed
+  printf 'staged version\n' > "$access_repo/README.md"
+  git -C "$access_repo" add -- README.md
+  printf 'unstaged version\n' > "$access_repo/README.md"
+  cat > "$TMP/observe-access" <<'PY'
+#!/usr/bin/env python3
+import ctypes
+import os
+from pathlib import Path
+import struct
+import subprocess
+import sys
+
+root = Path(os.environ["ACCESS_REPO"])
+index = Path(os.environ.get("GIT_INDEX_FILE", root / ".git/index"))
+# Exercise writeback of racily-clean entries, not only the easy non-racy status path.
+# Git treats timestamp.sec == 0 specially, so use a positive timestamp in the past.
+os.utime(index, ns=(index.stat().st_atime_ns, 1_000_000_000))
+refresh = root / "refresh.txt"
+stat = refresh.stat()
+os.utime(refresh, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+before = (index.read_bytes(), index.stat().st_mtime_ns)
+control = root.parent / "access-control"
+control.write_bytes(b"observer control")
+libc = ctypes.CDLL(None, use_errno=True)
+libc.inotify_init1.argtypes = [ctypes.c_int]
+libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+if fd < 0:
+    raise OSError(ctypes.get_errno(), "inotify_init1")
+watched = {}
+try:
+    paths = [root / prefix / name for prefix in ("scenarios", ".wgm/scenarios")
+             for name in ("canary.yaml", ".gitignore")]
+    for path in [control, *paths]:
+        wd = libc.inotify_add_watch(fd, os.fsencode(path), 0x01 | 0x20)  # ACCESS | OPEN
+        if wd < 0:
+            raise OSError(ctypes.get_errno(), "inotify_add_watch")
+        watched[wd] = path
+
+    def events():
+        found = []
+        while True:
+            try:
+                data = os.read(fd, 65536)
+            except BlockingIOError:
+                return found
+            offset = 0
+            while offset < len(data):
+                wd, mask, cookie, length = struct.unpack_from("iIII", data, offset)
+                offset += 16 + length
+                if mask & 0x4000:
+                    raise RuntimeError("inotify queue overflow: observation invalid")
+                if wd in watched:
+                    found.append((watched[wd], mask))
+
+    control.read_bytes()
+    calibration = events()
+    assert any(path == control and mask & 0x20 for path, mask in calibration), "no OPEN control"
+    assert any(path == control and mask & 0x01 for path, mask in calibration), "no ACCESS control"
+    print("observer: OPEN/ACCESS positive control passed", flush=True)
+    result = subprocess.run([os.environ["ACCESS_AUDIT"], *sys.argv[1:]], check=False)
+    accesses = [(str(path.relative_to(root)), mask) for path, mask in events() if path in paths]
+    unchanged = before == (index.read_bytes(), index.stat().st_mtime_ns)
+    print(f"observer: holdout OPEN/ACCESS events={accesses}", flush=True)
+    print(f"observer: caller index bytes+mtime unchanged={unchanged}", flush=True)
+    sys.exit(97 if accesses or not unchanged else result.returncode)
+finally:
+    os.close(fd)
+PY
+  chmod +x "$TMP/observe-access"
+  for index_mode in default custom; do
+    # A caller-supplied index and a subdirectory launch must not redirect reviewer Git commands
+    # into the dispatcher's filtered copy. The default real index must survive either mode too.
+    default_index_sum="$(cksum "$access_repo/.git/index")"
+    if [[ "$index_mode" == custom ]]; then
+      cp "$access_repo/.git/index" "$TMP/caller.index"
+      GIT_INDEX_FILE="$TMP/caller.index" FAKE_CALLER_INDEX="$TMP/caller.index" \
+        FAKE_CHECK_INDEX_SCOPE=1 GIT_OPTIONAL_LOCKS=1 ACCESS_REPO="$access_repo" ACCESS_AUDIT="$ROOT/scripts/audit.sh" \
+        AUDIT="$TMP/observe-access" run_in "$access_repo/docs" --out "$access_repo/reports" -- "${AGENT_ARGV[@]}"
+    else
+      FAKE_CALLER_INDEX="${GIT_INDEX_FILE-UNSET}" FAKE_CHECK_INDEX_SCOPE=1 GIT_OPTIONAL_LOCKS=1 \
+        ACCESS_REPO="$access_repo" ACCESS_AUDIT="$ROOT/scripts/audit.sh" AUDIT="$TMP/observe-access" \
+        run_in "$access_repo" --out "$access_repo/reports" -- "${AGENT_ARGV[@]}"
+    fi
+    if [[ "$RC" -eq 0 && "$(wc -l < "$FAKE_LOG")" -eq 5 \
+       && "$default_index_sum" == "$(cksum "$access_repo/.git/index")" ]] \
+       && grep -qF "observer: holdout OPEN/ACCESS events=[]" <<<"$OUT" \
+       && grep -qF "observer: caller index bytes+mtime unchanged=True" <<<"$OUT" \
+       && [[ "$(git -C "$access_repo" show :README.md)" == "staged version" \
+          && "$(cat "$access_repo/README.md")" == "unstaged version" ]]; then
+      pass "Linux observer: $index_mode index, zero holdout opens/reads, staging and reviewer environment preserved"
+    else
+      fail "Linux observer: $index_mode index access/preservation regression (rc=$RC): $OUT"
+    fi
+    rm -rf "$access_repo/reports"
+  done
+else
+  pass "(skipped) real holdout access observation requires Linux inotify; not field evidence on this host"
+fi
+
+# 22b) Rebuild the inspection index from CURRENT staging on every snapshot. A private index kept
+# only from the baseline would miss this index-only change; an exported override would stage into
+# the wrong index. Leave the actual staged change visible and stop before another role or retry.
+printf 'pre-existing staged version\n' > README.md
+git add -- README.md
+printf 'pre-existing unstaged version\n' > README.md
+staged_before="$(git rev-parse :README.md)"
+worktree_before="$(cksum README.md)"
+FAKE_STAGE_ROLE=wgm-docs-junior FAKE_CHECK_INDEX_SCOPE=1 FAKE_CALLER_INDEX="${GIT_INDEX_FILE-UNSET}" \
+  run --slug index-only --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 1 && "$(wc -l < "$FAKE_LOG")" -eq 1 \
+   && "$staged_before" != "$(git rev-parse :README.md)" \
+   && "$(git rev-parse :README.md)" == "$(git hash-object README.md)" \
+   && "$worktree_before" == "$(cksum README.md)" && ! -d docs/audit ]] \
+   && grep -q "origin unknown" <<<"$OUT" && grep -q "staged-content:" <<<"$OUT"; then
+  pass "index-only staging is detected from a fresh inspection copy and remains in the caller's real index"
+else
+  fail "index-only change escaped detection or was redirected/lost (rc=$RC): $OUT"
+fi
+git reset -q "$SEED" -- README.md
+reset_runs
+
+# 22c) Failed preparation/inspection must not silently fall back to the real index or a partial
+# snapshot. Fault injection is separate from the real-access observer, never a substitute for it.
+export REAL_GIT
+REAL_GIT="$(command -v git)"
+export FAKE_INSPECTION_SENTINEL="$TMP/inspection-failure"
+mkdir -p "$TMP/git-fault"
+cat > "$TMP/git-fault/git" <<'GIT'
+#!/usr/bin/env bash
+cmd="${1:-}"
+if [[ "$cmd" == -C ]]; then cmd="${3:-}"; fi
+fail=0
+case "${FAKE_INSPECTION_FAULT:-}" in
+  enumerate) [[ "$cmd" == ls-files && " $* " == *" --cached "* ]] && fail=1 ;;
+  filter) [[ "$cmd" == update-index ]] && fail=1 ;;
+  status) [[ "$cmd" == status ]] && fail=1 ;;
+  diff) [[ "$cmd" == diff ]] && fail=1 ;;
+  others) [[ "$cmd" == ls-files && " $* " == *" --others "* ]] && fail=1 ;;
+esac
+if [[ "${FAKE_INSPECTION_PHASE:-}" == after && ! -e "$FAKE_INSPECTION_SENTINEL" ]]; then fail=0; fi
+if [[ "$fail" -eq 1 ]]; then echo "fixture: Git inspection failed ($cmd)" >&2; exit 73; fi
+exec "$REAL_GIT" "$@"
+GIT
+chmod +x "$TMP/git-fault/git"
+for phase in baseline after; do
+  for operation in enumerate filter status diff others; do
+    rm -f "$FAKE_INSPECTION_SENTINEL"
+    PATH="$TMP/git-fault:$PATH" FAKE_INSPECTION_PHASE="$phase" FAKE_INSPECTION_FAULT="$operation" \
+      FAKE_INSPECTION_FAIL_ROLE=wgm-docs-junior \
+      run --slug inspection-failure --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+    expected_roles=0
+    [[ "$phase" == baseline ]] || expected_roles=1
+    if [[ "$RC" -eq 1 && "$(wc -l < "$FAKE_LOG")" -eq "$expected_roles" && ! -d docs/audit ]] \
+       && grep -qi "inspection failed" <<<"$OUT" && ! grep -q "audit: COMPLETE" <<<"$OUT"; then
+      pass "failed $operation inspection at $phase aborts explicitly without fallback or retry"
+    else
+      fail "failed $operation inspection at $phase was hidden/retried (rc=$RC): $OUT"
+    fi
+    reset_runs
+  done
+done
+printf 'not an index\n' > "$TMP/corrupt.index"
+GIT_INDEX_FILE="$TMP/corrupt.index" run --slug corrupt-index -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 1 && ! -s "$FAKE_LOG" && ! -d docs/audit ]] \
+   && grep -qi "inspection failed" <<<"$OUT" \
+   && [[ "$(cat "$TMP/corrupt.index")" == "not an index" ]]; then
+  pass "a corrupt caller index is refused without fallback, mutation, or dispatch"
+else
+  fail "a corrupt caller index was accepted or replaced (rc=$RC): $OUT"
+fi
+reset_runs
+
+# 23) Report production succeeding says nothing about the severity of the retained findings.
+for verdict in RED AMBER; do
+  FAKE_VERDICT="$verdict" run --slug findings -- "${AGENT_ARGV[@]}"
+  reports=(docs/audit/*_findings.md)
+  if [[ "$RC" -eq 0 && -f "${reports[0]}" ]] \
+     && grep -q "Overall verdict: $verdict" "${reports[0]}" \
+     && grep -q "audit: COMPLETE" <<<"$OUT" && ! grep -q "audit: GREEN" <<<"$OUT"; then
+    pass "$verdict findings allow completed dispatch without a qualitative GREEN banner"
+  else
+    fail "$verdict findings were confused with dispatch success (rc=$RC)"
+  fi
+  reset_runs
+done
+FAKE_WRITER_KEYWORDS=1 run --slug keywords -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "section" <<<"$OUT" && [[ ! -d docs/audit ]]; then
+  pass "portable filing rejects prose keywords in place of required section headings"
+else
+  fail "portable filing accepted keywords instead of sections (rc=$RC)"
+fi
+reset_runs
+
+# 24) Native filing uses the very same contract, without an agent, git checkout, lock, or mutation.
+# A held lock and deliberately configured fake agent prove that check mode never enters dispatch.
+native="$TMP/native reports"
+mkdir -p "$native/.wgm/audit.lock"
+printf 'native lock sentinel\n' > "$native/.wgm/audit.lock/owner"
+native_check() {
+  local file="$1" expected="$2" reason="$3" label="${4:-$3}" before after
+  before="$(find "$native" -type f -exec cksum {} \; | LC_ALL=C sort)"
+  WGM_AGENT="bash $TMP/fake-agent.sh" run_in "$native" --check-report "$file"
+  after="$(find "$native" -type f -exec cksum {} \; | LC_ALL=C sort)"
+  if [[ "$RC" -eq "$expected" && "$before" == "$after" && ! -s "$FAKE_LOG" ]] \
+     && grep -qF "$reason" <<<"$OUT" && ! grep -q "audit: GREEN" <<<"$OUT"; then
+    pass "native checker: $label (exit $expected, read-only, no dispatch)"
+  else
+    fail "native checker ($label): expected $expected / $reason, got $RC: $OUT"
+  fi
+}
+if [[ -f "$VALID_REPORT" ]]; then
+  for verdict in GREEN AMBER RED; do
+    sed "s/Overall verdict: GREEN/Overall verdict: $verdict/" "$VALID_REPORT" > "$native/report.md"
+    native_check "$native/report.md" 0 "structure valid"
+  done
+  # Template display names and canonical role ids must both be usable by native hosts.
+  sed -e 's/wgm-docs-junior/Junior developer/g' -e 's/wgm-docs-senior/Senior developer/g' \
+    -e 's/wgm-docs-principal/Principal developer/g' -e 's/wgm-docs-pm/Project manager/g' \
+    "$VALID_REPORT" > "$native/report.md"
+  native_check "$native/report.md" 0 "structure valid"
+  for section in wgm-docs-junior wgm-docs-senior wgm-docs-principal wgm-docs-pm \
+      "Consolidated report" "Agent actions" "Operator actions" "Rejected findings" Dissent; do
+    # Remove just the heading: surviving prose/keywords must not satisfy a missing section.
+    awk -v section="$section" '$0 !~ "^##?#? " section "([[:space:]]|$)"' \
+      "$VALID_REPORT" > "$native/report.md"
+    native_check "$native/report.md" 1 "section"
+    # Keep the heading but remove its body (including nested sections for consolidation).
+    awk -v section="$section" '
+      /^#+ / {
+        match($0, /^#+/); level=RLENGTH
+        if (skip && level <= depth) skip=0
+        if ($0 ~ "^##?#? " section "([[:space:]]|$)") { print; skip=1; depth=level; next }
+      }
+      !skip { print }
+    ' "$VALID_REPORT" > "$native/report.md"
+    native_check "$native/report.md" 1 "section"
+  done
+  # Empty tables and Markdown examples/comments are not evidence or explicit "none" dispositions.
+  sed '/| 1 | fake |/d' "$VALID_REPORT" > "$native/report.md"
+  native_check "$native/report.md" 1 "Agent actions"
+  for fence in '```markdown' '<!--'; do
+    printf '%s\n' "$fence" > "$native/report.md"
+    cat "$VALID_REPORT" >> "$native/report.md"
+    if [[ "$fence" == '<!--' ]]; then printf '%s\n' '-->'; else printf '%s\n' '```'; fi >> "$native/report.md"
+    native_check "$native/report.md" 1 "section"
+  done
+  : > "$native/report.md"
+  native_check "$native/report.md" 1 "empty"
+  native_check "$native/missing.md" 1 "missing.md"
+  # No WGM_AGENT at all is also valid in check-only mode.
+  WGM_AGENT="" run_in "$native" --check-report "$VALID_REPORT"
+  if [[ "$RC" -eq 0 && ! -s "$FAKE_LOG" ]]; then pass "native checker needs no configured agent"
+  else fail "native checker required an agent (rc=$RC): $OUT"; fi
+
+  # Markdown permits either outer pipe to be omitted. Recognize header/delimiter pairs rather
+  # than particular column names: the review blocker was an empty Dissent table accepted as prose.
+  # Drive both filing paths with identical fixtures and retain positive data/plain-text controls.
+  table_contract_case() {
+    local label="$1" body="$2" expected="$3" reason="structure valid"
+    local section="${4:-Dissent}"
+    local candidate="$native/table.md"
+    local -a reports
+    [[ "$expected" -eq 0 ]] || reason="empty '$section' section"
+    # Replace only the selected section; write body bytes with printf rather than awk -v,
+    # which can interpret the very backslash escapes this fixture must preserve.
+    awk -v section="$section" '$0 == "### " section { print; exit } { print }' \
+      "$VALID_REPORT" > "$candidate"
+    printf '%s\n' "$body" >> "$candidate"
+    awk -v section="$section" '
+      $0 == "### " section { after=1; next }
+      after && /^### / { copying=1 }
+      copying { print }
+    ' "$VALID_REPORT" >> "$candidate"
+    native_check "$candidate" "$expected" "$reason" "$label"
+    FAKE_WRITER_REPORT="$candidate" run --slug table -- "${AGENT_ARGV[@]}"
+    reports=(docs/audit/*_table.md)
+    if [[ "$expected" -eq 1 && "$RC" -eq 1 && ! -d docs/audit ]] \
+       && grep -qF "$reason" <<<"$OUT"; then
+      pass "portable checker: $label (exit 1, no report filed)"
+    elif [[ "$expected" -eq 0 && "$RC" -eq 0 && -f "${reports[0]}" ]] \
+         && cmp -s "$candidate" "${reports[0]}"; then
+      pass "portable checker: $label (exit 0, report retained)"
+    else
+      fail "portable checker ($label): expected $expected, got $RC: $OUT"
+    fi
+    reset_runs
+  }
+  for columns in reported arbitrary; do
+    if [[ "$columns" == reported ]]; then
+      header="Finding | Persona A view | Persona B view | Preserved as"
+      delimiter="--- | --- | --- | ---"
+      row="Example | RED | AMBER | Open question"
+    else
+      header='Perspective \| lens | Resolution'
+      delimiter=":--- | ---:"
+      row="Both reviewers | Agreement recorded"
+    fi
+    for edges in outer neither leading trailing; do
+      left=""; right=""
+      case "$edges" in
+        outer) left="| "; right=" |" ;;
+        leading) left="| " ;;
+        trailing) right=" |" ;;
+      esac
+      table_body="$(printf '%s%s%s\n%s%s%s\n' "$left" "$header" "$right" "$left" "$delimiter" "$right")"
+      table_contract_case "$columns columns, $edges pipes, header only" "$table_body" 1
+      table_contract_case "$columns columns, $edges pipes, data row" \
+        "$table_body"$'\n'"$left$row$right" 0
+    done
+  done
+  table_contract_case "explicit None disposition" "None." 0
+  table_contract_case "plain disposition containing a pipe" "None | all reviewers agree." 0
+  table_contract_case "plain pipe disposition before a horizontal rule" $'None | all reviewers agree.\n---' 0
+  table_contract_case "plain disposition containing an escaped pipe" $'None \\| all reviewers agree.\n---' 0
+
+  # Occupancy, not the spelling of a header, is the invariant: an escaped-only edge cell must
+  # survive masking until border removal. Cover both edges and all four optional-border shapes,
+  # varying ordinary punctuation, escaped separators, and escaped backslashes across the matrix.
+  for edge in first last; do
+    for borders in neither leading trailing outer; do
+      left=""; right=""
+      case "$borders" in
+        neither) escaped='\#' ;;
+        leading) escaped='\*'; left="| " ;;
+        trailing) escaped='\|'; right=" |" ;;
+        outer) escaped="\\\\"; left="| "; right=" |" ;;
+      esac
+      if [[ "$edge" == first ]]; then
+        header="$escaped | Finding | Doc(s) | Action"
+      else
+        header="Finding | Doc(s) | Action | $escaped"
+      fi
+      table_body="$(printf '%s%s%s\n%s%s%s\n' "$left" "$header" "$right" \
+        "$left" '--- | --- | --- | ---' "$right")"
+      table_contract_case "escaped-only $edge cell ($escaped), $borders borders" \
+        "$table_body" 1 "Agent actions"
+      table_contract_case "escaped-only $edge cell ($escaped), $borders borders, data row" \
+        "$table_body"$'\n'"${left}1 | Verified finding | README.md | Fix${right}" 0 "Agent actions"
+    done
+  done
+  # Comment redaction precedes the same border removal. It must retain a cell boundary without
+  # counting the hidden comment itself as substantive evidence.
+  table_contract_case "comment-only last header cell" \
+    $'Identifier | Finding | Doc(s) | <!-- reserved -->\n--- | --- | --- | ---' 1 "Agent actions"
+  table_contract_case "comment-only last header cell with data row" \
+    $'Identifier | Finding | Doc(s) | <!-- reserved -->\n--- | --- | --- | ---\n1 | Verified finding | README.md | Fix' 0 "Agent actions"
+  table_contract_case "comment-only section remains empty" "<!-- not a disposition -->" 1 "Agent actions"
+  table_contract_case "plain disposition after escape and comment masking" \
+    $'\\# None | all reviewers agree. <!-- recorded -->\n---' 0 "Agent actions"
+else
+  fail "valid report fixture was not produced; native checks cannot run"
+fi
+
+# 25) Install the ACTUAL tracked working-tree source, including this diff, through the real
+# installer. Never tar/copy the whole checkout: private ignored state and sibling worktrees must
+# not be read. Holdouts are explicitly omitted even if tracked. This is fixture preparation, not
+# another packaging implementation; install.sh's normal copy supplies the canonical .github roles.
+source_tree="$TMP/source with spaces"
+install_home="$TMP/home with spaces"
+installed="$install_home/.agents/skills/wgm"
+mkdir -p "$source_tree" "$install_home"
+git -C "$ROOT" ls-files -z -- . ':(top,exclude)scenarios' ':(top,exclude).wgm' \
+  | tar -C "$ROOT" --null -T - -cf - | tar -C "$source_tree" -xf -
+install_rc=0
+install_out="$(HOME="$install_home" WGM_FORCE_WSL=0 bash "$source_tree/scripts/install.sh" \
+  --user --client agents --no-windows --no-agents --no-companions --method copy 2>&1)" || install_rc=$?
+if [[ "$install_rc" -eq 0 && -f "$installed/scripts/audit.sh" && ! -e "$installed/.wgm" \
+    && ! -e "$installed/scenarios" ]]; then
+  export FAKE_RESOURCE_LOG="$TMP/resources.log"
+  : > "$FAKE_RESOURCE_LOG"
+  FAKE_EXPECT_ROOT="$installed" FAKE_SOURCE_ROOT="$source_tree" AUDIT="$installed/scripts/audit.sh" \
+    run --slug installed -- "${AGENT_ARGV[@]}"
+  if [[ "$RC" -eq 0 && "$(wc -l < "$FAKE_RESOURCE_LOG")" -eq 5 \
+      && ! -e .github/agents && ! -e references && ! -e assets ]]; then
+    pass "five fake roles read real installed canonical resources through paths with spaces"
+  else
+    fail "installed dispatch used target-relative or missing resources (rc=$RC): $OUT"
+  fi
+  reset_runs
+  # Every mandatory resource is a pre-dispatch requirement, including roles scheduled last.
+  for resource in .github/agents/wgm-docs-{junior,senior,principal,pm,writer}.agent.md \
+      references/docs-audit.md assets/docs-audit-report.template.md; do
+    mv "$installed/$resource" "$installed/$resource.saved"
+    AUDIT="$installed/scripts/audit.sh" run --slug missing -- "${AGENT_ARGV[@]}"
+    mv "$installed/$resource.saved" "$installed/$resource"
+    if [[ "$RC" -eq 2 && ! -s "$FAKE_LOG" && ! -e .wgm/audit.lock && ! -d docs/audit ]] \
+       && grep -qF "$installed/$resource" <<<"$OUT"; then
+      pass "missing installed resource is named before any dispatch: $resource"
+    else
+      fail "missing resource was silently downgraded or dispatched: $resource (rc=$RC)"
+    fi
+    reset_runs
+  done
+else
+  fail "isolated real-source install failed or copied excluded state (rc=$install_rc): $install_out"
+fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "audit harness: GREEN"

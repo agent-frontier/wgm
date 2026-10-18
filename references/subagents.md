@@ -77,12 +77,18 @@ That is deliberate — it means the gate survives on hosts that cannot dispatch 
 - **FRAGILE / UNKNOWN are blocking, with different follow-ups.** FRAGILE → a remediation task in
   `IMPLEMENTATION_PLAN.md`; UNKNOWN → a validation-signal task that creates the missing deterministic
   field/stress evidence. Both keep the task out of `done`.
-- **Serial hosts run the identical rubric.** With no subagent mechanism, the single agent runs
+- **Serial hosts run the identical ruggedness rubric.** With no subagent mechanism, the single agent runs
   `/rugged review` when the companion is discoverable, or the inline five-step rubric when it is
-  not, in sequence before its two review passes — the same five steps, one-verdict rule, and
-  blocking semantics. Independence is weaker in that arrangement, so name it: record that the
-  verdict was produced serially by the implementing agent, exactly as a fallback run records the
-  missing companion. Weaker independence is a recorded limitation, not a reason to skip the gate.
+  not — the same five steps, one-verdict rule, and blocking semantics. Record that this ruggedness
+  verdict was produced by the author and name the missing capability. This permitted fallback is
+  distinct from independent correctness review; it cannot satisfy either non-author review pass.
+- **If independent review is unavailable, the gate is blocked.** Without native dispatch, hand the
+  bounded diff, spec/acceptance criteria, exact validation evidence, and ruggedness verdict to
+  separate fresh non-author reviewer invocations (one per pass) or independent human reviewers.
+  Record their identities, scope, verdicts, and dissent. Re-labeling the author or doing sequential
+  self-review in the author's context is not independence. If no independent reviewer is available,
+  record the missing capability and required handoff; do not mark `done` or advance past Review.
+  `scripts/audit.sh` remains the separate docs-audit dispatcher, not a correctness-review substitute.
 - **Dispatch when the companion exists:** the orchestrator invokes `/rugged plan <scope>` at
   Plan-exit and `/rugged review <scope>` on the diff at Review, then hands the resulting verdict —
   not the whole review transcript — to the implementer for any prescribed follow-up and to both
@@ -150,6 +156,11 @@ flowchart LR
   in an Agent-action table. Weight verification toward RED/AMBER findings because a false high-severity
   action is more damaging than a missed nit, and record rejected findings with the evidence that
   disproved them.
+- **Native filing shares the portable structural gate:** retain all four persona sections and the
+  consolidation, with non-empty Agent actions, Operator actions, Rejected findings, and Dissent
+  sections (explicit "None" dispositions when supported). Run the installed skill's
+  `scripts/audit.sh --check-report FILE` and record exit `0` before updating the audit index. This
+  read-only command needs no agent or lock and does not award qualitative GREEN.
 - **Trigger points** (not every iteration): Ship/Handoff (mandatory, Standard/Full) and, on the Full
   track, a Plan-exit baseline pass plus opportunistic passes on doc-touching diffs. Quick skips the
   swarm entirely and relies on `scripts/check-docs.sh`.
@@ -171,11 +182,15 @@ Ownership boundaries the dispatcher makes deterministic rather than merely askin
 | The writer runs last, on four real reports | A persona that fails, times out, or returns nothing blocks the writer and fails the audit. |
 | The writer consolidates; it does not review | Its brief carries the four report paths plus the dedupe/dissent/verify/label rules, and nothing else. |
 | A failed audit leaves no artifact | No report file is written unless the writer produced a real one — never a success-shaped stub. |
-| A banner is not a report | Each artifact is checked against the contract its prompt demanded (persona: `### <role>` heading + the four-column table header; writer: a consolidated heading + `Dissent`, `Rejected findings`, `Agent action`, `Operator action`). An exit-0 `Ready.` fails. |
-| A repository change is terminal | One baseline, never re-read, covering HEAD/branch, the stash, tracked+untracked+ignored paths, a content fingerprint of every ignored and untracked file, and diff content — because committing, stashing, or overwriting an ignored `.env` or an untracked scratch file all leave the status lines unchanged. Any change aborts the audit with no retry, prints the exact delta, and reverts nothing. |
+| A banner is not a report | Each artifact is checked against the contract its prompt demanded (persona: `### <role>` heading + the four-column table header; writer: four persona sections, consolidation, both action sections, rejected findings, and dissent — real headings and non-empty bodies). Native filing uses the same checker. |
+| A repository change is terminal | One baseline, never re-read, covering HEAD/branch, the stash, tracked+untracked+ignored paths including durable `.wgm/` state, content fingerprints, and staged/unstaged diffs. Only root holdouts and this run's exact lock/work directory are exempt. Any change aborts with no retry, prints the exact delta, and reverts nothing. |
 | Evidence, not accusation | A concurrent editor or build produces the same delta as a role write, so the message names the change and says the origin is unknown rather than blaming the role. |
 | One audit per tree | An atomic `.wgm/audit.lock` at the worktree root refuses a concurrent run — including one launched from a subdirectory — before any role starts; a non-git target is refused outright unless `--allow-unguarded` is passed. |
-| The holdout stays the validator's | `scenarios/` is never read, named, or modified by the dispatcher. |
+| The holdout stays the validator's | Root `scenarios/` and `.wgm/scenarios/` are excluded from all snapshot reads and never named in reports or modified by the dispatcher. |
+
+The dispatcher resolves canonical roles, discipline, and template from its installed skill root and
+refuses missing resources before dispatch. Exit `0` / `audit: COMPLETE` means report production,
+not qualitative GREEN; native checking makes the same structure-only claim.
 
 **Say what it is.** Five briefs against one agent buys independence of context and lens, not of model
 or tooling — the same recorded-limitation discipline the serial ruggedness fallback uses above. Prefer
@@ -308,8 +323,9 @@ grep exposed them. So before integrating:
 
 ## Host adapters and where they install
 A role definition only works if it sits where the host scans, and **a host scans for subagents in a
-different place than it scans for skills**. Copying `.github/agents/` inside the installed skill
-folder — which is what wgm used to do — ships the swarm and hides it in the same move.
+different place than it scans for skills**. Copying `.github/agents/` only inside the installed skill
+folder ships the briefs without registering native subagents. Both installers retain that canonical
+copy for portable audit dispatch and also install the host adapters in the discovery paths below.
 
 So the canonical file is authored once and translated deterministically:
 
@@ -344,9 +360,10 @@ So the canonical file is authored once and translated deterministically:
   opaque-command runner (above) — provided the host's headless command is configured as its agent.
   That is a fallback with weaker independence, and it says so; whether it has been exercised on a
   particular harness is recorded per entry in `compatibility/harnesses.json`, not assumed here.
-- **Ralph-full (`scripts/loop.sh`):** today the loop runs one role per iteration. Mapping each role to
-  its own agent command (a per-role implementer/reviewer dispatch) is the next step toward a true
-  multi-agent swarm; until then the single agent plays each role in sequence per the Loop steps.
+- **Ralph-full (`scripts/loop.sh`):** the runner invokes the configured agent command; it does not
+  supply per-role implementer/reviewer dispatch. Separate fresh non-author reviewers or an independent
+  human handoff must still supply both correctness-review passes; if unavailable, the gate is blocked.
+  The author changing roles in sequence does not provide independence.
 
 ## Cross-links
 `references/ralph-loop.md` (loop + backpressure) · `references/scoring.md` (what validation must

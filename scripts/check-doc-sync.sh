@@ -20,14 +20,17 @@
 #
 # Flags:
 #   --base REF       diff REF..HEAD (default: HEAD~1..HEAD). Pass --base HEAD to inspect the
-#                    uncommitted working tree instead, untracked files included.
-#   --warn           report and exit 0 (advisory) instead of failing — the Record-step default
+#                    uncommitted working tree instead, untracked files included. REF must resolve
+#                    to a commit; any ref resolving to HEAD selects worktree inspection.
+#                    With no parent commit, the default also inspects the working tree.
+#   --warn           make findings advisory (exit 0); invalid input / Git failures still exit 2
 #   --doc-path GLOB  extra path prefix that counts as documentation; repeatable
 #   -h | --help      show this help
 #
 # Doc paths by default: docs/, references/, README.md, SKILL.md, companions/**/SKILL.md, CONTRIBUTING.md.
 #
-# Exit 0 = no undocumented public surface (or --warn). Exit 1 = new surface with no doc touch.
+# Exit 0 = successful inspection with no finding (or --warn). Exit 1 = undocumented new surface.
+# Exit 2 = invalid input or failed inspection; never GREEN, even with --warn.
 
 set -uo pipefail
 
@@ -36,11 +39,12 @@ WARN=0
 EXTRA_DOCS=()
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
+inspection_error() { printf 'doc-sync: ERROR: %s\n' "$*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --base) [[ $# -ge 2 ]] || { echo "--base requires a ref" >&2; exit 2; }; BASE="$2"; shift 2 ;;
+    --base) [[ $# -ge 2 && -n "$2" ]] || inspection_error "--base requires a non-empty commit ref."; BASE="$2"; shift 2 ;;
     --warn) WARN=1; shift ;;
     --doc-path) [[ $# -ge 2 ]] || { echo "--doc-path requires a glob" >&2; exit 2; }; EXTRA_DOCS+=("$2"); shift 2 ;;
     -*) echo "Unknown flag: $1" >&2; exit 2 ;;
@@ -48,37 +52,58 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not inside a git repository." >&2; exit 2; }
+INSIDE_WORKTREE="$(git rev-parse --is-inside-work-tree)" \
+  || inspection_error "git rev-parse --is-inside-work-tree failed; run inside a Git worktree."
+[[ "$INSIDE_WORKTREE" == true ]] \
+  || inspection_error "git rev-parse --is-inside-work-tree did not find a worktree; run inside one."
+# Keep diff paths, tree listings, untracked enumeration, and file reads in one coordinate system.
+# Merely making ls-tree root-relative would leave untracked paths/reads dependent on the caller.
+WORKTREE_ROOT="$(git rev-parse --show-toplevel)" \
+  || inspection_error "git rev-parse --show-toplevel failed; check the Git worktree and retry."
+cd "$WORKTREE_ROOT" \
+  || inspection_error "could not enter Git worktree '$WORKTREE_ROOT'; check access and retry."
+HEAD_COMMIT="$(git rev-parse --verify --end-of-options 'HEAD^{commit}')" \
+  || inspection_error "git rev-parse failed to resolve HEAD to a commit; check the repository's HEAD."
 
-if [[ -z "$BASE" ]]; then
-  if git rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then BASE="HEAD~1"; else BASE=""; fi
+if [[ -n "$BASE" ]]; then
+  BASE_COMMIT="$(git rev-parse --verify --end-of-options "${BASE}^{commit}")" \
+    || inspection_error "git rev-parse failed for --base '$BASE'; supply a ref resolving to a commit."
+else
+  # A failed parent lookup is not evidence of a root commit. Only a successful query may select
+  # that fallback; use the first parent to preserve the default HEAD~1 comparison on merges.
+  PARENTS="$(git rev-list --parents -n 1 "$HEAD_COMMIT")" \
+    || inspection_error "git rev-list failed to inspect HEAD's parents; check the repository history."
+  read -r -a COMMITS <<< "$PARENTS"
+  BASE_COMMIT="${COMMITS[1]:-$HEAD_COMMIT}"
 fi
 
 # `--base HEAD` (and the no-parent-commit case) means "inspect the working tree", not "diff HEAD
 # against itself" — the latter is always empty and would make the gate silently pass on every
 # uncommitted change. Untracked files count too: a brand-new script IS new public surface.
 compare_worktree=0
-if [[ -z "$BASE" ]]; then
+DIFF_REFS=("$BASE_COMMIT")
+if [[ "$BASE_COMMIT" == "$HEAD_COMMIT" ]]; then
   compare_worktree=1
-elif [[ "$(git rev-parse --verify --quiet "$BASE" 2>/dev/null)" == "$(git rev-parse HEAD 2>/dev/null)" ]]; then
-  compare_worktree=1
+else
+  DIFF_REFS+=("$HEAD_COMMIT")
 fi
 
-if [[ "$compare_worktree" -eq 0 ]]; then
-  CHANGED="$(git diff --name-only "$BASE" HEAD)"
-  ADDED="$(git diff --unified=0 "$BASE" HEAD | grep '^+' | grep -v '^+++' || true)"
-else
-  BASE=""
-  CHANGED="$(
-    git diff --name-only HEAD 2>/dev/null || true
-    git ls-files --others --exclude-standard 2>/dev/null || true
-  )"
-  ADDED="$(
-    { git diff --unified=0 HEAD 2>/dev/null || true; } | grep '^+' | grep -v '^+++' || true
-    while IFS= read -r u; do
-      [[ -n "$u" && -f "$u" ]] && sed 's/^/+/' "$u"
-    done < <(git ls-files --others --exclude-standard 2>/dev/null || true)
-  )"
+# Check Git's status before filtering added lines: no matches is normal, a failed diff is not.
+# Resolved commit IDs plus -- also prevent refs from being interpreted as options or paths.
+CHANGED="$(git diff --name-only "${DIFF_REFS[@]}" --)" \
+  || inspection_error "git diff --name-only failed for ${DIFF_REFS[*]}; fix the comparison and retry."
+PATCH="$(git diff --unified=0 "${DIFF_REFS[@]}" --)" \
+  || inspection_error "git diff --unified=0 failed for ${DIFF_REFS[*]}; fix the comparison and retry."
+ADDED="$(sed -n '/^+++/d; /^+/p' <<< "$PATCH")"
+if [[ "$compare_worktree" -eq 1 ]]; then
+  UNTRACKED="$(git ls-files --others --exclude-standard)" \
+    || inspection_error "git ls-files --others --exclude-standard failed; check the worktree and retry."
+  CHANGED+=$'\n'"$UNTRACKED"
+  while IFS= read -r u; do
+    [[ -n "$u" && -f "$u" ]] || continue
+    ADDED+=$'\n'"$(sed 's/^/+/' "$u")" \
+      || inspection_error "could not read untracked file '$u'; check the file and retry."
+  done <<< "$UNTRACKED"
 fi
 
 if [[ -z "${CHANGED//[[:space:]]/}" ]]; then
@@ -118,14 +143,15 @@ while IFS= read -r fn; do
   [[ -n "$fn" ]] && SURFACE+=("new function: $fn")
 done < <(printf '%s\n' "$ADDED" | grep -oE '^\+[a-z_][a-z0-9_]*\(\)' | sed 's/^+//; s/()//' | sort -u)
 
-# New scripts / config files. Existence is checked against the base ref, or against HEAD in
-# working-tree mode — otherwise an untracked new file is never recognised as new.
-EXIST_REF="${BASE:-HEAD}"
+# A successful tree listing distinguishes absent files from Git errors. cat-file -e cannot: both
+# an absent path and an inspection failure return nonzero, which used to become "new file".
+BASE_FILES="$(git ls-tree -r --name-only "$BASE_COMMIT")" \
+  || inspection_error "git ls-tree failed for base commit '$BASE_COMMIT'; check the repository and retry."
 while IFS= read -r f; do
   [[ -n "$f" ]] || continue
   case "$f" in
     scripts/*.sh|scripts/*.ps1|*.yml|*.yaml|*.toml|*.json)
-      git cat-file -e "${EXIST_REF}:${f}" 2>/dev/null || SURFACE+=("new file: $f")
+      grep -qFx -- "$f" <<< "$BASE_FILES" || SURFACE+=("new file: $f")
       ;;
   esac
 done <<< "$CHANGED"

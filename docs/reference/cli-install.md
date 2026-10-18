@@ -31,7 +31,7 @@ scripts/install.ps1 [PARAMETERS]
 | `--uninstall` | `-Uninstall` | off | Remove wgm and its companions from the resolved targets. |
 | `--force` | `-Force` | off | Overwrite or replace an existing install. |
 | `--no-companions` | `-NoCompanions` | off | Install wgm alone, without `teach-me`, `quiz-me`, and `rugged`. |
-| `--no-agents` | `-NoAgents` | off | Do not install the role-agent adapters. The portable skill and its inline fallback still install. |
+| `--no-agents` | `-NoAgents` | off | Do not install the role-agent adapters. The portable skill still installs; independent review remains required. |
 | `--no-windows` | — | off | WSL only: do not mirror into your Windows home. |
 | `--windows-home P` | — | auto-detect | WSL only: mirror into Windows home `P`. |
 | — | `-NoWsl` | off | Windows only: force a native install instead of delegating to WSL. |
@@ -83,7 +83,9 @@ Three rules keep this honest:
   [harness portability](../../references/harness-portability.md) for the evidence tiers.
 - **No adapter is a named fallback, not a failure.** A generic `.agents` client, Pi, and any host
   with no subagent primitive get the portable skill and run the docs-audit swarm through
-  `scripts/audit.sh`, or the two review passes inline and sequentially with dissent recorded.
+  `scripts/audit.sh`. Correctness still needs two independent non-author review passes via separate
+  fresh reviewer invocations or an independent human handoff; if unavailable, the gate is blocked.
+  Inline ruggedness is a separate permitted fallback, never correctness self-review.
 - **`--dir` guesses nothing.** It names a path, not a host, so it installs the skill only and says
   so. Pass `--user` or `--project` with `--client copilot|claude|all` to get adapters.
 
@@ -244,7 +246,7 @@ different code from one release while each checksum verified on its own.
 Download the archive and the checksum manifest into the same directory:
 
 ```bash
-tag=v0.5
+tag=v0.5.1
 base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
 curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
@@ -269,7 +271,7 @@ extension and is absent from the `shasum` on older macOS.
 
 ```powershell
 # Windows PowerShell
-$tag = 'v0.5'
+$tag = 'v0.5.1'
 (Get-FileHash "wgm-$tag.tar.gz" -Algorithm SHA256).Hash.ToLower()
 Select-String -Path SHA256SUMS -Pattern "wgm-$tag.tar.gz"
 ```
@@ -303,7 +305,7 @@ corrupted download or a replaced asset, and both are worth a report.
 |---|---|
 | `schema_version` | Shape of this record. Bumped whenever fields change, so an old reader refuses rather than guesses. |
 | `channel` | `stable` today. `edge` is reserved and must be set explicitly if it is ever used. |
-| `version` / `tag` | The skill version (`0.5`) and its tag (`v0.5`). The workflow fails if they disagree with `SKILL.md`. |
+| `version` / `tag` | The skill version (`0.5.1`) and its tag (`v0.5.1`). The workflow fails if they disagree with `SKILL.md`. |
 | `commit` | The full 40-character commit sha the tag points at — the content-addressed anchor of the release. |
 | `published_at` / `generated_at` | RFC 3339 UTC timestamps for publication and record generation. |
 | `minimum_updater_schema` | The lowest updater implementation able to read this record. |
@@ -331,7 +333,7 @@ fails if they are not there (exit 2 when `--dist` does not exist at all, exit 1 
 holds no archives):
 
 ```bash
-tag=v0.5
+tag=v0.5.1
 git checkout "${tag}"          # generate from the tagged tree, not from your working branch
 mkdir -p dist
 tar --exclude-vcs --exclude=./dist -czf "dist/wgm-${tag}.tar.gz" .
