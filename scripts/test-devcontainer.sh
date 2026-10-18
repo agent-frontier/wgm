@@ -147,13 +147,19 @@ else
     fail "build-base did not skip the rebuild (rc=$RC)"
   fi
 
-  # 12) run actually executes inside the sandbox: proves the bind-mount + non-root user
+  # 12) Preserve the caller's numeric identity and writable mount, not the image's username.
   echo "marker-file-contents" > proof.txt
-  run run --container "$ENGINE" --tag "$TEST_TAG" -- sh -c 'whoami; cat /workspace/proof.txt'
-  if [[ "$RC" -eq 0 ]] && grep -q "^wgm$" <<<"$OUT" && grep -q "marker-file-contents" <<<"$OUT"; then
-    pass "run executes the command sandboxed with the workspace bind-mounted"
+  run run --container "$ENGINE" --tag "$TEST_TAG" -- sh -c '
+    printf "uid="; id -u
+    printf "gid="; id -g
+    cat /workspace/proof.txt
+    printf "sandbox-write\n" > /workspace/written.txt'
+  if [[ "$RC" -eq 0 ]] && grep -Fxq "uid=$(id -u)" <<<"$OUT" && grep -Fxq "gid=$(id -g)" <<<"$OUT" \
+     && grep -Fxq "marker-file-contents" <<<"$OUT" \
+     && [[ -O written.txt && -G written.txt ]] && grep -Fxq "sandbox-write" written.txt; then
+    pass "run preserves host UID:GID and a writable workspace bind-mount"
   else
-    fail "run did not execute correctly inside the sandbox (rc=$RC): $OUT"
+    fail "run did not preserve host UID:GID and writable mount (expected=$(id -u):$(id -g), rc=$RC): $OUT"
   fi
 
   # 13) run propagates the sandboxed command's own exit code
