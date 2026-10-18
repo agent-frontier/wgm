@@ -44,7 +44,7 @@ Verify a download before trusting it. Fetch the archive and `SHA256SUMS` into th
 then use whichever tool your platform ships:
 
 ```bash
-tag=v0.4
+tag=v0.5
 base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
 curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
@@ -59,8 +59,8 @@ the recipe above pipes a single line instead of checking the whole manifest.
 
 ```powershell
 # Windows PowerShell
-(Get-FileHash "wgm-v0.4.tar.gz" -Algorithm SHA256).Hash.ToLower()
-Select-String -Path SHA256SUMS -Pattern 'wgm-v0.4.tar.gz'
+(Get-FileHash "wgm-v0.5.tar.gz" -Algorithm SHA256).Hash.ToLower()
+Select-String -Path SHA256SUMS -Pattern 'wgm-v0.5.tar.gz'
 ```
 
 **What this proves.** That the archive you hold is byte-for-byte what the release's own checksums
