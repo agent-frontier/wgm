@@ -5,7 +5,7 @@ license: MIT
 compatibility: Optional Podman or Docker (OCI) for containerized scenario validation; none otherwise.
 metadata:
   author: Agent Frontier Store
-  version: "0.5"
+  version: "0.5.1"
 ---
 
 # wgm
