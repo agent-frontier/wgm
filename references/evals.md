@@ -29,8 +29,8 @@ per run (see `evaluating-skills.mdx`'s "Spawning runs"). Until then, both fixtur
 maintainer or a future automated judge; only their *shape* is checked mechanically today.
 
 ## What's in `evals/evals.json`
-Eleven cases against wgm's own `SKILL.md`, following the upstream schema (`skill_name`, `evals[]` of
-`id` / `prompt` / `expected_output` / optional `files` / `assertions`).
+Cases against wgm's own `SKILL.md`, following the upstream schema (`skill_name`, `evals[]` of `id` /
+`prompt` / `expected_output` / optional `files` / `assertions`), grouped below:
 
 The five lifecycle cases:
 1. A full-lifecycle greenfield build — proves Triage → Grill → Plan → Loop actually happens, with a
@@ -43,7 +43,7 @@ The five lifecycle cases:
 
 The six ruggedness-gate cases (`SKILL.md`, "The ruggedness gate"), one per distinction the gate has
 to make — a mandatory gate with no fixture coverage decays into a suggestion, so
-`scripts/test-check-evals.sh` asserts all six ids stay present and that each verdict is asserted on:
+`scripts/test-check-evals.sh` pins all six ids and the three verdict-defining assertions:
 6. A Plan-exit with a **RUGGED** readiness verdict — proves the gate passes on plan-readiness
    evidence (an exact runnable check design), not on field evidence from unwritten code.
 7. A **FRAGILE** verdict — proves it blocks Plan-exit and records a remediation task.
@@ -55,6 +55,26 @@ to make — a mandatory gate with no fixture coverage decays into a suggestion, 
 11. A requested **bypass** — proves the gate is protocol, not a recommendation that a hurried
     operator can wave off.
 
+The six evidence-boundary learning cases (`[learn]` issues #101, #104, #106, #111, #112, #113):
+12. Cross-OS consumer-origin evidence — same-side WSL success is not Windows-origin proof.
+13. Offline proxy vs live service/release evidence — local proxy green does not become public-release proof.
+14. Model→tool omission sentinels — normalize only the documented per-field sentinel at the real boundary.
+15. Embedded-host bootstrap first — a shipped host runtime must start before the integration expands.
+16. Intermediary shell semantics — published command rewrites are proved under the actual shell.
+17. Pinned-SDK async boundaries — delayed/rejected async, detached init, and cleanup go through the real contract.
+
+The three numerical/API/performance learning cases (`[learn]` issues #108, #109, #110):
+18. Performance comparisons — prove equivalent semantics/results before timing, then use warmups,
+    repeated pinned measurements, and disclose compiler/data/environment caveats.
+19. Public mathematical API boundary contracts — undefined or out-of-domain cases need explicit
+    statuses plus deterministic boundary tests before docs promise behavior.
+20. Floating/statistical tolerance contracts — installed-package outputs compare against documented
+    absolute/relative budgets and special-value expectations, not exact decimal strings.
+
+The cleanup learning case (`[learn]` issue #107):
+21. Classify residue before deletion — preserve tracked metrics and concurrent edits; recover only
+    this run's damage from its pre-run baseline.
+
 ## Running an eval by hand
 Per `evaluating-skills.mdx`'s pattern: run the prompt twice — once with wgm loaded, once without (or
 against a previous `SKILL.md` revision) — in a clean context each time, save outputs, then grade each
@@ -64,8 +84,11 @@ a different trade-off than one that's both better and cheaper.
 
 ## Automated grading protocol
 `bash scripts/check-evals.sh` is schema-only (always-on, free, part of `make validate`/CI), and
-`bash scripts/test-check-evals.sh` proves that gate fails closed — plus pins the six ruggedness-gate
-cases in place, the one content assertion the schema check cannot make.
+`bash scripts/test-check-evals.sh` proves that gate fails closed while pinning fixture content the
+schema cannot see. Today that means six ruggedness-case presence checks, three ruggedness
+verdict-content checks, and separate issue-specific id/assertion pins for the evidence-boundary plus
+numerical/API/performance and cleanup lessons above. None of those checks executes wgm; behavioral grading still
+belongs to `scripts/grade-evals.sh`.
 **`scripts/grade-evals.sh`** is the real, opt-in mechanization of the protocol below — it costs real
 agent/API calls, so it is never wired into CI; run it by hand before landing a `SKILL.md`/
 `references/*` change that might affect behavior quality. Design note: it grades a candidate

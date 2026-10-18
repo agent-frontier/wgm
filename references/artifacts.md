@@ -16,6 +16,14 @@ continue the work. Fill them from the templates in `assets/`.
   one-time, team-wide decision meant to be committed and shared — not per-build state. See its own
   section below (which also notes `.wgm/memories.md` as the opposite always-local deviation).
 
+### Residue is not history
+Before final cleanup, use `git ls-files -- <path>`, `git status --short -- <path>`, and
+`git check-ignore --no-index -- <path>` to distinguish tracked history, ignored generated residue,
+and unrelated user files. An ignore rule does not make an already-tracked metrics file disposable.
+Remove only this run's known stale generated files, never the entire `.wgm/` tree. If this run
+overwrote tracked metrics, restore only its changes from the recorded pre-run baseline; preserve
+pre-existing/concurrent edits and stop for review when ownership is uncertain (`[learn]` issue #107).
+
 ## `specs/CONSTITUTION.md` — project-wide principles
 The governing layer: principles every spec, plan, and task must honor — the code-quality bar, the
 testing standard, security/privacy rules, UX consistency, performance budgets, and hard

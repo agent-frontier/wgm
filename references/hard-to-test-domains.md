@@ -11,6 +11,10 @@ Treat the harness as the product's first feature, not an afterthought.
 - **Headless, automated entry.** Add env-gated automation: scripted input, auto-advance past splash/
   menus, and a **fixed step/frame limit** so every run *terminates on its own*. A run that needs a
   human to close it is not a signal.
+- **Embedded hosts bootstrap before expansion.** If the code runs inside a shipped host runtime,
+  first prove a minimal real-host bootstrap against that runtime: loader, listener, and private
+  discovery path. Desktop compile/offline tests are supporting evidence only; keep host-startup
+  failures separate from offline success (`[learn]` issue #111).
 - **Capture the real output and look at it — at full fidelity.** Dump the framebuffer / render to an
   image or text file and **view it**. Do not trust a downscaled or blurry glance: crop and zoom the
   region in question before concluding. (Misreading a shrunk capture sends you debugging a bug that
@@ -161,9 +165,10 @@ browser, editor, or CLI can connect.
 not reachable through the host's Windows interop path, while the same disposable service published
 on all interfaces was reachable at the WSL IPv4 address. **Landed in:**
 `scripts/test-wsl-windows-boundary.sh`, `scripts/test-wsl-reachability.ps1`,
-`scripts/test-wsl-boundary-harness.sh`. **Open validation requirement:** the harness's own failure
-paths are covered on any host, but the Windows-origin leg is still awaiting a run on a Windows+WSL
-machine — until an operator records that run, treat the boundary result as unverified here.
+`scripts/test-wsl-boundary-harness.sh`. **Recorded field evidence:**
+[2026-10-17 Windows+WSL run](https://github.com/agent-frontier/wgm/issues/101#issuecomment-6232032137)
+confirmed the boundary with `seams-overridden=none` and successful page, asset, and WebSocket probes.
+Other hosts/networking modes still need their own Windows-origin evidence.
 
 ## Cross-links
 [`ralph-loop.md`](ralph-loop.md) (backpressure in depth) · [`scoring.md`](scoring.md) (holdout

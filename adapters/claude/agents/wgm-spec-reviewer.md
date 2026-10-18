@@ -29,6 +29,8 @@ self-review is available, treat it as process-only context, not as evidence of c
   expensive failure mode; grep, don't skim.
 - **Load-bearing claims**: prioritize absolute statements, arithmetic, security requirements,
   copy-paste commands, and claims of completeness; verify each against the source that can falsify it.
+- **Evidence labeling**: claims of "real host", "live service", or "released" must match the
+  boundary actually exercised; proxy, local, or PR-green evidence cannot be relabeled upward.
 - **Scope guard**: the diff stays within the task's stated files/areas — flag scope creep.
 - **Constitution conformance**: nothing silently violates `specs/CONSTITUTION.md`; deviations are recorded.
 - **Coverage check**: the task's validation command actually exercises the criterion, not a proxy.
