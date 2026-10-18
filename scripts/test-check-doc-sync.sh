@@ -230,7 +230,7 @@ done
 run_git_failure() {
   local operation="$1" argument="$2"; shift 2
   if OUT="$(
-    # shellcheck disable=SC2329  # Exported for the gate's child Bash, not called in this subshell.
+    # shellcheck disable=SC2317,SC2329  # Exported for the gate's child Bash, not called in this subshell.
     git() {
       if [[ "$1" == "$FAIL_GIT_OPERATION" && ( -z "$FAIL_GIT_ARGUMENT" || "${2:-}" == "$FAIL_GIT_ARGUMENT" ) ]]; then
         printf 'README.md\n'
