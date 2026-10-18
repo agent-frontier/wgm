@@ -210,8 +210,8 @@ the design rationale (why `.github/`, why one-time, why anonymize-always) is in
 
 - **Placement is fixed at `.github/`** — the one placement exception to the root-vs-`.wgm/` split
   among shared, committed deliverables (above), because this is a shared team decision, not per-build
-  scratch. Never write it under `.wgm/` (gitignored/local — it would silently re-ask on every clone or
-  machine) and never treat it as subject to the greenfield-vs-existing-project choice other artifacts
+  scratch. Never write it under `.wgm/` (Triage does not discover it there) and never treat it as
+  subject to the greenfield-vs-existing-project choice other artifacts
   make. (`.wgm/memories.md` below is the opposite deliberate deviation from the plain greenfield-root
   default: it always stays under `.wgm/` because it is always-local scratch, never a shared
   decision.)

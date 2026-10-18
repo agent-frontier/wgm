@@ -146,6 +146,12 @@ genuinely ambiguous in your project that no amount of retrying would resolve.
 
 ## Step 6: Reach the demo-validation task
 
+`build only` stopped after one iteration. After resolving any blocker, resume the remaining tasks:
+
+```
+/wgm build
+```
+
 The last must-have task in every plan runs the spec's smallest end-to-end demo path. wgm will not
 declare a build finished until it passes.
 
