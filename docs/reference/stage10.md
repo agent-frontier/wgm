@@ -10,6 +10,13 @@
 
 > **Offline/fixture boundary:** every shipped Stage 10 harness and the default inspection path is deterministic and local. The execution harness creates branches/worktrees only inside disposable local fixtures. No shipped command silently performs a live provider call, remote mutation, PR operation, merge, deployment, publication, or policy activation.
 
+## Shipped scope and authority
+
+This versioned reference defines the shipped Stage 10 scope at the checked-out revision: the
+commands, artifacts, and gates below, including the separately authorized live-qualification
+contract. A local `.wgm/` plan or generated brief describes one run, not portable scope or live
+authorization. Fixture success does not establish live-provider or release evidence.
+
 ## Artifact map
 
 | Command | Writes | First reader | Bounds / authority |
@@ -173,12 +180,14 @@ bash scripts/test-stage10-live-qualification.sh
 
 ## Run one bounded process
 
-The generic runner is the shared provider-agnostic process contract for later execution adapters. Its
-manifest is structured data, not a shell command:
+The generic runner is the shared provider-agnostic process contract for later execution adapters.
+For this example, use a disposable checkout of this repository with Python 3 on PATH. Save this
+JSON as `run.json` at the repository root, alongside `scripts/`. It only prints literal text;
+no provider, credentials, or network are needed. The manifest is data, not a shell command:
 
 ```json
 {
-  "argv": ["/path/to/fixture-command", "literal; shell punctuation is data"],
+  "argv": ["python3", "-c", "import sys; print(sys.argv[1])", "literal; shell punctuation is data"],
   "cwd": ".",
   "timeout_seconds": 5,
   "evidence": "fixture",
@@ -189,11 +198,15 @@ manifest is structured data, not a shell command:
 Run it from the target repository root with an output path under `.wgm`:
 
 ```bash
-python3 scripts/stage10_runner.py run \\
-  --root . \\
-  --manifest ./run.json \\
+python3 scripts/stage10_runner.py run \
+  --root . \
+  --manifest ./run.json \
   --output .wgm/stage10/runs/result.json
 ```
+
+Expected: exit `0`, `stage10 runner: passed`, and a fixture result at
+`.wgm/stage10/runs/result.json` whose diagnostic is `stdout: literal; shell punctuation is data\n`
+(the newline is escaped).
 
 The runner invokes the exact `argv` vector with `shell=False`, starts it in a new process group,
 drains stdout/stderr while retaining only the configured diagnostic bound, and redacts
@@ -401,7 +414,7 @@ policy activation.
 ## What to do next
 
 - [Run the Ralph loop](../operator/running-the-loop.md) — execute one fresh-context iteration.
-- Read the local `.wgm/STAGE10_ROADMAP.md` and `.wgm/IMPLEMENTATION_PLAN.md` for current offline-slice status and separately authorized future boundaries.
+- [Shipped scope and authority](#shipped-scope-and-authority) — the versioned contract, not a run-local plan.
 - [Gates](gates.md) — see the complete repository validation suite.
 - [Harness portability](../../references/harness-portability.md) — review compatibility evidence.
 - [Stage 10 memory protocol](../../references/stage10-memory.md) — agent-facing record and safety contract.

@@ -12,6 +12,7 @@
 #   4. an unbalanced code fence is detected.
 #   5. a protocol file/phrase array mismatch and an overgrown SKILL.md are detected.
 #   6. local bash harnesses cannot disappear from CI's literal run-command inventory.
+#   7. phase approval, runtime bounds, action categories, scope authority, and governance stay explicit.
 #
 # Probes are written into docs/ and removed again by an EXIT trap, so a failed run cannot leave the
 # working tree dirty.
@@ -24,6 +25,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECK="$ROOT/scripts/check-docs.sh"
 PROBE="$ROOT/docs/_check_docs_probe.md"
 PROTOCOL_TMP="$(mktemp -d)"
+mkdir -p "$PROTOCOL_TMP/home"
+export HOME="$PROTOCOL_TMP/home"
 
 FAILED=0
 pass() { printf 'ok:   %s\n' "$*"; }
@@ -41,6 +44,33 @@ if [[ "$RC" -eq 0 ]] && grep -q "protocol contracts" <<<"$OUT"; then
 else
   fail "the shipped docs tree or protocol contracts unexpectedly failed the gate: $OUT"
 fi
+
+# Positive policy pins alone missed contradictory fallback prose elsewhere. Each old wording
+# must independently turn the gate red even with all required phrases intact, including wraps.
+FALLBACK_PROBES=(
+  $'A named fallback (usually: run the passes inline\nand sequentially, preserving dissent).'
+  $'Role dispatch should fall back cleanly to inline\nsequential passes with dissent preserved.'
+  $'Until then the single agent plays each role\nin sequence per the Loop steps.'
+)
+for i in "${!FALLBACK_PROBES[@]}"; do
+  printf '# probe\n\n%s\n' "${FALLBACK_PROBES[$i]}" > "$PROBE"
+  run_check
+  if [[ "$RC" -eq 1 ]] \
+    && grep -qF "obsolete inline/serial review fallback in docs/_check_docs_probe.md" <<<"$OUT"; then
+    pass "obsolete review fallback variant $((i + 1)) is rejected across line wraps"
+  else
+    fail "obsolete review fallback variant $((i + 1)) escaped the gate (rc=$RC): $OUT"
+  fi
+done
+# The negative guard must not become a ban on the two deliberately permitted fallback paths.
+printf '# probe\n\nInline ruggedness uses the embedded rubric.\nPortable docs-audit dispatch uses scripts/audit.sh with separate contexts.\n' > "$PROBE"
+run_check
+if [[ "$RC" -eq 0 ]]; then
+  pass "inline ruggedness and portable docs-audit fallback remain permitted"
+else
+  fail "permitted ruggedness/docs-audit fallback was rejected (rc=$RC): $OUT"
+fi
+rm -f "$PROBE"
 
 # 1b) deleting a required protocol contract turns an isolated copy of the gate red
 mkdir -p "$PROTOCOL_TMP/repo"
@@ -88,6 +118,58 @@ if [[ "$RC" -ne 0 ]] && grep -q "SKILL.md exceeds the 500-line activation budget
   pass "an overgrown SKILL.md turns the docs gate red"
 else
   fail "SKILL.md line-budget probe did not trip the gate (rc=$RC): $OUT"
+fi
+
+# These load-bearing operator promises must not disappear behind structurally valid Markdown.
+# Reuse the disposable size fixture, restore its protocol, then remove only the new contract text;
+# require a named failure for every mutation, not just a nonzero exit caused by another probe.
+cp "$ROOT/SKILL.md" "$SIZE_TMP/SKILL.md"
+if python3 - "$SIZE_TMP" <<'PY'
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+contracts = [
+    ("README.md", "versioned Stage 10 scope and authority"),
+    ("README.md", "/wgm grill: add a dark-mode toggle"),
+    ("docs/get-started/README.md", "/wgm grill: add a dark-mode toggle"),
+    ("docs/get-started/first-build.md", "/wgm grill: add a --json output flag to the CLI"),
+    ("docs/operator/running-the-loop.md", "Elapsed-runtime limit checked between iterations"),
+    ("docs/reference/cli-loop.md", "Elapsed-runtime limit checked between iterations"),
+    ("scripts/loop.sh", "elapsed-runtime limit checked between iterations"),
+    ("docs/operator/playbook.md", "Category is not assignment or status"),
+    ("docs/reference/stage10.md", "This versioned reference defines the shipped Stage 10 scope"),
+    ("references/subagents.md", "If independent review is unavailable, the gate is blocked."),
+    ("SKILL.md", "if unavailable, the correctness-review gate is blocked."),
+    ("docs/reference/gates.md", "there is no automatic waiver"),
+]
+for name, phrase in contracts:
+    path = root / name
+    text = path.read_text(encoding="utf-8")
+    assert phrase in text, f"shipped contract missing: {name}: {phrase}"
+    path.write_text(text.replace(phrase, "removed contract"), encoding="utf-8")
+result = subprocess.run(["bash", str(root / "scripts/check-docs.sh")],
+                        capture_output=True, text=True, timeout=120)
+assert result.returncode == 1, result.stdout + result.stderr
+for name, phrase in contracts:
+    expected = f"protocol contract is missing from {root / name}: {phrase}"
+    assert expected in result.stderr, f"mutation escaped: {name}: {phrase}\n{result.stderr}"
+PY
+then
+  pass "removing each operator/governance contract produces its own named failure"
+else
+  fail "an operator/governance contract was missing or its deletion escaped the docs gate"
+fi
+
+# Help is published from loop.sh's header; pin the actual output so another live copy cannot keep
+# promising a whole-loop deadline while the implementation only checks between iterations.
+OUT="$(bash "$ROOT/scripts/loop.sh" --help 2>&1)"; RC=$?
+if [[ "$RC" -eq 0 ]] && grep -qF "elapsed-runtime limit checked between iterations" <<<"$OUT" \
+  && grep -qF "no global deadline" <<<"$OUT" && grep -qF -- "--agent-timeout-seconds" <<<"$OUT"; then
+  pass "loop help separates the between-iteration limit from the per-agent watchdog"
+else
+  fail "loop help lost the existing runtime-boundary contract (rc=$RC): $OUT"
 fi
 
 # 1e) CI must run local harnesses; comments, step names, and echo text are not invocations.

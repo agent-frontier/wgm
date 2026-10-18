@@ -96,10 +96,10 @@ it on a Standard/Full-track build. Full mechanics: [`references/docs-audit.md`](
 - **What's in it, top to bottom:** four persona sections (junior dev → clarity, senior dev →
   correctness, principal dev → architecture, PM → status/risk), then one consolidated section from
   the technical-writer role.
-- **What you actually act on:** the consolidated **Operator action** table — these are the items that
-  need your decision, confirmation, or access. The **Agent action** table is informational: those
-  items were either already fixed in this run or are queued as a follow-up task the agent will do
-  itself — you don't need to do them.
+- **Category is not assignment or status.** **Operator action** means a decision, confirmation, or
+  access is needed; **Agent action** means an agent can implement the correction. Neither label
+  means assigned, queued, or completed. Check each item's owner, task link, status, and validation
+  evidence; arrange follow-up for unassigned or unresolved items in either table.
 - **Check the Dissent section.** If two personas disagreed, it's recorded there rather than
   smoothed over. A recorded dissent is not a failure — it's the signal working as intended; use your
   judgment to resolve it or leave it open.

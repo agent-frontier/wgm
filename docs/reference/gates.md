@@ -56,9 +56,12 @@ Required keys come from `--trailer` flags, or one-per-line from `.wgm/required-t
 `.github/required-trailers`. With neither present the check is an explicit no-op — this is opt-in
 governance, not an imposed policy.
 
-**Caution:** If a non-compliant merge is already published, do not rewrite shared history. Build a
-replacement two-parent merge from the same parents with the trailers present, and prove
-`old^{tree} == replacement^{tree}` before promoting it.
+**Caution:** If a non-compliant commit is already published, do not rewrite shared history or
+promote a sibling replacement merge. Record the offending SHA, missing trailers, and a forward-only
+correction/attestation. Handoff stays blocked pending an explicit, recorded maintainer decision;
+there is no automatic waiver. A later attestation does not erase the original violation: the checker
+remains RED for any audit range containing it. Prevent future violations with explicit merge
+`--subject`/`--body` trailers before publishing.
 
 ### check-doc-sync.sh
 
@@ -119,7 +122,7 @@ operator authorization and `--allow-live` path.
 | `test-install.ps1` | The same, for the PowerShell installer |
 | `test-plugin-registry.sh` | Isolated no-dependency discovery and execution of a real plugin `invoke` handler through `wgm_plugin_registry.py` |
 | `test-stage10-memory.sh` | Deterministic Stage 10 observations, system map, human brief, safe host signals, standing, migration, redaction, staleness, and `.wgm` confinement |
-| `test-stage10-runner.sh` | Direct argv execution, process-group timeout cleanup, bounded/redacted diagnostics, safe environment input, evidence classification, and path/authority confinement |
+| `test-stage10-runner.sh` | Published JSON/Bash example executed unchanged; direct argv execution, process-group timeout cleanup, bounded/redacted diagnostics, safe environment input, evidence classification, and path/authority confinement |
 | `test-stage10-qualification.sh` | Phase-aware harness qualification, bounded commands, fixture/live separation, timeout handling, redacted diagnostics, and `.wgm` confinement |
 | `test-stage10-live-qualification.sh` | Offline test doubles proving manifest opt-in, explicit confirmation, exact scope/hash/expiry/budget authorization, T10-backed execution, and fixture/live evidence separation |
 | `test-stage10-router.sh` | Transparent capability/evidence filtering, deterministic route ordering, decision cards, and safe output confinement |
@@ -136,8 +139,8 @@ operator authorization and `--allow-live` path.
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
 | `test-check-evals.sh` | The schema gate rejects unknown and missing keys, and the shipped fixture keeps its pinned ruggedness, evidence-boundary, numerical/API/performance, and cleanup ids and assertions |
 | `test-check-harnesses.sh` | The harness-contract gate rejects an invalid status, a missing discovery path, a `Verified` entry with no evidence, malformed JSON, a deleted harness entry, and a duplicate id — while still accepting a valid `Degraded` entry |
-| `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, blank marked-table cells, and missing local harnesses in CI; comments/echoes do not satisfy inventory parity, while literal run blocks do |
-| `test-check-trailers.sh` | The trailer audit catches a bare generated merge commit |
+| `test-check-docs.sh` | The docs gate rejects missing phase/runtime/action/authority/governance contracts, mojibake, broken links, unbalanced fences, blank marked-table cells, and missing local harnesses in CI; comments/echoes do not satisfy inventory parity, while literal run blocks do |
+| `test-check-trailers.sh` | Bare generated merges fail; forward-only attestations preserve history and cannot clear the original violation |
 | `test-check-doc-sync.sh` | Undocumented surface is caught; valid default/ref/HEAD, staged/unstaged/untracked, and advisory paths are preserved; invalid/non-commit refs and injected Git inspection failures cannot become GREEN or advisory success |
 
 **Note:** A gate is only proven by watching it go **red** on the class it claims to catch. A

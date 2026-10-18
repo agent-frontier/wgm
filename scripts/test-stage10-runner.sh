@@ -25,7 +25,8 @@ command -v git >/dev/null 2>&1 || { fail "git is required"; exit 1; }
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/wgm-stage10-runner.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 PROJECT="$TMP/project"
-mkdir -p "$PROJECT/work" "$TMP/bin" "$TMP/outside"
+mkdir -p "$PROJECT/work" "$TMP/bin" "$TMP/outside" "$TMP/home"
+export HOME="$TMP/home"
 
 cat >"$TMP/bin/pass" <<'EOF'
 #!/usr/bin/env bash
@@ -323,6 +324,52 @@ then
   pass "live execution is refused without an explicit authority envelope"
 else
   fail "unauthorized live evidence was executed or promoted (rc=$RC): $OUT"
+fi
+
+# The published JSON and Bash, not a reconstructed invocation, must work together. A disposable
+# path with spaces and an isolated HOME catch quoting/setup defects without calling any provider.
+if PYTHONDONTWRITEBYTECODE=1 python3 - "$ROOT" "$TMP/doc project" <<'PY'
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+root, project = map(Path, sys.argv[1:])
+section = (root / "docs/reference/stage10.md").read_text(encoding="utf-8").split(
+    "## Run one bounded process\n", 1
+)[1].split("\n## ", 1)[0]
+manifest_text = re.search(r"^```json\n(.*?)^```", section, re.M | re.S).group(1)
+command = re.search(r"^```bash\n(.*?)^```", section, re.M | re.S).group(1)
+(project / "scripts").mkdir(parents=True)
+shutil.copy2(root / "scripts/stage10_runner.py", project / "scripts/stage10_runner.py")
+manifest_path = project / "run.json"
+manifest_path.write_text(manifest_text, encoding="utf-8")
+print("Published Stage 10 block (executed unchanged):\n" + command, flush=True)
+result = subprocess.run(
+    ["bash", "-e", "-c", command], cwd=project, env=os.environ.copy(),
+    capture_output=True, text=True, timeout=15,
+)
+print(result.stdout + result.stderr, end="", flush=True)
+assert result.returncode == 0, f"published block exited {result.returncode}"
+row = json.loads((project / ".wgm/stage10/runs/result.json").read_text(encoding="utf-8"))
+manifest = json.loads(manifest_text)
+assert row["status"] == "passed" and row["exit_code"] == 0
+assert row["shell"] is False and row["argv"] == manifest["argv"]
+assert row["cwd"] == str(project) and row["evidence_class"] == "fixture"
+assert row["timeout_seconds"] == 5
+# The runner labels and newline-escapes diagnostics rather than storing raw stdout.
+assert row["diagnostic"] == "stdout: literal; shell punctuation is data\\n", row["diagnostic"]
+assert row["manifest_sha256"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+print("Published result: passed; exit=0; shell=false; evidence=fixture; manifest hash matches")
+PY
+then
+  pass "the actual Stage 10 documentation block runs with its published harmless manifest"
+else
+  fail "the published Stage 10 setup/command did not produce the promised fixture result"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

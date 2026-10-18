@@ -32,8 +32,23 @@ $script:fail = 0
 function Ok($m) { Write-Host "ok:   $m"; $script:pass++ }
 function Bad($m) { Write-Warning "FAIL: $m"; $script:fail++ }
 
+# A no-adapter install cannot waive correctness review; pin the handoff and the two distinct
+# permitted fallbacks in actual installer output, not just in the source comments.
+function HasReviewHandoff([string]$text) {
+  return ($text.Contains('separate fresh non-author reviewers') -and
+    $text.Contains('human handoff') -and $text.Contains('blocked if unavailable') -and
+    $text.Contains('scripts/audit.sh') -and $text.Contains('ruggedness is separate') -and
+    -not $text.Contains('inline sequential review'))
+}
+
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ('wgm-pstest-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $work | Out-Null
+$originalHome = $env:HOME
+$originalUserProfile = $env:USERPROFILE
+$fixtureHome = Join-Path $work 'home'
+New-Item -ItemType Directory -Force -Path $fixtureHome | Out-Null
+$env:HOME = $fixtureHome
+$env:USERPROFILE = $fixtureHome
 
 try {
   # ---- A: native install + idempotent re-run --------------------------------
@@ -44,8 +59,11 @@ try {
   else { Bad 'A1 expected SKILL.md under the -Dir target' }
 
   $outA = (& pwsh -NoProfile -File $installPs -NoWsl -Dir $dirA -Client agents 2>&1 | Out-String)
+  $rcA = $LASTEXITCODE
   if ($outA -match 'updating existing wgm install') { Ok 'A2 re-run idempotently updates a recognized install (no -Force)' }
   else { Bad 'A2 expected an "updating existing wgm install" line on re-run' }
+  if ($rcA -eq 0 -and (HasReviewHandoff $outA)) { Ok 'A3 no-adapter install requires independent review or a blocked handoff' }
+  else { Bad 'A3 no-adapter summary lost the independent-review boundary' }
 
   # ---- B: unrecognized directory is preserved without -Force ----------------
   $dirB = Join-Path $work 'b'
@@ -243,13 +261,20 @@ esac
     New-Item -ItemType Directory -Force -Path $sandboxH | Out-Null
     $env:HOME = $sandboxH
     $env:USERPROFILE = $sandboxH
-    & pwsh -NoProfile -File $installPs -NoWsl -User -Client all -NoAgents *> $null
+    $outH = (& pwsh -NoProfile -File $installPs -NoWsl -User -Client all -NoAgents 2>&1 | Out-String)
+    $rcH = $LASTEXITCODE
     $g4 =
       (Test-Path (Join-Path $sandboxH '.copilot/skills/wgm/SKILL.md')) -and
       -not (Test-Path (Join-Path $sandboxH '.copilot/agents')) -and
       -not (Test-Path (Join-Path $sandboxH '.claude/agents'))
     if ($g4) { Ok 'G4 -NoAgents installs the portable skill and no adapters' }
     else { Bad 'G4 -NoAgents still produced adapter directories' }
+    if ($rcH -eq 0 -and (HasReviewHandoff $outH)) { Ok 'G4 opting out of adapters does not waive independent review' }
+    else { Bad 'G4 -NoAgents summary lost the blocked independent-review handoff' }
+
+    $dryH = (& pwsh -NoProfile -File $installPs -NoWsl -User -Client agents -DryRun 2>&1 | Out-String)
+    if ($LASTEXITCODE -eq 0 -and (HasReviewHandoff $dryH)) { Ok 'G4 generic-client dry-run separates review, docs audit, and ruggedness' }
+    else { Bad 'G4 dry-run note lost the blocked independent-review handoff' }
 
     # A receipt that travelled through Windows tooling has CRLF endings and may lose its final
     # newline. That must not strand wgm's own files or endanger anybody else's.
@@ -382,6 +407,8 @@ esac
 }
 finally {
   $env:WSL_FAKE_LOG = $null
+  $env:HOME = $originalHome
+  $env:USERPROFILE = $originalUserProfile
   Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 }
 

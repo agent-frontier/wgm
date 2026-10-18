@@ -43,7 +43,8 @@
 #   --source DIR         exemplar dir for `extract` (gene transfusion)
 #   --escalate-after N   consecutive no-progress iterations before escalating (default: 2)
 #   --downgrade-after N  consecutive progressing iterations before downgrading to frugal (default: 5)
-#   --max-runtime-seconds N  hard wall-clock cap for the whole loop; 0 = unlimited (default: 0)
+#   --max-runtime-seconds N  elapsed-runtime limit checked between iterations; active work can
+#                           overrun it; no global deadline; 0 = unlimited (default: 0)
 #   --idle-timeout N     stop if the plan makes no progress for N seconds; 0 = disabled (default: 0)
 #   --max-no-progress-iterations N
 #                        fail a build after N successful iterations leave the plan unchanged;

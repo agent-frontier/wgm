@@ -330,10 +330,10 @@ stop condition fires. **One task per iteration.** Each iteration:
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
    actually prove the task (not just "didn't crash")? Run **two independent reviewer passes** —
    spec-compliance then code-quality — and ensure neither reviewer produced the artifact it is
-   judging. A self-critique may cover process, cost, scope, and missing measurements, but it cannot
-   satisfy an adversarial correctness-review gate; point the independent reviewer at load-bearing
-   claims instead (`references/subagents.md`). **Preserve dissent:** record a reviewer's non-blocking
-   reservation or a disagreement between the two as a follow-up, never a silent PASS.
+   judging. Without native dispatch, use separate fresh non-author reviewers or a human handoff;
+   if unavailable, the correctness-review gate is blocked. Self-critique cannot satisfy an
+   adversarial correctness-review gate. Give reviewers load-bearing claims (`references/subagents.md`).
+   **Preserve dissent:** record reservations or disagreement as a follow-up, never a silent PASS.
    **Verify claims against the code, don't skim them:** a `done` in the plan — especially one written
    by a swarm lane — is an *unverified assertion*. For each acceptance bullet, check the artifact:
    does the named file exist, does the claimed symbol/constant/branch actually appear, does the named
@@ -379,8 +379,8 @@ bloated, stop and hand off through the plan (Phase 4) rather than grinding (`ref
 validation command was run and **exited 0** · result recorded · diff reviewed for scope creep +
 acceptance · **exactly one ruggedness verdict recorded for this diff, and it is RUGGED** · plan
 updated · exactly one task advanced. A task may be marked `done` **only if its validation command
-exited 0** and its ruggedness verdict is RUGGED; otherwise set it `blocked` (with a note) or leave
-it `pending`, with the remediation (FRAGILE) or validation-signal (UNKNOWN) task recorded.
+exited 0**, both non-author reviewers PASS, and its ruggedness verdict is RUGGED.
+Otherwise record a blocker and any remediation (FRAGILE) or validation-signal (UNKNOWN) task.
 
 **Stop conditions:** all must-have tasks `done` (including the demo-validation task) **and overall
 satisfaction ≥ threshold (default 95)**; or a stall persists after wonder/reflect + escalation (~3
@@ -416,10 +416,10 @@ next iteration is a consolidation task (help land existing PRs), not another net
   commits**: pass `gh pr merge --merge` an explicit `--subject`/`--body` whose final block carries
   the trailers, and audit every introduced commit (`scripts/check-trailers.sh`, or `git rev-list
   <base>..HEAD` + `git show -s --format=%B`). A generated merge commit is the usual offender — every
-  head commit complies and the merge button's synthesised commit does not. If a non-compliant merge
-  is **already published, do not rewrite shared history**: build a replacement two-parent merge from
-  the same parents with the trailers present and prove `old^{tree} == replacement^{tree}` before
-  promoting it (`[learn]` issue #82).
+  head commit complies and the merge button's synthesised commit does not. For an **already-published**
+  violation, preserve history, record the offending SHA and a forward-only correction/attestation,
+  and block handoff pending an explicit maintainer decision — never an automatic waiver. A sibling
+  merge cannot erase the violation; the checker stays RED for a range containing it (`[learn]` #82).
 - **Audit the docs — mandatory lifecycle evidence (Standard/Full).** Run the docs-audit swarm: four
   independent persona reviews (junior dev · senior dev · principal dev · PM), consolidated by a
   technical-writer role into one paper-trail report — every action item labeled strictly **Agent

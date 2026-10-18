@@ -59,7 +59,9 @@ loop, with progress living on disk (not the model's context) between passes
 2. **Implement** — smallest change that completes one task; prefer a working vertical slice.
 3. **Validate** — run the task's backpressure command. Green or it isn't done.
 4. **Review** — diff check: scope creep, acceptance met, signal actually proves the task. Record
-   the iteration's **ruggedness verdict** (below) — no verdict, no `done`.
+   the iteration's **ruggedness verdict** (below) and both independent non-author review passes —
+   neither is optional. Without native dispatch, use separate fresh reviewers or a human handoff;
+   unavailable independent review blocks `done` (`references/subagents.md`).
 5. **Record** — update the plan: status, results, follow-ups. Once the task's validation
    command exits 0, commit that iteration with a Conventional Commits message (`type: imperative
    description`, ≤72 chars; `fix` / `feat` / `refactor` / `docs` / `test` / `chore` / `build` /
@@ -201,7 +203,7 @@ track, not an optional extra (`SKILL.md`, "The ruggedness gate"; `references/art
   simplification · the exact runnable check with its expected observation and recovery criterion ·
   one verdict — and record both the verdict and the missing capability. An absent companion is a
   recorded fallback, not a pass, and a serial single-agent host runs the identical rubric
-  (`references/subagents.md`).
+  (`references/subagents.md`). Inline ruggedness is not an independent correctness-review fallback.
 - **Review evidence is real, Plan-exit evidence is a design.** In the loop the implementation exists,
   so a promised future check is not evidence: execute or inspect the actual field/stress result. The
   weaker plan-readiness standard (an exact runnable check *design*) belongs to Plan-exit only.
@@ -210,6 +212,9 @@ track, not an optional extra (`SKILL.md`, "The ruggedness gate"; `references/art
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent recurring loop failures:
+- **Runtime limit is not a global deadline.** `--max-runtime-seconds` is checked between iterations;
+  probes, active work, retries, gates, and hooks can overrun it. `--agent-timeout-seconds` is the
+  separate per-agent watchdog, with termination only when GNU `timeout`/`gtimeout` is available.
 - **Classify residue before cleanup.** Tracked historical metrics are not disposable lane output,
   even under an ignored directory. Remove only known task-owned stale files, preserve unrelated
   changes, and recover any history this run overwrote from its pre-run baseline, not a blanket

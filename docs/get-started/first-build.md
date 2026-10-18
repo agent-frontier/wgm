@@ -28,9 +28,10 @@ Invoke wgm with a deliberately rough request. You do not need to be precise; bei
 the point of the next phase.
 
 ```
-/wgm add a --json output flag to the CLI
+/wgm grill: add a --json output flag to the CLI
 ```
 
+The phase-stopped `grill:` invocation ends after alignment, not after implementation.
 wgm begins at **Triage**, where it states the track it chose:
 
 ```
@@ -72,7 +73,14 @@ assumptions in the spec instead of asking.
 
 ## Step 3: Read the plan before any code exists
 
-wgm writes its artifacts and **stops**. This is the Plan-exit gate, and it is deliberate.
+After Grill-exit, explicitly invoke the single planning phase:
+
+```
+/wgm plan
+```
+
+wgm writes its artifacts and **stops** at Plan-exit. This approval pause comes from the phase-stopped
+invocations; a bare `/wgm REQUEST` can advance through passing gates without another human pause.
 
 Open the active `IMPLEMENTATION_PLAN.md` (root or `.wgm/`). Each task should name four things:
 
@@ -92,7 +100,8 @@ shaped to pass its own grader.
 
 ## Step 4: Approve, and let one iteration run
 
-Tell wgm to proceed. Each iteration does exactly five things:
+After approving the plan, invoke `/wgm build only` for exactly one iteration.
+Each iteration does exactly five things:
 
 ```mermaid
 flowchart LR

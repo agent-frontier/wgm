@@ -131,7 +131,7 @@ capability probing and the no-progress safety guard are on by default:
 
 | Flag | Default | Effect |
 |---|---|---|
-| `--max-runtime-seconds N` | 0 (off) | Hard wall-clock cap; the loop stops before the iteration that would exceed it. |
+| `--max-runtime-seconds N` | 0 (off) | Elapsed-runtime limit checked between iterations; once reached, no next iteration starts. Active work can overrun it. |
 | `--idle-timeout N` | 0 (off) | Stop if the plan file makes no progress for N seconds — a time-based circuit breaker. |
 | `--agent-timeout-seconds N` | 0 (off) | Terminate an active agent process group after N seconds with GNU `timeout`/`gtimeout`; unsupported hosts use a stated cooperative fallback. |
 | `--max-no-progress-iterations N` | 3 | Fail after N successful build iterations leave the plan unchanged; `0` disables it. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |
@@ -141,6 +141,10 @@ capability probing and the no-progress safety guard are on by default:
 
 `--notify` is shell-evaluated like `--agent`, so set it only to a command you trust; its own failure
 never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`.
+
+The runtime limit is not a global deadline: it does not interrupt a capability probe, active agent,
+retry/backoff, project gate, or hook. Use `--agent-timeout-seconds` for each agent invocation's
+watchdog; it does not bound the whole loop and requires GNU `timeout`/`gtimeout` for termination.
 
 ### Resilience — retries & circuit breaker
 

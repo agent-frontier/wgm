@@ -114,7 +114,7 @@ and reinstalls in one step.
 |---|---|
 | **Symptom** | The installer prints that the `.agents` client gets no role adapters, or the host is Pi and nothing was written. |
 | **Cause** | Not a failure. The Agent Skills standard defines skills, not subagents, and Pi ships without a subagent primitive by design, so wgm refuses to invent a directory no host reads. |
-| **Resolution** | Use the named fallback: run the docs-audit swarm with `bash scripts/audit.sh`, and run the two review passes inline and sequentially in one context, recording that independence was weaker. The deterministic gate is unchanged. Which host supports what is recorded in `compatibility/harnesses.json`. |
+| **Resolution** | Use `bash scripts/audit.sh` for the docs-audit swarm. Correctness still needs two independent non-author review passes: use separate fresh reviewer invocations or an independent human handoff; if unavailable, the gate is blocked. Inline ruggedness remains permitted but is not correctness self-review. Capabilities and evidence are recorded in `compatibility/harnesses.json`. |
 
 ### The installer says "exists and is not wgm's"
 
@@ -156,7 +156,7 @@ and reinstalls in one step.
 |---|---|
 | **Symptom** | `build` keeps iterating indefinitely. |
 | **Cause** | `build` defaults to unlimited iterations. |
-| **Resolution** | Pass a max (`build 20`), cap it with `--max-runtime-seconds` or `--idle-timeout`, create a `.wgm/STOP` sentinel, or press Ctrl+C. In a healthy run the agent drops the sentinel itself when no must-have task remains. |
+| **Resolution** | Pass a max (`build 20`), set the between-iteration `--max-runtime-seconds` limit or `--idle-timeout`, create a `.wgm/STOP` sentinel, or press Ctrl+C. These checks do not interrupt active work; the separate `--agent-timeout-seconds` watchdog needs GNU `timeout`/`gtimeout` for termination. In a healthy run the agent drops the sentinel itself when no must-have task remains. |
 
 ### Model escalation is not kicking in
 

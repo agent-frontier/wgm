@@ -44,6 +44,8 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/home"
+export HOME="$TMP/home"
 
 run_on() {  # $1 = fixture path; sets OUT/RC without tripping set -e
   OUT="$(WGM_EVALS_FIXTURE="$1" bash "$CHECK" 2>&1)"; RC=$?
@@ -236,6 +238,19 @@ pin_case_assertions \
   cleanup-preserves-tracked-history "Tracked history, ignored generated residue, and unrelated user files are classified before cleanup" \
   cleanup-preserves-tracked-history "Only known run-owned stale generated files are removed; tracked metrics and concurrent user edits are preserved" \
   cleanup-preserves-tracked-history "Recovery uses the recorded pre-run baseline for this run's changes, never a blanket deletion or reset to HEAD"
+
+# Correctness independence and immutable publication cannot become weaker fallback paths. Keep
+# every distinction pinned; fixture presence or schema-valid generic prose is not sufficient.
+pin_case_ids "the review/history governance cases are present" "governance case(s)" \
+  non-author-review-without-native-dispatch published-trailer-forward-only
+pin_case_assertions \
+  "review/history cases retain non-author blocking and forward-only handling" "governance case(s)" \
+  non-author-review-without-native-dispatch "Both correctness-review passes require non-author reviewers via separate fresh invocations or an independent human handoff" \
+  non-author-review-without-native-dispatch "Unavailable independent review blocks the gate and done; serial author self-review is not a PASS" \
+  non-author-review-without-native-dispatch "Inline ruggedness remains permitted when the companion is missing, and scripts/audit.sh remains the separate docs-audit fallback" \
+  published-trailer-forward-only "Published history is preserved: no sibling replacement promotion, force push, or history rewrite" \
+  published-trailer-forward-only "The offending SHA and a forward-only correction/attestation are recorded; handoff is blocked pending an explicit maintainer decision with no automatic waiver" \
+  published-trailer-forward-only "The trailer checker stays RED for a range containing the original violation even after an attestation"
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-evals harness: GREEN"

@@ -50,13 +50,13 @@
       "name_style": null,
       "user_dir": null,
       "project_dir": null,
-      "notes": "The Agent Skills standard defines skills, not subagents, so there is no directory to install a role definition into and wgm invents none. These clients get the portable skill plus the explicit fallback: scripts/audit.sh for the docs-audit swarm, and inline sequential review passes with dissent preserved (references/subagents.md)."
+      "notes": "The Agent Skills standard defines skills, not subagents, so there is no directory to install a role definition into and wgm invents none. These clients get scripts/audit.sh for docs audit. Correctness requires separate fresh non-author reviewers or an independent human handoff; the gate is blocked if unavailable. Inline ruggedness remains a separate permitted fallback (references/subagents.md)."
     }
   ],
   "fallback": {
     "when": "The host has no subagent primitive, or wgm ships no adapter for its format.",
     "docs_audit": "scripts/audit.sh — dispatches all five docs-audit roles through the host's documented headless command.",
-    "review": "Run the two review passes inline and sequentially in one context and record that independence was weaker, as references/subagents.md prescribes.",
+    "review": "Require two independent non-author review passes via separate fresh reviewer invocations or an independent human handoff; the gate is blocked if unavailable. Preserve dissent. Inline ruggedness and scripts/audit.sh docs-audit dispatch are distinct permitted fallbacks, not correctness self-review (references/subagents.md).",
     "notes": "A missing adapter is a named degradation with a named fallback, never a claim that wgm does not run there."
   },
   "roles": [

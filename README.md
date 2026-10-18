@@ -38,9 +38,9 @@ python3 scripts/stage10_memory.py lint --root .
 bash scripts/test-stage10-memory.sh
 ```
 
-`inspect` writes `.wgm/stage10/observations.jsonl` and `.wgm/stage10/brief.md` and exits `0` on success. `lint` exits `0` for a current, valid brief and nonzero when records are malformed, suspicious, or stale. The canonical memory gate is `bash scripts/test-stage10-memory.sh`; inspect/lint are the real-checkout refresh and diagnostic commands. The brief is the human entry point; raw JSONL is the machine source. The brief is bounded to 120 lines and 16,000 bytes. If lint reports changed sources, rerun inspect; if the current harness is unknown, do not infer it from executable presence. The offline Stage 10 qualification, routing, experiment comparison, learned-policy comparison, and end-to-end gates are documented in [`docs/reference/stage10.md`](docs/reference/stage10.md); the inspection allowlist is `SAFE_ENV_KEYS` in [`scripts/stage10_memory.py`](scripts/stage10_memory.py). Live execution, branch/worktree creation, PR creation, and policy activation remain explicit human-authorized boundaries.
+`inspect` writes `.wgm/stage10/observations.jsonl` and `.wgm/stage10/brief.md` and exits `0` on success. `lint` exits `0` for a current, valid brief and nonzero when records are malformed, suspicious, or stale. The canonical memory gate is `bash scripts/test-stage10-memory.sh`; inspect/lint are the real-checkout refresh and diagnostic commands. The brief is the human entry point; raw JSONL is the machine source. The brief is bounded to 120 lines and 16,000 bytes. If lint reports changed sources, rerun inspect; if the current harness is unknown, do not infer it from executable presence. The offline Stage 10 qualification, routing, experiment comparison, learned-policy comparison, and end-to-end gates are documented in [`docs/reference/stage10.md`](docs/reference/stage10.md); the inspection allowlist is `SAFE_ENV_KEYS` in [`scripts/stage10_memory.py`](scripts/stage10_memory.py). Local experiments may create only declared branches/worktrees; live execution, remote mutation, PR creation, merge, deployment, publication, and policy activation remain separate explicit human-authorized boundaries.
 
-> **Offline/fixture-only:** the shipped Stage 10 harnesses do not silently call providers, create branches or PRs, merge, deploy, publish, or activate policy.
+> **Offline/fixture-only:** the shipped Stage 10 harnesses create branches/worktrees only in disposable local fixtures. They do not call providers, mutate remotes, create PRs, merge, deploy, publish, or activate policy.
 
 To record a validated lesson after a green check:
 
@@ -50,7 +50,7 @@ python3 scripts/stage10_memory.py record --kind lesson --standing validated --sc
   --source 'CONTRIBUTING.md:40' --evidence 'command:make validate'
 ```
 
-Promotion is stricter: `corroborated` needs two independent evidence references, and `promoted` additionally needs a `human-approved:` evidence reference. Token-shaped values are refused; rewrite them as `<redacted>` before recording. For the current Stage 10 scope and artifact authority, read `.wgm/IMPLEMENTATION_PLAN.md`, `.wgm/specs/CONTEXT.md`, and `.wgm/stage10/brief.md` after inspect. These are local dogfood artifacts and are intentionally not part of the shipped template tree.
+Promotion is stricter: `corroborated` needs two independent evidence references, and `promoted` additionally needs a `human-approved:` evidence reference. Token-shaped values are refused; rewrite them as `<redacted>` before recording. The [versioned Stage 10 scope and authority](docs/reference/stage10.md#shipped-scope-and-authority) defines the shipped contract. Local `.wgm/` plans and generated briefs describe one run; they are not portable scope or authorization.
 
 ## Install
 
@@ -138,13 +138,15 @@ the loop and may continue across iterations unless capped. A leading word counts
 it's a known keyword followed by `only`, `:`, or end of input — so `/wgm build the auth module` is
 treated as a request, not `build` mode.
 
-**Your first run, end to end** — `/wgm add a dark-mode toggle`:
+**Your first run, with plan approval** — `/wgm grill: add a dark-mode toggle`:
 1. **Grill** — wgm asks one focused question at a time (e.g. *"persist the choice in `localStorage` —
-   good?"*), each with a recommended answer, so you can often just reply "yes."
-2. **Plan** — it writes `specs/`, blind holdout `scenarios/`, and an `IMPLEMENTATION_PLAN.md` to disk,
-   then self-checks them for gaps before writing any code.
-3. **Build** — it advances **one task per iteration**, running your checks after each, until the plan
-   is done *and* an LLM judge is satisfied — then hands back a clean, buildable repo.
+   good?"*), each with a recommended answer, then stops at Grill-exit.
+2. **Plan** — invoke `/wgm plan`; it writes and checks the artifacts, then stops at Plan-exit.
+   Review the plan before authorizing code.
+3. **Build** — invoke `/wgm build only` for one checked iteration, or `/wgm build` to continue the loop.
+
+These phase-stopped invocations create the approval pause. A bare `/wgm REQUEST` runs the full
+lifecycle and can advance automatically when its gates pass.
 
 ## Companion skills: `/teach-me`, `/quiz-me`, and `/rugged`
 
@@ -339,7 +341,9 @@ of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](d
   `./scripts/loop.sh --help`.
 - Guard long autonomous runs with `--max-runtime-seconds`, `--idle-timeout`, `--checkpoint-interval`
   (auto-commit), `--max-cost` (stop once cumulative spend from `--cost-cmd` hits a ceiling), and a
-  `--notify "CMD"` lifecycle hook.
+  `--notify "CMD"` lifecycle hook. The runtime limit is checked between iterations, not a global
+  deadline; active work can overrun it. `--agent-timeout-seconds` is the separate per-agent watchdog
+  when GNU `timeout`/`gtimeout` is available.
 - **Survive transient failures:** the loop retries a failed agent call with exponential backoff +
   jitter (`--max-retries`) and trips a **circuit breaker** after N consecutive failures
   (`--max-consecutive-failures`) instead of dying on the first hiccup.

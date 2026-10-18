@@ -23,14 +23,14 @@
 #  11. docs/README.md still links the style guide that documents all of the above.
 #  12. Companion skills avoid `../../` links, which break in the installed sibling-skill layout.
 #  13. Tables marked `<!-- wgm: complete-table -->` contain no blank or placeholder cells.
-#  14. The shipped review, evidence, and executable-journey protocol contracts remain present.
+#  14. The shipped phase, runtime, action, authority, review, and evidence contracts remain present.
 #  15. SKILL.md stays within the repository's documented ~500-line activation budget.
 #  16. Every literal bash harness in Makefile's test recipe appears in a CI run step.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
 # SECURITY.md, CODE_OF_CONDUCT.md, .github/agents/*.agent.md, launch-facing GitHub templates,
-# and the bash harness inventory in Makefile / .github/workflows/ci.yml.
+# loop.sh's runtime help contract, and the bash harness inventory in Makefile / .github/workflows/ci.yml.
 
 set -uo pipefail
 
@@ -309,6 +309,18 @@ PROTOCOL_FILES=(
   "assets/constitution.template.md"
   "assets/spec.template.md"
   "assets/IMPLEMENTATION_PLAN.template.md"
+  "README.md"
+  "README.md"
+  "docs/get-started/README.md"
+  "docs/get-started/first-build.md"
+  "docs/operator/running-the-loop.md"
+  "docs/reference/cli-loop.md"
+  "scripts/loop.sh"
+  "docs/operator/playbook.md"
+  "docs/reference/stage10.md"
+  "references/subagents.md"
+  "SKILL.md"
+  "docs/reference/gates.md"
 )
 PROTOCOL_PHRASES=(
   "two independent reviewer passes"
@@ -330,6 +342,18 @@ PROTOCOL_PHRASES=(
   "Ruggedness gate (non-negotiable)"
   "Ruggedness (rugged gate)"
   "Ruggedness gate (required — every track)"
+  "versioned Stage 10 scope and authority"
+  "/wgm grill: add a dark-mode toggle"
+  "/wgm grill: add a dark-mode toggle"
+  "/wgm grill: add a --json output flag to the CLI"
+  "Elapsed-runtime limit checked between iterations"
+  "Elapsed-runtime limit checked between iterations"
+  "elapsed-runtime limit checked between iterations"
+  "Category is not assignment or status"
+  "This versioned reference defines the shipped Stage 10 scope"
+  "If independent review is unavailable, the gate is blocked."
+  "if unavailable, the correctness-review gate is blocked."
+  "there is no automatic waiver"
 )
 if (( ${#PROTOCOL_FILES[@]} != ${#PROTOCOL_PHRASES[@]} )); then
   note "protocol contract file/phrase arrays are misaligned (${#PROTOCOL_FILES[@]} files, ${#PROTOCOL_PHRASES[@]} phrases)"
@@ -344,6 +368,21 @@ for i in "${!PROTOCOL_FILES[@]}"; do
   fi
 done
 fi
+
+# A correct non-author policy elsewhere cannot excuse an obsolete serial-review instruction.
+# Fold wrapped prose so both "passes inline and sequentially" and "inline sequential passes"
+# are caught. Ruggedness rubrics and portable docs-audit dispatch remain valid; historical
+# reports/plans are frozen records, not active instructions to rewrite.
+for f in "${MD[@]}"; do
+  case "$f" in docs/audit/*|docs/plans/*) continue ;; esac
+  if tr '\n' ' ' < "$f" | grep -iE \
+    -e 'passes[[:space:]]+inline[[:space:]]+(and[[:space:]]+)?sequentially' \
+    -e 'inline[[:space:]]+(and[[:space:]]+)?sequential[[:space:]]+passes' \
+    -e 'single[[:space:]]+agent[[:space:]]+plays[[:space:]]+each[[:space:]]+role[[:space:]]+in[[:space:]]+sequence' \
+    >/dev/null; then
+    note "obsolete inline/serial review fallback in $f; require independent non-author review or block"
+  fi
+done
 if (( FAIL == 0 )); then
   ok "review/evidence/executability protocol contracts are present"
 fi

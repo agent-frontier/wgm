@@ -46,7 +46,7 @@ This index covers wgm's public engine and contributor workflow. Challenge-specif
 | **[Companion skills](companions/README.md)** | Tasks | `teach-me`, `quiz-me`, and `rugged` |
 | **[Concepts](agent/lifecycle.md)** | Concepts | How the protocol thinks — written for the agent, readable by you |
 | **[Reference](reference/README.md)** | Reference | Exact flags, defaults, paths, exit codes |
-| **[Stage 10 offline orchestration](reference/stage10.md)** | Reference | Evidence-first memory, qualification, routing, comparison, local PR handoff, and authority boundaries |
+| **[Stage 10 offline orchestration](reference/stage10.md)** | Reference | Versioned scope and authority; evidence-first memory, qualification, routing, comparison, local PR handoff, and an executable bounded-process example |
 
 The authoritative protocol is [`SKILL.md`](../SKILL.md). These docs explain the *why* and the *how*
 behind it. The terse, load-every-iteration rules live in [`references/`](../references/); the pages

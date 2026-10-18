@@ -46,13 +46,13 @@ shellcheck scripts/*.sh                      # lint
 for s in scripts/*.sh; do bash -n "$s"; done  # shell syntax
 ( cd .. && skills-ref validate wgm )          # skill is valid (run from the parent dir)
 bash scripts/check-docs.sh                    # docs structure, links, mermaid, placeholders
-bash scripts/test-check-docs.sh               # docs regressions, including local/CI harness inventory
+bash scripts/test-check-docs.sh               # operator contracts, docs, local/CI harness inventory
 bash scripts/test-check-doc-sync.sh           # doc-sync findings and fail-closed Git inspection
 bash scripts/check-evals.sh                   # evals/evals.json schema (agentskills.io convention)
 bash scripts/test-install.sh                  # bash installer harness
 bash scripts/test-plugin-registry.sh          # real plugin discovery + callable-handler parity
 bash scripts/test-stage10-memory.sh           # Stage 10 evidence/memory boundary harness
-bash scripts/test-stage10-runner.sh           # bounded direct-process contract and authority boundary
+bash scripts/test-stage10-runner.sh           # published example, bounded process, authority boundary
 bash scripts/test-stage10-qualification.sh    # qualification ladder and live-evidence boundary
 bash scripts/test-stage10-live-qualification.sh # offline scope/hash/expiry/budget authority contract
 bash scripts/test-stage10-router.sh           # transparent route policy

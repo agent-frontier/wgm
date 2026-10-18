@@ -49,6 +49,8 @@
   last non-blank line is this host's marker is ever refreshed, pruned, or removed; the per-directory
   .wgm-adapters receipt is an atomically written, host-stamped index, not the proof. A source that
   ships no roles at all is read as incomplete, so it installs nothing and prunes nothing.
+  Without adapters, correctness needs separate fresh non-author reviewers or a human handoff and
+  is blocked if unavailable. scripts/audit.sh is the docs-audit fallback; inline ruggedness is separate.
 
 .PARAMETER Ref
   Ref to self-fetch when run piped via `irm … | iex`: a branch/tag/sha, or "latest" for the newest
@@ -302,7 +304,7 @@ else {
 # ----- compute role-adapter target dirs -------------------------------------
 # A role adapter only makes sense where a host actually scans for one. `agents` (the Agent Skills
 # standard) defines skills, not subagents, and -Dir names a bare path rather than a host, so neither
-# gets an adapter - they get the portable skill and wgm's explicit inline fallback instead.
+# gets an adapter - they get the portable skill and an explicit independent-review handoff instead.
 $agentTargets = [System.Collections.Generic.List[object]]::new()
 $agentNotes = [System.Collections.Generic.List[string]]::new()
 
@@ -327,7 +329,7 @@ if (-not $NoAgents) {
       $d = Get-AdapterDir -ClientId $c -Base $agentBase -Scope $scope
       if ($d) { $agentTargets.Add([pscustomobject]@{ Host = $c; Dir = $d }) }
       elseif ($c -eq 'agents') {
-        $agentNotes.Add("the .agents client gets no role adapters: the Agent Skills standard defines skills, not subagents. wgm falls back to scripts/audit.sh and inline sequential review passes there.")
+        $agentNotes.Add("the .agents client gets no role adapters: the Agent Skills standard defines skills, not subagents. Use scripts/audit.sh for docs audit; correctness needs separate fresh non-author reviewers or a human handoff and is blocked if unavailable. Inline ruggedness is separate.")
       }
     }
   }
@@ -845,10 +847,10 @@ if (-not $NoCompanions) {
   Write-Host "Companions: /teach-me to learn a repo, /quiz-me to be tested on it, /rugged to stress-test a design."
 }
 if ($NoAgents) {
-  Write-Host "Role agents: skipped (-NoAgents). wgm runs the review passes inline and sequentially instead."
+  Write-Host "Role agents: skipped (-NoAgents). Correctness needs separate fresh non-author reviewers or a human handoff; blocked if unavailable. Use scripts/audit.sh for docs audit; inline ruggedness is separate."
 }
 elseif ($agentTargets.Count -eq 0) {
-  Write-Host "Role agents: none installed - no host with a subagent format was selected. wgm falls back to scripts/audit.sh and inline sequential review passes."
+  Write-Host "Role agents: none installed - no host with a subagent format was selected. Correctness needs separate fresh non-author reviewers or a human handoff; blocked if unavailable. Use scripts/audit.sh for docs audit; inline ruggedness is separate."
 }
 }
 finally {

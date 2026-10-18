@@ -31,7 +31,7 @@ scripts/install.ps1 [PARAMETERS]
 | `--uninstall` | `-Uninstall` | off | Remove wgm and its companions from the resolved targets. |
 | `--force` | `-Force` | off | Overwrite or replace an existing install. |
 | `--no-companions` | `-NoCompanions` | off | Install wgm alone, without `teach-me`, `quiz-me`, and `rugged`. |
-| `--no-agents` | `-NoAgents` | off | Do not install the role-agent adapters. The portable skill and its inline fallback still install. |
+| `--no-agents` | `-NoAgents` | off | Do not install the role-agent adapters. The portable skill still installs; independent review remains required. |
 | `--no-windows` | — | off | WSL only: do not mirror into your Windows home. |
 | `--windows-home P` | — | auto-detect | WSL only: mirror into Windows home `P`. |
 | — | `-NoWsl` | off | Windows only: force a native install instead of delegating to WSL. |
@@ -83,7 +83,9 @@ Three rules keep this honest:
   [harness portability](../../references/harness-portability.md) for the evidence tiers.
 - **No adapter is a named fallback, not a failure.** A generic `.agents` client, Pi, and any host
   with no subagent primitive get the portable skill and run the docs-audit swarm through
-  `scripts/audit.sh`, or the two review passes inline and sequentially with dissent recorded.
+  `scripts/audit.sh`. Correctness still needs two independent non-author review passes via separate
+  fresh reviewer invocations or an independent human handoff; if unavailable, the gate is blocked.
+  Inline ruggedness is a separate permitted fallback, never correctness self-review.
 - **`--dir` guesses nothing.** It names a path, not a host, so it installs the skill only and says
   so. Pass `--user` or `--project` with `--client copilot|claude|all` to get adapters.
 

@@ -24,9 +24,10 @@
 # (blank lines and # comments ignored). With neither present and no flag, nothing is mandated and
 # the check is a no-op — this is opt-in governance, not an imposed policy.
 #
-# Fixing a non-compliant merge that is ALREADY PUBLISHED: do not rewrite shared history. Build a
-# replacement two-parent merge from the same parents with the trailers present, and prove
-# `old^{tree} == replacement^{tree}` before promoting it.
+# An ALREADY-PUBLISHED violation cannot be repaired in place: preserve shared history, record its
+# offending SHA and a forward-only correction/attestation, and block handoff pending an explicit
+# maintainer decision. No automatic waiver: this checker stays RED for a range containing the
+# violation. A sibling replacement merge does not erase it; never promote one or rewrite history.
 #
 # Exit 0 = every introduced commit complies (GREEN). Exit 1 = one or more do not (RED, listed).
 
@@ -111,8 +112,10 @@ if (( FAIL == 0 )); then
   exit 0
 else
   echo "trailers: RED" >&2
-  echo "For a generated merge, re-run 'gh pr merge --merge' with explicit --subject/--body whose" >&2
-  echo "final block carries the required trailers. If it is already published, do not rewrite shared" >&2
-  echo "history: build a replacement two-parent merge and prove old^{tree} == replacement^{tree}." >&2
+  echo "Before publishing a generated merge, supply explicit --subject/--body with required trailers." >&2
+  echo "For an already-published violation, preserve history: record the offending SHA and a" >&2
+  echo "forward-only correction/attestation. Handoff is blocked pending an explicit maintainer" >&2
+  echo "decision, never automatically waived; this audit stays RED while the violation is in range." >&2
+  echo "Do not promote a sibling replacement merge or rewrite shared history." >&2
   exit 1
 fi

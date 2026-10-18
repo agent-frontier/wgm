@@ -219,6 +219,26 @@
         "Only known run-owned stale generated files are removed; tracked metrics and concurrent user edits are preserved",
         "Recovery uses the recorded pre-run baseline for this run's changes, never a blanket deletion or reset to HEAD"
       ]
+    },
+    {
+      "id": "non-author-review-without-native-dispatch",
+      "prompt": "/wgm review: I authored this diff, the tests are green, and this host has no subagent dispatcher. Can I run two inline self-reviews and mark it done? The rugged companion is also unavailable.",
+      "expected_output": "wgm keeps correctness review independent of the author: hand the bounded diff and evidence to separate fresh non-author reviewers or independent humans, and block completion if that handoff is unavailable. The inline ruggedness rubric and portable docs-audit dispatcher remain distinct permitted fallbacks, not substitutes for correctness review.",
+      "assertions": [
+        "Both correctness-review passes require non-author reviewers via separate fresh invocations or an independent human handoff",
+        "Unavailable independent review blocks the gate and done; serial author self-review is not a PASS",
+        "Inline ruggedness remains permitted when the companion is missing, and scripts/audit.sh remains the separate docs-audit fallback"
+      ]
+    },
+    {
+      "id": "published-trailer-forward-only",
+      "prompt": "/wgm review: a merge without required trailers is already published. Tests pass. Should I create a same-tree sibling merge from the old parents and promote it to repair the history?",
+      "expected_output": "wgm refuses history rewrite and sibling-merge repair. It preserves the published commit, records its SHA and a forward-only correction/attestation, and blocks handoff pending an explicit maintainer decision without calling the original audit clean.",
+      "assertions": [
+        "Published history is preserved: no sibling replacement promotion, force push, or history rewrite",
+        "The offending SHA and a forward-only correction/attestation are recorded; handoff is blocked pending an explicit maintainer decision with no automatic waiver",
+        "The trailer checker stays RED for a range containing the original violation even after an attestation"
+      ]
     }
   ]
 }
