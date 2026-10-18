@@ -98,6 +98,7 @@ afterwards — the dispatcher prints the reminder and leaves the wording to the 
 | Accept an exit-0 banner as a report | `Ready.` or `I could not read that path.` passes any "did it succeed and is the file non-empty?" check. Content is checked against the contract the prompt demanded. |
 | Dispatch without canonical resources | The installed role briefs, discipline, and report template are required, not optional target-project overrides. Missing paths are named before any paid invocation. |
 | Let a role change the repository | Roles report; the dispatcher writes. Every attempt is compared against one run baseline, and a change is **terminal**: no retry, no re-baseline, and it is left in place for you to inspect. |
+| Continue after index preparation or repository inspection fails | A partial snapshot cannot enforce the guard. The run aborts explicitly without a report, retry, or fallback to the caller's index. |
 | Audit a non-git tree by default | With no git tree there is no read-only guard at all. Pass `--allow-unguarded` to accept that explicitly; the run then says out loud that the guard is off. |
 | Run two audits in one tree at once | They would interleave their read-only guards and could file two reports for one moment. An atomic `.wgm/audit.lock` (created with `mkdir`) refuses the second before any role runs. The lock hangs off the **worktree root**, so two runs launched from different subdirectories still serialize on the same tree. |
 | Read or name the holdout scenarios | Root `scenarios/` and `.wgm/scenarios/` belong to `wgm-validator`. Neither is opened or hashed by the snapshot guard. |
@@ -128,6 +129,16 @@ fingerprints, status, and staged/unstaged diffs: root `scenarios/`, `.wgm/scenar
 path is exempt — not durable plans/specs/audits, not kept runs, and not arbitrary lookalike
 `audit-run-*` directories. Suggested Git ignore rules do not grant an exemption from this guard.
 
+**Pathspecs alone are not a no-read boundary.** Git can open excluded tracked files while refreshing
+or writing back its index. Each snapshot therefore copies the caller's **current** index and removes
+excluded entries with metadata-only Git plumbing before any worktree inspection. Status, diffs, and
+untracked/ignored enumeration use that filtered index. `GIT_INDEX_FILE` is overridden only on those
+inspection commands, never exported to reviewers; an existing caller-supplied index is respected.
+The caller's real index and staged/unstaged state are not rewritten, and rebuilding the copy before
+each snapshot detects subsequent staging changes. Failed preparation or inspection exits `1`
+explicitly rather than falling back to the real index. Disabling optional locks is not the read
+boundary.
+
 **It reports the change; it does not name a culprit.** A concurrent editor, formatter, watcher, or
 build running in the same checkout produces a delta identical to a role's write, so the message is
 `repository state changed during ROLE; origin unknown (role or concurrent process)`, followed by
@@ -145,6 +156,11 @@ available for inspection.
   this is the guard's dominant cost — five roles means five passes. There is deliberately no size cap
   or skip threshold: a cap is exactly the hole an agent writing into such a directory would fall
   through.
+- Each snapshot also copies the current index and performs metadata passes to validate/filter it.
+  This adds time and index-sized scratch storage under the current run directory. The Linux harness
+  uses standard-library inotify observation of synthetic tracked canaries, with a positive control,
+  rather than inferring no reads from command arguments or output. Non-Linux runs explicitly skip
+  that observer; they are not equivalent file-access evidence.
 - Files git *does* track by content are covered by `HEAD` and the diff hashes, so together with the
   two fingerprint passes, an in-place rewrite outside the explicit exclusions moves the snapshot.
   The timing hole remains: see the exact-revert case above.
@@ -203,6 +219,7 @@ decision is not improved by repeating it.
 |---|---|---|
 | Non-zero exit, timeout, empty output, broken report contract | Yes, up to `--retries` | Transient: a flaky call or a wandering agent may get it right on the next fresh prompt. |
 | The repository changed during a role (tree, HEAD, stash, or an ignored path) | **Never** | The baseline is never re-read, so a retry would be measured against the changed repository and pass. The run aborts at once and the change stays visible. |
+| Index preparation or repository inspection failed | **Never** | The snapshot is not trustworthy. Fix the reported operation and rerun; there is no unguarded fallback. |
 | The lock is already held | **Never** | Whether to wait for another audit is the operator's call, not the dispatcher's. |
 
 A `--timeout-seconds` bound needs GNU `timeout` or `gtimeout`. Without one the run says so and falls
@@ -213,7 +230,7 @@ back to a cooperative timeout it cannot enforce — it never implies a bound it 
 | Code | Meaning |
 |---|---|
 | `0` | Four persona passes were consolidated and the report was written (`audit: COMPLETE`), or `--check-report` found valid structure. Neither means qualitative GREEN. |
-| `1` | A role failed, timed out, broke its report contract, or the repository changed mid-run (no report written); or `--check-report` rejected an invalid report. |
+| `1` | A role failed, timed out, broke its report contract, repository inspection failed, or the repository changed mid-run (no report written); or `--check-report` rejected an invalid report. |
 | `2` | Bad usage, or dispatch refused before any role ran: invalid slug, no agent, missing canonical resources, a non-git target without `--allow-unguarded`, or another audit holding this tree's lock. |
 
 ## Examples

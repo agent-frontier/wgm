@@ -92,7 +92,8 @@
 #
 # Exit 0 = a consolidated report was produced, or --check-report found valid structure.
 #          Neither means the qualitative verdict is GREEN.
-# Exit 1 = a role failed, timed out, broke its report contract, or the repository changed mid-run
+# Exit 1 = a role failed, timed out, broke its report contract, repository inspection failed, or
+#          the repository changed mid-run
 #          (no report is written in any of those cases); or --check-report found an invalid report.
 # Exit 2 = refused before any role ran: bad flag, bad slug, no agent, a non-git target without
 #          --allow-unguarded, missing canonical resources, or another audit holding this tree's lock.
@@ -544,13 +545,13 @@ fi
 # must never be reused or clobbered. Only this exact directory and the held lock are dispatcher
 # scratch; other .wgm/ paths may be durable deliverables, even when the project ignores them.
 WORK="$(mktemp -d "${REPO_ROOT}/.wgm/audit-run-XXXXXX")"
-SNAPSHOT_PATHS=(
-  .
-  ':(top,exclude,literal)scenarios'
-  ':(top,exclude,literal).wgm/scenarios'
-  ':(top,exclude,literal).wgm/audit.lock'
-  ":(top,exclude,literal)${WORK#"$REPO_ROOT"/}"
-)
+SNAPSHOT_PATHS=(.)
+INDEX_EXCLUDES=()
+for excluded in scenarios .wgm/scenarios .wgm/audit.lock "${WORK#"$REPO_ROOT"/}"; do
+  SNAPSHOT_PATHS+=(":(top,exclude,literal)$excluded")
+  INDEX_EXCLUDES+=(":(top,literal)$excluded")
+done
+INSPECTION_INDEX="${WORK}/inspection.index"
 
 # ----- read-only guard ------------------------------------------------------
 # Roles report; they never edit. The prompt says so, but a prompt is not a gate. ONE baseline is
@@ -567,10 +568,12 @@ SNAPSHOT_PATHS=(
 # ref and its depth), every path state including ignored ones, a CONTENT fingerprint of every regular
 # file git knows only by name — ignored AND untracked-but-not-ignored (a path list alone sees such a
 # file appear or vanish, never an overwrite of one that was already there), and a content hash of the
-# staged and unstaged diffs. One shared pathspec excludes only root holdouts and the exact current
-# lock/work directory from ALL content, status, and diff reads. Durable .wgm/ state and kept or
-# lookalike run directories stay protected. Every git command is anchored at the worktree root,
-# independent of the subdirectory the audit was launched from.
+# staged and unstaged diffs. Pathspecs alone are NOT a no-read boundary: Git can read excluded,
+# racily-clean entries during index writeback. Every snapshot copies the caller's CURRENT index
+# and removes excluded entries using metadata-only plumbing BEFORE any worktree inspection.
+# The shared exclusions still filter status/diff output and untracked/ignored enumeration. Durable
+# .wgm/ state and kept or lookalike run directories stay protected. Git inspection is anchored at
+# the worktree root, independent of the subdirectory the audit was launched from.
 #
 # The snapshot is a FILE of stable, sorted lines rather than a bare hash, because a hash can only
 # say "something changed". A file can be diffed, and the exact delta is what turns an accusation
@@ -595,61 +598,135 @@ SNAPSHOT_PATHS=(
 # node by name only. An ignored symlink pointing at /dev/zero or an unread FIFO would otherwise hang
 # the snapshot on every attempt — a denial of service wearing a safety check's clothes. Hashing runs
 # in batched xargs calls rather than one process per file.
+inspection_error() {
+  printf '✗ audit inspection failed: %s\n' "$*" >&2
+  return 1
+}
+
+inspection_git() {
+  # Command-local override only: reviewer commands keep the caller's original environment/index.
+  GIT_INDEX_FILE="$INSPECTION_INDEX" git -C "$REPO_ROOT" "$@"
+}
+
+prepare_inspection_index() {
+  local source excluded_list="${WORK}/excluded-index-paths"
+  # Resolve in the caller's cwd, including a relative caller-supplied GIT_INDEX_FILE.
+  source="$(git rev-parse --git-path index)" \
+    || { inspection_error "resolving the caller index"; return 1; }
+  [[ -n "$source" ]] || { inspection_error "empty caller index path"; return 1; }
+  [[ "$source" == /* ]] || source="$PWD/$source"
+  # Metadata-only validation distinguishes a genuinely absent index from a corrupt/unreadable one.
+  # It does not refresh the real index or open tracked worktree files.
+  GIT_INDEX_FILE="$source" git -C "$REPO_ROOT" ls-files -z --cached -- "${SNAPSHOT_PATHS[@]}" >/dev/null \
+    || { inspection_error "reading caller index metadata: $source"; return 1; }
+  if [[ -e "$source" || -L "$source" ]]; then
+    cp "$source" "$INSPECTION_INDEX" \
+      || { inspection_error "copying caller index: $source"; return 1; }
+  else
+    inspection_git read-tree --empty \
+      || { inspection_error "preparing an empty inspection index"; return 1; }
+  fi
+  # Check enumeration BEFORE starting the writer: a failed producer must never leave an unfiltered
+  # index eligible for worktree refresh. Copying preserves staging flags as well as entry stages.
+  inspection_git ls-files -z --cached -- "${INDEX_EXCLUDES[@]}" > "$excluded_list" \
+    || { inspection_error "enumerating excluded inspection-index entries"; return 1; }
+  inspection_git update-index --force-remove -z --stdin < "$excluded_list" \
+    || { inspection_error "filtering the inspection index"; return 1; }
+  rm -f "$excluded_list"
+}
+
 fingerprint_others() {  # $1 = label, $2 = scratch list path, $3.. = extra git ls-files flags
-  local label="$1" list="$2"
+  local label="$1" list="$2" names="${2}.all" f target
   shift 2
   (
-    cd "$REPO_ROOT" || exit 0
-    : > "$list"
+    cd "$REPO_ROOT" || return 1
+    inspection_git ls-files -z --others --exclude-standard "$@" -- "${SNAPSHOT_PATHS[@]}" > "$names" \
+      || return 1
+    : > "$list" || return 1
     while IFS= read -r -d '' f; do
       if [[ -L "$f" ]]; then
-        printf '%s-symlink: %s -> %s\n' "$label" "$f" "$(readlink "$f" 2>/dev/null || echo '?')"
+        target="$(readlink "$f")" || return 1
+        printf '%s-symlink: %s -> %s\n' "$label" "$f" "$target" || return 1
       elif [[ -f "$f" ]]; then
-        printf '%s\0' "$f" >> "$list"
+        printf '%s\0' "$f" >> "$list" || return 1
       else
-        printf '%s-special: %s\n' "$label" "$f"
+        printf '%s-special: %s\n' "$label" "$f" || return 1
       fi
-    done < <(git ls-files -z --others --exclude-standard "$@" -- "${SNAPSHOT_PATHS[@]}" 2>/dev/null)
+    done < "$names"
     if [[ -s "$list" ]]; then
-      xargs -0 cksum < "$list" 2>/dev/null | sed "s/^/${label}: /" || true
+      xargs -0 cksum < "$list" | sed "s/^/${label}: /" || return 1
     fi
-    rm -f "$list"
-  ) | LC_ALL=C sort || true
+    rm -f "$list" "$names"
+  ) | LC_ALL=C sort
+}
+
+optional_snapshot_ref() {  # $1 = normal absence value, $2.. = Git ref query
+  local absent="$1" value rc=0
+  shift
+  value="$(git -C "$REPO_ROOT" "$@" 2>/dev/null)" || rc=$?
+  case "$rc" in
+    0) printf '%s\n' "$value" ;;
+    1) printf '%s\n' "$absent" ;; # unborn HEAD, detached branch, or no stash
+    *) inspection_error "git $*"; return 1 ;;
+  esac
 }
 
 snapshot_state() {  # $1 = file to write the snapshot into
-  local out="$1"
+  local out="$1" head branch stash stashdepth content
   if [[ "$GIT_GUARD" -ne 1 ]]; then
     echo "no-git-guard" > "$out"
     return 0
   fi
+  prepare_inspection_index || return 1
+  head="$(optional_snapshot_ref none rev-parse --quiet --verify HEAD)" || return 1
+  branch="$(optional_snapshot_ref detached symbolic-ref --quiet --short HEAD)" || return 1
+  stash="$(optional_snapshot_ref none rev-parse --quiet --verify refs/stash)" || return 1
+  stashdepth=0
+  if [[ "$stash" != none ]]; then
+    stashdepth="$(git -C "$REPO_ROOT" rev-list --walk-reflogs --count refs/stash)" \
+      || { inspection_error "reading stash depth"; return 1; }
+  fi
   {
-    echo "head:$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo none)"
-    echo "branch:$(git -C "$REPO_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo detached)"
-    echo "stash:$(git -C "$REPO_ROOT" rev-parse --quiet --verify refs/stash 2>/dev/null || echo none)"
-    echo "stashdepth:$(git -C "$REPO_ROOT" rev-list --walk-reflogs --count refs/stash 2>/dev/null || echo 0)"
+    printf 'head:%s\nbranch:%s\nstash:%s\nstashdepth:%s\n' "$head" "$branch" "$stash" "$stashdepth" || return 1
     # Content hashes keep an in-place edit to an already-modified file visible; the name-status lines
     # below keep the delta readable.
-    echo "unstaged-content:$(git -C "$REPO_ROOT" diff -- "${SNAPSHOT_PATHS[@]}" 2>/dev/null | cksum)"
-    echo "staged-content:$(git -C "$REPO_ROOT" diff --cached -- "${SNAPSHOT_PATHS[@]}" 2>/dev/null | cksum)"
-    git -C "$REPO_ROOT" status --porcelain --untracked-files=all --ignored -- "${SNAPSHOT_PATHS[@]}" 2>/dev/null \
-      | LC_ALL=C sort | sed 's/^/status: /' || true
-    git -C "$REPO_ROOT" diff --name-status -- "${SNAPSHOT_PATHS[@]}" 2>/dev/null \
-      | LC_ALL=C sort | sed 's/^/unstaged: /' || true
-    git -C "$REPO_ROOT" diff --cached --name-status -- "${SNAPSHOT_PATHS[@]}" 2>/dev/null \
-      | LC_ALL=C sort | sed 's/^/staged: /' || true
+    content="$(inspection_git diff -- "${SNAPSHOT_PATHS[@]}" | cksum)" \
+      || { inspection_error "hashing git diff (unstaged)"; return 1; }
+    printf 'unstaged-content:%s\n' "$content" || return 1
+    content="$(inspection_git diff --cached -- "${SNAPSHOT_PATHS[@]}" | cksum)" \
+      || { inspection_error "hashing git diff (staged)"; return 1; }
+    printf 'staged-content:%s\n' "$content" || return 1
+    inspection_git status --porcelain --untracked-files=all --ignored -- "${SNAPSHOT_PATHS[@]}" \
+      | LC_ALL=C sort | sed 's/^/status: /' \
+      || { inspection_error "git status"; return 1; }
+    inspection_git diff --name-status -- "${SNAPSHOT_PATHS[@]}" \
+      | LC_ALL=C sort | sed 's/^/unstaged: /' \
+      || { inspection_error "git diff --name-status"; return 1; }
+    inspection_git diff --cached --name-status -- "${SNAPSHOT_PATHS[@]}" \
+      | LC_ALL=C sort | sed 's/^/staged: /' \
+      || { inspection_error "git diff --cached --name-status"; return 1; }
     # Files git is not tracking the CONTENT of — ignored ones, and untracked-but-not-ignored ones —
     # are fingerprinted by content, not merely listed. `git status` reports that such a path exists
     # (`!!` or `??`); it reports exactly the same thing after the file is overwritten, because the
     # path did not change. Overwriting an existing .env, .envrc, cached build artifact, or a
     # not-yet-added scratch file is a write like any other, and only a content fingerprint sees it.
-    fingerprint_others ignored   "${out}.ignored-paths"   --ignored
-    fingerprint_others untracked "${out}.untracked-paths"
+    fingerprint_others ignored   "${out}.ignored-paths"   --ignored \
+      || { inspection_error "fingerprinting ignored paths"; return 1; }
+    fingerprint_others untracked "${out}.untracked-paths" \
+      || { inspection_error "fingerprinting untracked paths"; return 1; }
   } > "$out"
 }
 
+abort_inspection() {
+  printf '✗ docs audit aborted: repository inspection failed %s.\n' "$1" >&2
+  echo "  No report filed; no retry or fallback to the caller's index." >&2
+  echo "  Fix the reported inspection error and rerun the audit." >&2
+  echo "audit: RED" >&2
+  exit 1
+}
+
 BASELINE_FILE="${WORK}/state-baseline.txt"
-snapshot_state "$BASELINE_FILE"
+snapshot_state "$BASELINE_FILE" || abort_inspection "before dispatch"
 
 # Print a bounded, exact delta so the operator can see WHAT changed instead of being told THAT
 # something did. Bounded because a role that ran a build could otherwise dump thousands of lines.
@@ -740,7 +817,7 @@ run_role() {
     # Checked FIRST, and against the run baseline: if the repository moved, the one property the
     # dispatcher exists to hold is gone, so the role's exit status no longer matters.
     after="${WORK}/state-${role}-${attempt}.txt"
-    snapshot_state "$after"
+    snapshot_state "$after" || abort_inspection "during ${role}"
     if ! cmp -s "$BASELINE_FILE" "$after"; then
       # Deliberately NOT "the role edited the tree": a concurrent editor, watcher, formatter, or
       # build in the same checkout produces an identical delta, and a guard that names a culprit it

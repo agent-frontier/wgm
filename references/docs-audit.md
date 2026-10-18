@@ -241,6 +241,15 @@ What the dispatcher enforces rather than merely requests:
   followed. One shared exclusion set applies to fingerprints, status, and staged/unstaged diffs:
   only root `scenarios/`, `.wgm/scenarios/`, the held `.wgm/audit.lock/`, and this run's exact work
   directory are exempt. Kept runs and arbitrary lookalike directories are not exempt.
+- **An isolated index enforces the read boundary.** Git pathspecs alone can hide a holdout from
+  output while index refresh/writeback still opens it. Before each snapshot, the dispatcher copies
+  the caller's **current** index and removes excluded entries using metadata-only Git plumbing.
+  Worktree inspection uses that filtered copy; its `GIT_INDEX_FILE` override is command-local and
+  never reaches reviewers. The real index and pre-existing staged/unstaged split are preserved.
+  Rebuilding each time keeps new staging changes detectable. Index preparation or any snapshot
+  inspection failure aborts explicitly, with no retry, report, or fallback to the real index.
+  This adds an index-sized scratch copy and metadata passes per snapshot; it does not rely on
+  `--no-optional-locks` as a no-read guarantee.
 - **Evidence, not accusation.** The dispatcher cannot tell a role's write from a concurrent editor,
   watcher, or build in the same checkout — they produce the same delta. So it reports
   `repository state changed during <role>; origin unknown (role or concurrent process)`, prints the
@@ -248,7 +257,7 @@ What the dispatcher enforces rather than merely requests:
   hole stays named rather than pretended away: a change made and reverted *exactly* within one turn
   is invisible to a before/after comparison, whatever it touched.
 - **Retry only what is transient.** A non-zero exit, a timeout, no output, or a broken report contract
-  may be retried (`--retries`). A tree mutation and a held lock never are — those are decisions, and
+  may be retried (`--retries`). An inspection failure, tree mutation, and held lock never are — those are decisions, and
   repeating a decision does not improve it.
 - **One audit at a time per tree.** An atomic `.wgm/audit.lock` (`mkdir`) at the **worktree root** is
   taken before any role runs, so runs launched from different subdirectories serialize on the same

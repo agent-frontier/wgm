@@ -103,6 +103,13 @@ role="${WGM_AUDIT_ROLE:-unknown}"
 if [[ "${FAKE_STDIN:-0}" == "1" ]]; then prompt="$(cat)"; else prompt="${1:-}"; fi
 printf '%s\n' "$role" >> "$FAKE_LOG"
 printf '%s' "$prompt" > "${FAKE_PROMPT_DIR}/${role}.prompt"
+if [[ "${FAKE_CHECK_INDEX_SCOPE:-0}" == 1 \
+   && "${GIT_INDEX_FILE-UNSET}" != "${FAKE_CALLER_INDEX:-UNSET}" ]]; then
+  echo "fake agent: inspection index leaked into reviewer environment" >&2
+  exit 8
+fi
+if [[ "${FAKE_STAGE_ROLE:-}" == "$role" ]]; then git add -- README.md; fi
+if [[ "${FAKE_INSPECTION_FAIL_ROLE:-}" == "$role" ]]; then : > "$FAKE_INSPECTION_SENTINEL"; fi
 if [[ -n "${FAKE_EXPECT_ROOT:-}" ]]; then
   # Read the actual installed resources, not similarly named files in the audited project.
   check_resource() {
@@ -1002,8 +1009,8 @@ for path in .wgm/audit-run-kept/report.md .wgm/audit.lock-other/report.md notes/
 done
 
 # 22) Synthetic tracked (staged AND unstaged), untracked, and ignored holdouts in both layouts.
-# Instrument cksum so even an unchanged holdout read is detected; inspect saved snapshots too,
-# because excluding fingerprints alone still leaks tracked holdouts through status/diff commands.
+# Instrument explicit fingerprint inputs and inspect saved snapshots. This alone cannot detect
+# Git-internal reads during index refresh/writeback; the real access observer below covers those.
 mkdir -p "$TMP/hash-bin" scenarios .wgm/scenarios
 export REAL_CKSUM
 REAL_CKSUM="$(command -v cksum)"
@@ -1039,6 +1046,198 @@ else
 fi
 git reset -q "$SEED" -- .wgm scenarios
 rm -f scenarios/tracked.yaml scenarios/untracked.yaml scenarios/ignored.yaml .git/info/exclude
+reset_runs
+
+# 22a) A pathspec filters output, not every Git-internal read. Observe real file access across the
+# ENTIRE dispatcher, including index preparation. A positive inotify control prevents a broken
+# observer from passing silently. Python/ctypes are test-only; audit.sh gains no runtime dependency.
+if [[ "$(uname -s)" == Linux ]]; then
+  access_repo="$TMP/access repo"
+  mkdir -p "$access_repo"/{docs,scenarios,.wgm/scenarios}
+  git init -q "$access_repo"
+  git -C "$access_repo" config user.name "wgm access test"
+  git -C "$access_repo" config user.email "wgm-test@example.com"
+  git -C "$access_repo" config commit.gpgsign false
+  printf 'seed\n' > "$access_repo/README.md"
+  printf 'refresh without a content change\n' > "$access_repo/refresh.txt"
+  for prefix in scenarios .wgm/scenarios; do
+    for name in canary.yaml .gitignore; do
+      printf '#%051d\n' 0 > "$access_repo/$prefix/$name" # exactly 53 synthetic bytes
+    done
+  done
+  git -C "$access_repo" add -f -- README.md refresh.txt scenarios .wgm/scenarios
+  git -C "$access_repo" commit -qm seed
+  printf 'staged version\n' > "$access_repo/README.md"
+  git -C "$access_repo" add -- README.md
+  printf 'unstaged version\n' > "$access_repo/README.md"
+  cat > "$TMP/observe-access" <<'PY'
+#!/usr/bin/env python3
+import ctypes
+import os
+from pathlib import Path
+import struct
+import subprocess
+import sys
+
+root = Path(os.environ["ACCESS_REPO"])
+index = Path(os.environ.get("GIT_INDEX_FILE", root / ".git/index"))
+# Exercise writeback of racily-clean entries, not only the easy non-racy status path.
+# Git treats timestamp.sec == 0 specially, so use a positive timestamp in the past.
+os.utime(index, ns=(index.stat().st_atime_ns, 1_000_000_000))
+refresh = root / "refresh.txt"
+stat = refresh.stat()
+os.utime(refresh, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+before = (index.read_bytes(), index.stat().st_mtime_ns)
+control = root.parent / "access-control"
+control.write_bytes(b"observer control")
+libc = ctypes.CDLL(None, use_errno=True)
+libc.inotify_init1.argtypes = [ctypes.c_int]
+libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+if fd < 0:
+    raise OSError(ctypes.get_errno(), "inotify_init1")
+watched = {}
+try:
+    paths = [root / prefix / name for prefix in ("scenarios", ".wgm/scenarios")
+             for name in ("canary.yaml", ".gitignore")]
+    for path in [control, *paths]:
+        wd = libc.inotify_add_watch(fd, os.fsencode(path), 0x01 | 0x20)  # ACCESS | OPEN
+        if wd < 0:
+            raise OSError(ctypes.get_errno(), "inotify_add_watch")
+        watched[wd] = path
+
+    def events():
+        found = []
+        while True:
+            try:
+                data = os.read(fd, 65536)
+            except BlockingIOError:
+                return found
+            offset = 0
+            while offset < len(data):
+                wd, mask, cookie, length = struct.unpack_from("iIII", data, offset)
+                offset += 16 + length
+                if mask & 0x4000:
+                    raise RuntimeError("inotify queue overflow: observation invalid")
+                if wd in watched:
+                    found.append((watched[wd], mask))
+
+    control.read_bytes()
+    calibration = events()
+    assert any(path == control and mask & 0x20 for path, mask in calibration), "no OPEN control"
+    assert any(path == control and mask & 0x01 for path, mask in calibration), "no ACCESS control"
+    print("observer: OPEN/ACCESS positive control passed", flush=True)
+    result = subprocess.run([os.environ["ACCESS_AUDIT"], *sys.argv[1:]], check=False)
+    accesses = [(str(path.relative_to(root)), mask) for path, mask in events() if path in paths]
+    unchanged = before == (index.read_bytes(), index.stat().st_mtime_ns)
+    print(f"observer: holdout OPEN/ACCESS events={accesses}", flush=True)
+    print(f"observer: caller index bytes+mtime unchanged={unchanged}", flush=True)
+    sys.exit(97 if accesses or not unchanged else result.returncode)
+finally:
+    os.close(fd)
+PY
+  chmod +x "$TMP/observe-access"
+  for index_mode in default custom; do
+    # A caller-supplied index and a subdirectory launch must not redirect reviewer Git commands
+    # into the dispatcher's filtered copy. The default real index must survive either mode too.
+    default_index_sum="$(cksum "$access_repo/.git/index")"
+    if [[ "$index_mode" == custom ]]; then
+      cp "$access_repo/.git/index" "$TMP/caller.index"
+      GIT_INDEX_FILE="$TMP/caller.index" FAKE_CALLER_INDEX="$TMP/caller.index" \
+        FAKE_CHECK_INDEX_SCOPE=1 GIT_OPTIONAL_LOCKS=1 ACCESS_REPO="$access_repo" ACCESS_AUDIT="$ROOT/scripts/audit.sh" \
+        AUDIT="$TMP/observe-access" run_in "$access_repo/docs" --out "$access_repo/reports" -- "${AGENT_ARGV[@]}"
+    else
+      FAKE_CALLER_INDEX="${GIT_INDEX_FILE-UNSET}" FAKE_CHECK_INDEX_SCOPE=1 GIT_OPTIONAL_LOCKS=1 \
+        ACCESS_REPO="$access_repo" ACCESS_AUDIT="$ROOT/scripts/audit.sh" AUDIT="$TMP/observe-access" \
+        run_in "$access_repo" --out "$access_repo/reports" -- "${AGENT_ARGV[@]}"
+    fi
+    if [[ "$RC" -eq 0 && "$(wc -l < "$FAKE_LOG")" -eq 5 \
+       && "$default_index_sum" == "$(cksum "$access_repo/.git/index")" ]] \
+       && grep -qF "observer: holdout OPEN/ACCESS events=[]" <<<"$OUT" \
+       && grep -qF "observer: caller index bytes+mtime unchanged=True" <<<"$OUT" \
+       && [[ "$(git -C "$access_repo" show :README.md)" == "staged version" \
+          && "$(cat "$access_repo/README.md")" == "unstaged version" ]]; then
+      pass "Linux observer: $index_mode index, zero holdout opens/reads, staging and reviewer environment preserved"
+    else
+      fail "Linux observer: $index_mode index access/preservation regression (rc=$RC): $OUT"
+    fi
+    rm -rf "$access_repo/reports"
+  done
+else
+  pass "(skipped) real holdout access observation requires Linux inotify; not field evidence on this host"
+fi
+
+# 22b) Rebuild the inspection index from CURRENT staging on every snapshot. A private index kept
+# only from the baseline would miss this index-only change; an exported override would stage into
+# the wrong index. Leave the actual staged change visible and stop before another role or retry.
+printf 'pre-existing staged version\n' > README.md
+git add -- README.md
+printf 'pre-existing unstaged version\n' > README.md
+staged_before="$(git rev-parse :README.md)"
+worktree_before="$(cksum README.md)"
+FAKE_STAGE_ROLE=wgm-docs-junior FAKE_CHECK_INDEX_SCOPE=1 FAKE_CALLER_INDEX="${GIT_INDEX_FILE-UNSET}" \
+  run --slug index-only --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 1 && "$(wc -l < "$FAKE_LOG")" -eq 1 \
+   && "$staged_before" != "$(git rev-parse :README.md)" \
+   && "$(git rev-parse :README.md)" == "$(git hash-object README.md)" \
+   && "$worktree_before" == "$(cksum README.md)" && ! -d docs/audit ]] \
+   && grep -q "origin unknown" <<<"$OUT" && grep -q "staged-content:" <<<"$OUT"; then
+  pass "index-only staging is detected from a fresh inspection copy and remains in the caller's real index"
+else
+  fail "index-only change escaped detection or was redirected/lost (rc=$RC): $OUT"
+fi
+git reset -q "$SEED" -- README.md
+reset_runs
+
+# 22c) Failed preparation/inspection must not silently fall back to the real index or a partial
+# snapshot. Fault injection is separate from the real-access observer, never a substitute for it.
+export REAL_GIT
+REAL_GIT="$(command -v git)"
+export FAKE_INSPECTION_SENTINEL="$TMP/inspection-failure"
+mkdir -p "$TMP/git-fault"
+cat > "$TMP/git-fault/git" <<'GIT'
+#!/usr/bin/env bash
+cmd="${1:-}"
+if [[ "$cmd" == -C ]]; then cmd="${3:-}"; fi
+fail=0
+case "${FAKE_INSPECTION_FAULT:-}" in
+  enumerate) [[ "$cmd" == ls-files && " $* " == *" --cached "* ]] && fail=1 ;;
+  filter) [[ "$cmd" == update-index ]] && fail=1 ;;
+  status) [[ "$cmd" == status ]] && fail=1 ;;
+  diff) [[ "$cmd" == diff ]] && fail=1 ;;
+  others) [[ "$cmd" == ls-files && " $* " == *" --others "* ]] && fail=1 ;;
+esac
+if [[ "${FAKE_INSPECTION_PHASE:-}" == after && ! -e "$FAKE_INSPECTION_SENTINEL" ]]; then fail=0; fi
+if [[ "$fail" -eq 1 ]]; then echo "fixture: Git inspection failed ($cmd)" >&2; exit 73; fi
+exec "$REAL_GIT" "$@"
+GIT
+chmod +x "$TMP/git-fault/git"
+for phase in baseline after; do
+  for operation in enumerate filter status diff others; do
+    rm -f "$FAKE_INSPECTION_SENTINEL"
+    PATH="$TMP/git-fault:$PATH" FAKE_INSPECTION_PHASE="$phase" FAKE_INSPECTION_FAULT="$operation" \
+      FAKE_INSPECTION_FAIL_ROLE=wgm-docs-junior \
+      run --slug inspection-failure --retries 1 --retry-delay 0 -- "${AGENT_ARGV[@]}"
+    expected_roles=0
+    [[ "$phase" == baseline ]] || expected_roles=1
+    if [[ "$RC" -eq 1 && "$(wc -l < "$FAKE_LOG")" -eq "$expected_roles" && ! -d docs/audit ]] \
+       && grep -qi "inspection failed" <<<"$OUT" && ! grep -q "audit: COMPLETE" <<<"$OUT"; then
+      pass "failed $operation inspection at $phase aborts explicitly without fallback or retry"
+    else
+      fail "failed $operation inspection at $phase was hidden/retried (rc=$RC): $OUT"
+    fi
+    reset_runs
+  done
+done
+printf 'not an index\n' > "$TMP/corrupt.index"
+GIT_INDEX_FILE="$TMP/corrupt.index" run --slug corrupt-index -- "${AGENT_ARGV[@]}"
+if [[ "$RC" -eq 1 && ! -s "$FAKE_LOG" && ! -d docs/audit ]] \
+   && grep -qi "inspection failed" <<<"$OUT" \
+   && [[ "$(cat "$TMP/corrupt.index")" == "not an index" ]]; then
+  pass "a corrupt caller index is refused without fallback, mutation, or dispatch"
+else
+  fail "a corrupt caller index was accepted or replaced (rc=$RC): $OUT"
+fi
 reset_runs
 
 # 23) Report production succeeding says nothing about the severity of the retained findings.
