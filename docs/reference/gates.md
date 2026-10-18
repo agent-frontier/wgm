@@ -12,14 +12,22 @@ there, the backpressure is your own project's test, build, lint, or probe comman
 make validate
 ```
 
-This is the full local suite, and it is what CI runs (minus `skills-ref`, `actionlint`, and the
-PowerShell harness, which CI adds). Expect roughly a minute.
+This is the complete portable local suite. CI includes the same bash harness inventory, including
+audit and devcontainer checks, plus the `skills-ref`, PowerShell, and separate `actionlint` checks
+listed below.
+
+`check-docs.sh` compares literal `bash scripts/test-*.sh` commands in `Makefile`'s `test` recipe
+with single-line and literal-block (`run: |`) steps in `.github/workflows/ci.yml`. Every local entry
+must appear in CI; missing inputs or an empty local inventory fail. Comments, step names, and echoed
+commands do not count. This is an inventory check, not a general Make/shell/YAML interpreter: it
+does not evaluate conditional execution. Keep these invocations literal; `actionlint` separately
+checks workflow syntax.
 
 | Target | Runs | Purpose |
 |---|---|---|
 | `make lint` | `shellcheck` plus `bash -n` on every script | Shell correctness and style. |
-| `make docs` | `check-docs.sh`, `check-evals.sh`, `check-harnesses.sh` | Documentation, fixture, and harness-contract structure. |
-| `make test` | Every `test-*.sh` harness | Behavior of the shipped scripts. |
+| `make docs` | `check-docs.sh`, `check-evals.sh`, `check-harnesses.sh`, `sync-agent-adapters.sh --check` | Documentation, fixture, harness-contract structure, and role-adapter derivation. |
+| `make test` | Bash harnesses explicitly listed in `Makefile`'s `test` recipe | Behavior of the shipped scripts; not every manual/platform-specific `test-*.sh` file. |
 | `make validate` | All three | The complete gate. Alias: `make check`. |
 
 ## Structural gates
@@ -28,11 +36,11 @@ These check artifacts and fail on drift. They are safe to run any time.
 
 | Script | Checks | Exit |
 |---|---|---|
-| `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding; marked complete tables have no blank cells; review/evidence/executability protocol contracts remain present | `0` green, `1` red |
+| `check-docs.sh` | docs/ structure and required files; balanced code fences; internal relative links resolve; no leftover placeholders; operator docs carry an executive overview; agent files carry required frontmatter and sections; every `references/*.md` is indexed in README; no UTF-8 double-encoding; marked complete tables have no blank cells; review/evidence/executability protocol contracts remain present; local bash harness inventory is included in CI run steps | `0` green, `1` red |
 | `check-evals.sh` | `evals/evals.json` is valid JSON with an allow-listed key set, and every case carries `id`, `prompt`, `expected_output`, and a non-empty `assertions` array | `0` green, `1` red, `2` `jq` missing |
 | `check-harnesses.sh` | `compatibility/harnesses.json` — allow-listed keys at every level; only the four statuses `Verified`, `Expected`, `Degraded`, `Unknown`; non-empty discovery paths, invocation command, and `https://` sources; `Verified` only with discovery **and** invocation **and** end-to-end journey evidence; no duplicate or missing harness entries | `0` green, `1` red, `2` `jq` missing |
 | `check-trailers.sh` | Every commit in `BASE..HEAD` — **merge commits included** — carries the trailers the repository mandates | `0` green, `1` red |
-| `check-doc-sync.sh` | A diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or `--warn`, `1` red |
+| `check-doc-sync.sh` | A successfully inspected diff that adds public surface (a CLI flag, a shell function, a script or config file) also touched a documentation path | `0` green or advisory finding, `1` undocumented surface, `2` invalid input / inspection error (even with `--warn`) |
 
 ### check-trailers.sh
 
@@ -61,7 +69,17 @@ when a batch audit finally notices.
 scripts/check-doc-sync.sh --base HEAD~1 --warn
 ```
 
-Use `--warn` for the advisory mode the Record step uses: it reports and exits `0`. Omit it to fail.
+The default compares HEAD's first parent with HEAD. `--base REF` must resolve to a commit
+(commit-ish tags are accepted); if it resolves to current HEAD, inspection covers staged and
+unstaged worktree changes plus non-ignored untracked files. With no parent commit, the default
+also inspects that worktree. A repository without a committed HEAD is an error, not a clean diff.
+Paths and untracked-file discovery use the Git worktree root, even when invoked from a subdirectory.
+
+Use `--warn` for the advisory mode the Record step uses: an undocumented-surface finding prints
+`WARN` and exits `0`; without it that finding exits `1`. A successful inspection with no finding
+prints `GREEN`. Invalid/empty/non-commit bases or failed Git operations (including diff, tree, or
+untracked-file inspection) identify the input or operation, print `ERROR`, and exit `2`, **even with
+`--warn`**, without a GREEN verdict. Correct the ref or repository/inspection failure and retry.
 
 ### check-harnesses.sh
 
@@ -84,8 +102,11 @@ any harness wgm publishes a claim about. It needs no network and no vendor CLI �
 
 ## Behavior harnesses
 
-Each shipped script has a harness proving it does what it claims. They use fake agents and throwaway
-repositories, so **no real agent, model, network, or token is needed**.
+The harnesses use fixture agents and throwaway repositories, so **no paid agent/model calls or
+provider credentials are needed**. The devcontainer harness prefers Podman and falls back to Docker;
+real build/run/prune cases visibly skip only when neither is installed. With an engine present it
+uses a dedicated disposable test image (building it may need registry/network access), not the
+operator's shared base image. These fixtures are not live-provider evidence.
 
 Stage 10's live-qualification harness is explicitly a local contract test: CI sets
 `WGM_STAGE10_LIVE_ALLOWED=false`, rejects live-authorization files, and runs only disposable doubles.
@@ -115,9 +136,9 @@ operator authorization and `--allow-live` path.
 | `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
 | `test-check-evals.sh` | The schema gate rejects unknown and missing keys, and the shipped fixture keeps its pinned ruggedness, evidence-boundary, numerical/API/performance, and cleanup ids and assertions |
 | `test-check-harnesses.sh` | The harness-contract gate rejects an invalid status, a missing discovery path, a `Verified` entry with no evidence, malformed JSON, a deleted harness entry, and a duplicate id — while still accepting a valid `Degraded` entry |
-| `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, and blank marked-table cells |
+| `test-check-docs.sh` | The docs gate rejects mojibake, broken links, unbalanced fences, blank marked-table cells, and missing local harnesses in CI; comments/echoes do not satisfy inventory parity, while literal run blocks do |
 | `test-check-trailers.sh` | The trailer audit catches a bare generated merge commit |
-| `test-check-doc-sync.sh` | The doc-sync gate fires on undocumented surface and stays quiet otherwise |
+| `test-check-doc-sync.sh` | Undocumented surface is caught; valid default/ref/HEAD, staged/unstaged/untracked, and advisory paths are preserved; invalid/non-commit refs and injected Git inspection failures cannot become GREEN or advisory success |
 
 **Note:** A gate is only proven by watching it go **red** on the class it claims to catch. A
 mojibake sweep once shipped here matching nothing at all, because PCRE reads `\xNN` as a character
@@ -133,13 +154,13 @@ with a harness that fails it deliberately.
 
 ## Additional gates in CI
 
-`.github/workflows/ci.yml` adds three checks you can also run locally:
+In addition to the portable local suite, CI runs these checks you can also run locally:
 
 | Check | Local equivalent |
 |---|---|
-| `skills-ref validate` on wgm and all three companions | `pip install skills-ref`, then `skills-ref validate wgm` from the parent directory |
-| `actionlint` on the workflow files | `actionlint .github/workflows/ci.yml` |
-| PowerShell parse plus `test-install.ps1` | `pwsh ./scripts/test-install.ps1` |
+| `skills-ref validate` on wgm and all three companions (`ci.yml`) | `pip install skills-ref`, then `skills-ref validate wgm` from the parent directory |
+| `actionlint` on the workflow files (`lint.yml`) | `actionlint .github/workflows/*.yml` |
+| PowerShell parse plus `test-install.ps1` (`ci.yml`) | `pwsh ./scripts/test-install.ps1` |
 
 **Note:** `skills-ref` requires the skill directory's basename to equal the skill name, so validate
 `wgm` from the repository's parent directory and the companions from inside `companions/`.

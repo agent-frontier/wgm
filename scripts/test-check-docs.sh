@@ -11,6 +11,7 @@
 #   3. a broken internal relative link is detected;
 #   4. an unbalanced code fence is detected.
 #   5. a protocol file/phrase array mismatch and an overgrown SKILL.md are detected.
+#   6. local bash harnesses cannot disappear from CI's literal run-command inventory.
 #
 # Probes are written into docs/ and removed again by an EXIT trap, so a failed run cannot leave the
 # working tree dirty.
@@ -87,6 +88,74 @@ if [[ "$RC" -ne 0 ]] && grep -q "SKILL.md exceeds the 500-line activation budget
   pass "an overgrown SKILL.md turns the docs gate red"
 else
   fail "SKILL.md line-budget probe did not trip the gate (rc=$RC): $OUT"
+fi
+
+# 1e) CI must run local harnesses; comments, step names, and echo text are not invocations.
+INVENTORY_TMP="$PROTOCOL_TMP/inventory-repo"
+mkdir -p "$INVENTORY_TMP"
+cp -a "$ROOT/." "$INVENTORY_TMP/"
+for harness in scripts/test-audit.sh scripts/test-devcontainer.sh; do
+  awk -v harness="$harness" '
+    $0 == "        run: bash " harness {
+      print "        # run: bash " harness
+      print "        run: echo \"bash " harness "\""
+      next
+    }
+    { print }
+  ' "$ROOT/.github/workflows/ci.yml" > "$INVENTORY_TMP/.github/workflows/ci.yml"
+  OUT="$(bash "$INVENTORY_TMP/scripts/check-docs.sh" 2>&1)"
+  RC=$?
+  if [[ "$RC" -ne 0 ]] && grep -qF "local harness missing from CI run steps: $harness" <<<"$OUT"; then
+    pass "a commented/echoed CI harness is not counted ($harness)"
+  else
+    fail "missing CI harness did not trip the inventory gate ($harness, rc=$RC): $OUT"
+  fi
+done
+
+# Derive the inventory from make test, not a hard-coded audit/devcontainer pair. Restoring the
+# synthetic invocation in a literal run block proves multiline CI commands are counted too.
+cp "$ROOT/.github/workflows/ci.yml" "$INVENTORY_TMP/.github/workflows/ci.yml"
+awk '/^test:/ { print; print "\tbash scripts/test-inventory-probe.sh"; next } { print }' \
+  "$ROOT/Makefile" > "$INVENTORY_TMP/Makefile"
+printf '\n# run: bash scripts/test-inventory-probe.sh\n' >> "$INVENTORY_TMP/.github/workflows/ci.yml"
+OUT="$(bash "$INVENTORY_TMP/scripts/check-docs.sh" 2>&1)"
+RC=$?
+if [[ "$RC" -ne 0 ]] && grep -qF "local harness missing from CI run steps: scripts/test-inventory-probe.sh" <<<"$OUT"; then
+  pass "a newly listed local harness must also be invoked in CI"
+else
+  fail "new local harness omission did not trip the inventory gate (rc=$RC): $OUT"
+fi
+printf '\n      - name: Inventory probe\n        run: |\n          bash scripts/test-inventory-probe.sh\n' \
+  >> "$INVENTORY_TMP/.github/workflows/ci.yml"
+OUT="$(bash "$INVENTORY_TMP/scripts/check-docs.sh" 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]]; then
+  pass "adding the missing harness in a CI run block restores inventory parity"
+else
+  fail "matching local/CI harness inventories were rejected (rc=$RC): $OUT"
+fi
+
+# Missing inventory inputs or an empty local recipe must fail, not vacuously match.
+cp "$ROOT/Makefile" "$INVENTORY_TMP/Makefile"
+cp "$ROOT/.github/workflows/ci.yml" "$INVENTORY_TMP/.github/workflows/ci.yml"
+for source in Makefile .github/workflows/ci.yml; do
+  mv "$INVENTORY_TMP/$source" "$INVENTORY_TMP/$source.saved"
+  OUT="$(bash "$INVENTORY_TMP/scripts/check-docs.sh" 2>&1)"
+  RC=$?
+  if [[ "$RC" -ne 0 ]] && grep -qF "harness inventory requires" <<<"$OUT"; then
+    pass "a missing harness inventory source fails ($source)"
+  else
+    fail "missing inventory source was accepted ($source, rc=$RC): $OUT"
+  fi
+  mv "$INVENTORY_TMP/$source.saved" "$INVENTORY_TMP/$source"
+done
+printf 'test:\n' > "$INVENTORY_TMP/Makefile"
+OUT="$(bash "$INVENTORY_TMP/scripts/check-docs.sh" 2>&1)"
+RC=$?
+if [[ "$RC" -ne 0 ]] && grep -qF "Makefile test recipe has no literal bash harness commands" <<<"$OUT"; then
+  pass "an empty local harness inventory fails"
+else
+  fail "empty local harness inventory was accepted (rc=$RC): $OUT"
 fi
 
 # 2) mojibake: `Â` + `·` and `Ã` + an em dash, as emitted by a CP1252 round-trip

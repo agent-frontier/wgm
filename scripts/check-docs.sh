@@ -25,10 +25,12 @@
 #  13. Tables marked `<!-- wgm: complete-table -->` contain no blank or placeholder cells.
 #  14. The shipped review, evidence, and executable-journey protocol contracts remain present.
 #  15. SKILL.md stays within the repository's documented ~500-line activation budget.
+#  16. Every literal bash harness in Makefile's test recipe appears in a CI run step.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
-# SECURITY.md, CODE_OF_CONDUCT.md, .github/agents/*.agent.md, and launch-facing GitHub templates.
+# SECURITY.md, CODE_OF_CONDUCT.md, .github/agents/*.agent.md, launch-facing GitHub templates,
+# and the bash harness inventory in Makefile / .github/workflows/ci.yml.
 
 set -uo pipefail
 
@@ -84,6 +86,46 @@ if [[ -f SKILL.md ]]; then
   skill_lines="$(wc -l < SKILL.md)"
   if (( skill_lines > 500 )); then
     note "SKILL.md exceeds the 500-line activation budget (${skill_lines} lines)"
+  fi
+fi
+
+# 16 — keep the local/CI harness inventories aligned without a YAML or Make parser dependency.
+# This checks literal `bash scripts/test-*.sh` lines in the test recipe and CI's single-line or
+# literal-block run steps, not arbitrary shell/YAML control flow. Comments, names, and echo text
+# are deliberately not evidence that a harness runs.
+if [[ ! -f Makefile || ! -f .github/workflows/ci.yml ]]; then
+  note "harness inventory requires Makefile and .github/workflows/ci.yml"
+else
+  LOCAL_HARNESSES="$(awk '
+    /^test:/ { in_test=1; next }
+    in_test && /^[^[:space:]#]/ { in_test=0 }
+    in_test && /^\t[[:space:]]*bash scripts\/test-[[:alnum:]_-]+\.sh[[:space:]]*(#.*)?$/ { print $2 }
+  ' Makefile)"
+  CI_HARNESSES="$(awk '
+    {
+      line=$0
+      sub(/[[:space:]]*#.*/, "", line)
+      if (line ~ /^[[:space:]]*$/) next
+      match(line, /[^[:space:]]/); indent=RSTART
+      if (in_run && indent <= run_indent) in_run=0
+      if (line ~ /^[[:space:]]*run:[[:space:]]*\|[-+]?[[:space:]]*$/) {
+        in_run=1; run_indent=indent; next
+      }
+      single=(line ~ /^[[:space:]]*run:[[:space:]]*bash /)
+      if (single) sub(/^[[:space:]]*run:[[:space:]]*/, "", line)
+      if ((in_run || single) && line ~ /^[[:space:]]*bash scripts\/test-[[:alnum:]_-]+\.sh[[:space:]]*$/) {
+        sub(/^[[:space:]]*/, "", line)
+        split(line, words, /[[:space:]]+/); print words[2]
+      }
+    }
+  ' .github/workflows/ci.yml)"
+  if [[ -z "$LOCAL_HARNESSES" ]]; then
+    note "Makefile test recipe has no literal bash harness commands"
+  else
+    while IFS= read -r harness; do
+      grep -qFx -- "$harness" <<< "$CI_HARNESSES" \
+        || note "local harness missing from CI run steps: $harness"
+    done <<< "$LOCAL_HARNESSES"
   fi
 fi
 

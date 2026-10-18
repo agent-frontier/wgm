@@ -32,15 +32,22 @@ pip install "git+https://github.com/agentskills/agentskills.git#subdirectory=ski
 
 ## The backpressure suite (run before every PR)
 
-These are the local checks that make the repository's deterministic backpressure suite green. CI also
-runs the `skills-ref`, `actionlint`, and PowerShell checks listed below; local `make validate` is the
-portable subset.
+`make validate` is the complete portable local suite. The canonical bash harness inventory is
+`Makefile`'s `test` recipe; CI includes those harnesses, including audit and devcontainer checks,
+and adds `skills-ref` and PowerShell checks in `ci.yml`, plus `actionlint` in `lint.yml`.
+The docs gate rejects a local harness missing from CI's literal run-command inventory; it does
+not evaluate workflow conditions or arbitrary shell/Make logic. See the precise
+[gate contract](docs/reference/gates.md#the-one-command).
+
+These are selected commands for focused runs, not a second authoritative harness inventory:
 
 ```bash
 shellcheck scripts/*.sh                      # lint
 for s in scripts/*.sh; do bash -n "$s"; done  # shell syntax
 ( cd .. && skills-ref validate wgm )          # skill is valid (run from the parent dir)
 bash scripts/check-docs.sh                    # docs structure, links, mermaid, placeholders
+bash scripts/test-check-docs.sh               # docs regressions, including local/CI harness inventory
+bash scripts/test-check-doc-sync.sh           # doc-sync findings and fail-closed Git inspection
 bash scripts/check-evals.sh                   # evals/evals.json schema (agentskills.io convention)
 bash scripts/test-install.sh                  # bash installer harness
 bash scripts/test-plugin-registry.sh          # real plugin discovery + callable-handler parity
@@ -56,6 +63,7 @@ bash scripts/test-stage10-policy.sh           # offline learned-policy compariso
 bash scripts/test-stage10-deferred-e2e.sh     # final disposable deferred-boundary integration
 bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness
+bash scripts/test-audit.sh                    # audit.sh dispatch harness, fixture agents only
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
 bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (7 cases)
@@ -66,8 +74,14 @@ actionlint                                    # lint .github/workflows/*.yml (CI
 > `skills-ref validate wgm` must be run from the **parent** directory, because the validator requires
 > the skill folder's basename to equal the skill name (`wgm`).
 
-Or run the local subset with **`make validate`** (lint + docs + the bash harnesses); `make help`
+Run the complete local suite with **`make validate`** (lint + docs + `Makefile`'s bash harnesses); `make help`
 lists every target (`make update` refreshes your installed copy, `make test`, `make lint`, …).
+
+The devcontainer harness prefers Podman, falls back to Docker, and visibly skips real-engine cases
+only when neither is installed; its disposable test image is separate from the operator's base image.
+Fixture agents do not provide live-provider evidence. For per-iteration doc-sync, `--warn` downgrades
+undocumented-surface findings only: invalid/non-commit bases or failed Git inspection still report
+`ERROR`, exit `2`, and never print `doc-sync: GREEN`. Correct the input or inspection failure and retry.
 
 ## Optional: grading a `SKILL.md`/`references/*` change before landing it
 
@@ -88,7 +102,7 @@ bash scripts/test-grade-evals.sh                 # its own fake-agent smoke test
 
 1. Fork and branch from `main`.
 2. Make the change; keep edits surgical and scoped.
-3. Run the full backpressure suite above — get it green.
+3. Run `make validate` and the applicable CI-only checks above — get them green.
 4. Open a PR using the template. Describe the change and note which checks you ran.
 5. CI must pass before merge — both `.github/workflows/ci.yml` (validation) and
    `.github/workflows/lint.yml` (actionlint).

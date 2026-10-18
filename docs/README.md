@@ -13,6 +13,13 @@ If you are changing **wgm itself**, start with the [local-development SOP](../CO
 make validate
 ```
 
+Local validation and CI share the bash harness inventory in `Makefile`'s `test` recipe, including
+audit and devcontainer harnesses. The docs gate checks literal CI run-command coverage, not general
+workflow control flow; real devcontainer cases visibly skip only if neither Podman nor Docker is
+installed. For doc-sync, `--warn` makes findings advisory, not inspection errors: bad/non-commit
+bases and failed Git operations exit `2` and never print GREEN. See the precise
+[gate and CI boundaries](reference/gates.md).
+
 This index covers wgm's public engine and contributor workflow. Challenge-specific material belongs in the separate project repository that uses wgm, not in this repository's documentation set.
 
 ## Find your path
