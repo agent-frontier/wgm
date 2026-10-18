@@ -244,7 +244,7 @@ different code from one release while each checksum verified on its own.
 Download the archive and the checksum manifest into the same directory:
 
 ```bash
-tag=v0.4
+tag=v0.5
 base="https://github.com/agent-frontier/wgm/releases/download/${tag}"
 curl -fsSLO "${base}/wgm-${tag}.tar.gz"
 curl -fsSLO "${base}/SHA256SUMS"
@@ -269,7 +269,7 @@ extension and is absent from the `shasum` on older macOS.
 
 ```powershell
 # Windows PowerShell
-$tag = 'v0.4'
+$tag = 'v0.5'
 (Get-FileHash "wgm-$tag.tar.gz" -Algorithm SHA256).Hash.ToLower()
 Select-String -Path SHA256SUMS -Pattern "wgm-$tag.tar.gz"
 ```
@@ -303,7 +303,7 @@ corrupted download or a replaced asset, and both are worth a report.
 |---|---|
 | `schema_version` | Shape of this record. Bumped whenever fields change, so an old reader refuses rather than guesses. |
 | `channel` | `stable` today. `edge` is reserved and must be set explicitly if it is ever used. |
-| `version` / `tag` | The skill version (`0.4`) and its tag (`v0.4`). The workflow fails if they disagree with `SKILL.md`. |
+| `version` / `tag` | The skill version (`0.5`) and its tag (`v0.5`). The workflow fails if they disagree with `SKILL.md`. |
 | `commit` | The full 40-character commit sha the tag points at — the content-addressed anchor of the release. |
 | `published_at` / `generated_at` | RFC 3339 UTC timestamps for publication and record generation. |
 | `minimum_updater_schema` | The lowest updater implementation able to read this record. |
@@ -331,7 +331,7 @@ fails if they are not there (exit 2 when `--dist` does not exist at all, exit 1 
 holds no archives):
 
 ```bash
-tag=v0.4
+tag=v0.5
 git checkout "${tag}"          # generate from the tagged tree, not from your working branch
 mkdir -p dist
 tar --exclude-vcs --exclude=./dist -czf "dist/wgm-${tag}.tar.gz" .
