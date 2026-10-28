@@ -48,10 +48,16 @@ flowchart LR
   It reads the codebase to self-answer; it does not plan or implement.
 - **Implement** → dispatch `wgm-implementer` with only what the task needs (its plan entry + spec +
   the files for this one task). The subagent does not read the whole repo or `scenarios/`.
+- **Implementers may edit existing tests, narrowly.** When a behavior change makes an existing test
+  obsolete, allow a targeted edit and justify it in the commit. A blanket ban pushes test-only
+  branches into production code; reviewers flag any such shim.
 - **Review** → **two independent passes**: `wgm-spec-reviewer` first (did we build the right thing?),
   then `wgm-quality-reviewer` (is it correct, and does the check prove it?). Two sets of eyes catch
   spec drift and quality bugs separately — one reviewer rationalizes its own misses. **Neither may
   emit PASS without the iteration's ruggedness verdict in hand** (below).
+- **Review one immutable commit.** Hand each reviewer a pinned commit and pause the writer until
+  the verdict is in. If the commit moves, discard the stale review and restart against the new
+  commit; record the reviewed commit beside each verdict.
 - **Boundary claims stay adversarial in review.** If validation leans on a proxy, omission sentinel,
   intermediary rewrite, embedded host, or SDK mock, the quality reviewer challenges the real
   contract — evidence labels, real shell semantics, host bootstrap, and pinned-SDK async/cleanup —
@@ -60,6 +66,12 @@ flowchart LR
   green. It is the only role that opens `scenarios/`, preserving the holdout.
 - **Stall** → dispatch `wgm-diagnostician` (wonder→reflect, escalation, harness building) when
   satisfaction is flat or a check keeps failing.
+- **Fix rounds.** A task's first candidate always gets both full passes. A later round that changes
+  only the lines its findings named may take a scoped re-review instead: the reviewer that raised
+  those findings, or a fresh reviewer of the same role (never the fix's author), checks every
+  changed line against them while the task's validation command and the tests covering those lines
+  rerun green. That scoped PASS stands in for that reviewer's pass on the round, recorded with what
+  each line was checked against. Any wider change or new production logic gets both full passes.
 - A task is recorded `done` only when the deterministic gate exits 0 **and** both reviewers PASS
   **and** the diff carries exactly one recorded ruggedness verdict of RUGGED; the slice's holdout
   satisfaction is judged by the validator against the stop-condition threshold.
@@ -301,6 +313,13 @@ above. Four rules, each earned from a run that got it wrong:
 - **Partition lanes onto disjoint file sets.** Non-overlapping deliverables per lane is what makes
   final consolidation an octopus merge with zero conflicts. Overlapping lanes also create a nastier
   hazard than a conflict: one lane silently reverting a sibling's edits.
+- **Partition by what a shared-type change breaks.** Before dispatch, search for every exhaustive
+  match, struct literal, and trait impl that a shared-type change breaks, and put those files in
+  the file set of the lane that owns the change, or sequence the lanes.
+- **Only the orchestrator integrates.** Lanes commit on their own branch and return diffs, findings,
+  and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
+  recreating refs, and removing worktrees belong to the orchestrator (the parent session that
+  dispatched the lanes) unless it delegates one named action to one lane and records the delegation.
 - **Size the swarm to the host's concurrency cap and backfill.** Hosts cap concurrent background
   agents (32 in one observed case; the 33rd is refused). Idle agents free a slot, so treat queued
   lanes as backfill that starts as running lanes go idle — do not assume N lanes launch N agents.

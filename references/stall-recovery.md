@@ -40,6 +40,11 @@ it's stuck, then rank them:
 
 Output a short ranked diagnosis: the single **most likely** cause and the cheapest way to test it.
 
+For a suspected race, ordering bug, leak, or unbounded growth, name a minimal instrumented probe (a
+counter, a byte tally, a repeated stress loop) as that test, and run it as temporary measurement
+code after Wonder, before Reflect changes anything. Never call one confirmed, or ruled out, from
+code-tracing alone.
+
 ## Reflect (fix — think narrow)
 A convergent, low-temperature pass. Take the top hypothesis and make the **smallest, most targeted
 change** that addresses it — one surgical edit, or one corrected signal/scenario reading — then

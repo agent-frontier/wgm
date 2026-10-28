@@ -139,6 +139,22 @@ loop, with progress living on disk (not the model's context) between passes
   **measurement defect in your counting method** until authoritative runner output says otherwise —
   concluding "tests are missing" from a source-prefix scan sends you chasing a phantom gap
   (`[learn]` issue #81).
+- **Assert exactly what the spec makes exact.** Event count and variant, bytes or digest, sequence
+  range, or the specific terminal error: a generic rejection never satisfies a typed outcome, and
+  each test's assertion must measure the behavior its name claims.
+- **Prove guards with mutants.** A mutant is a deliberate small break in a scratch copy: a flipped
+  condition, a deleted guard, two swapped steps. For each claimed guard, branch, and ordering,
+  confirm a test fails on its mutant (kills it). A compile error is not a kill, so confirm each
+  mutant applied as intended. A survivor is either proven equivalent (no input can tell it from the
+  original, shown for example by an exhaustive sweep) or recorded as a gap. Mutating a scratch copy
+  keeps the tree buildable for reviewers.
+- **Named support needs a positive real-path test.** A claim for a named engine, profile, platform,
+  or format needs a test that drives the shipped artifact for that target through its real path
+  and asserts its support level, matched rule, and evidence source. Generic matcher tests support
+  the claim but never substitute for it.
+- **Use inputs that tell old from new.** A behavior-change test needs an input where the old and
+  new code disagree (confirm it fails on the old code), and a scoping test asserts that
+  out-of-scope data is absent, not just that in-scope data is present.
 - **Check whether CI is even defined on the branch you target.** A workflow can live only on an
   unmerged sibling branch, so tightly-scoped local gates go green while the workspace-wide CI that
   will eventually gate the base branch fails — on **pre-existing** debt in code your change never
@@ -149,6 +165,10 @@ loop, with progress living on disk (not the model's context) between passes
   as a dedicated chore task — do **not** fold unrelated fmt/lint cleanup into a feature PR to chase
   a not-yet-active CI, and do not let it silently sink the first PR that lands after the CI does
   (`[learn]` issue #77).
+- **A run that dies in seconds may be a billing block.** If a hosted CI run fails within about 1-5
+  seconds and no job starts, read its annotations (`gh run view` with the run id) for a billing or
+  spending-limit message before editing workflow files. Record that run as neither a pass nor a
+  source failure, and keep the exact local gates authoritative.
 - **Exit codes are still only one signal.** `scripts/loop.sh` now probes write capability before a
   build and treats repeated `plan_changed=0` build iterations as a first-class stall, but it does
   not semantically judge an agent's prose response. A future enhancement pattern is **semantic exit /
@@ -247,6 +267,9 @@ Inject these into **every** iteration — they prevent recurring loop failures:
 - **Commit ownership is explicit.** `loop.sh --commit` takes exclusive ownership of the worktree.
   Start clean, declare the files intentionally changed in the iteration manifest, and refuse to stage
   undeclared paths. A concurrent human edit belongs in another worktree or after the loop stops.
+- **Pass bodies by file.** Write issue, PR, and comment bodies to a file and pass them with
+  `--body-file`. Markdown backticks inside a double-quoted shell argument run as command
+  substitution, and a Windows-to-WSL hop hides the quoting.
 
 ## Memory (cross-iteration learning)
 Fresh context per iteration is Ralph's strength, but it also forgets. A small, token-budgeted

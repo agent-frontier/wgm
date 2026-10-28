@@ -46,6 +46,11 @@ and result in the audit report.
   `github/spec-kit`'s `templates/commands/clarify.md`. **Landed in:** `references/grilling.md`.
 
 ## Planning & artifact quality
+- **Heuristic:** let a scenario tighten its governing spec but never weaken it, and map each atomic
+  expectation (one step may hold several) to one direct assertion before final scoring.
+  **Why:** a looser scenario awards full marks to a build that violates its spec, and a step with
+  several expectations can pass on one. **Provenance:** `[learn]` issue #127. **Landed in:**
+  `references/scenarios.md` (Scenarios vs specs vs backpressure).
 - **Heuristic:** treat a spec-quality checklist as "unit tests for English," and re-run it after
   each accepted Grill answer until the pass count stabilizes.
   **Why:** readiness scoring works better as a confirmation step than as the first place basic
@@ -55,6 +60,16 @@ and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** allow implementers targeted, justified edits to existing tests; treat test-only
+  branches in production code as a review finding.
+  **Why:** a blanket ban on test edits pushed an implementer to add a production shim that existed
+  only to keep an obsolete assertion green. **Provenance:** `[learn]` issue #132. **Landed in:**
+  `references/subagents.md` (Dispatch points).
+- **Heuristic:** write issue, PR, and comment bodies to a file and pass them with `--body-file`;
+  never put Markdown backticks in a double-quoted shell argument.
+  **Why:** POSIX shells run backticks inside double quotes as command substitution, and a
+  Windows-to-WSL hop hides the quoting. **Provenance:** `[learn]` issue #129. **Landed in:**
+  `references/ralph-loop.md` (Standing guardrails).
 - **Heuristic:** classify tracked history, ignored generated residue, and unrelated user files before
   cleanup; preserve tracked metrics and remove only known task-owned stale output.
   **Why:** a blanket cleanup can erase historical evidence or concurrent work merely because it lives
@@ -149,6 +164,37 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** give every behavior-change test at least one input where the old and new code
+  disagree, and make scoping tests assert that out-of-scope data is absent.
+  **Why:** tests built on inputs both versions handle the same way pass before and after the fix,
+  and a presence-only scope test misses leaks. **Provenance:** `[learn]` issue #131. **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth).
+- **Heuristic:** when a hosted CI run fails within seconds and no job starts, read its annotations
+  for a billing or spending-limit block before editing workflow files.
+  **Why:** that signature is an account block, neither a pass nor a source failure; disclose it
+  and keep the exact local gates authoritative. **Provenance:** `[learn]` issue #130. **Landed
+  in:** `references/ralph-loop.md` (Backpressure in depth).
+- **Heuristic:** back every named-support claim (engine, profile, platform, format) with a positive
+  test that drives the shipped artifact for that target through its real path and asserts its
+  support level, matched rule, and evidence source. **Why:** generic matcher tests stay green while
+  the bundled path is broken. **Provenance:** `[learn]` issue #128. **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth).
+- **Heuristic:** prove each claimed guard, branch, and ordering with a mutant (a deliberate small
+  break) that a test fails on; a compile error is not a kill, and every survivor is proven
+  equivalent or recorded as a gap.
+  **Why:** green tests passed code whose retry branch never fired, and a harness bug silently
+  turned mutants into deletions. **Provenance:** `[learn]` issue #126. **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth).
+- **Heuristic:** where a spec is exact, assert exactly (event count and variant, bytes or digest,
+  sequence range, the specific terminal error) and check that each test measures what its name
+  claims. **Why:** a generic rejection or an error string passes while a required typed outcome is
+  missing. **Provenance:** `[learn]` issue #125. **Landed in:** `references/ralph-loop.md`
+  (Backpressure in depth).
+- **Heuristic:** before calling a suspected race, ordering bug, leak, or unbounded growth confirmed
+  (or ruled out), measure it with a minimal instrumented probe: a counter, a byte tally, a stress
+  loop. **Why:** code-tracing missed an unbounded eviction loop, a stress-only race, and a double
+  send that only a count of bytes on the wire exposed. **Provenance:** `[learn]` issue #124.
+  **Landed in:** `references/stall-recovery.md` (Wonder).
 - **Heuristic:** compare installed-package floating or statistical outputs with documented
   absolute/relative tolerances and special-value expectations, not exact decimal strings.
   **Why:** platform math and reduction order can legitimately move low-order digits; exact-string
@@ -303,6 +349,17 @@ and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** give a task's first candidate both full review passes; a later fix round that
+  changes only the lines its findings named may take a scoped re-review, in which a non-author
+  reviewer checks every changed line against those findings while the relevant checks rerun green.
+  **Why:** a full re-review of a two-line fix costs a whole review cycle, while closing it unchecked
+  throws the review away; a wider change, or a fix the checker wrote, still earns both full passes.
+  **Provenance:** `[learn]` issue #121. **Landed in:** `references/subagents.md` (Dispatch points).
+- **Heuristic:** give every reviewer one immutable commit and pause the writer until the verdict is
+  in; if the commit moves, discard the stale review and restart against the new commit.
+  **Why:** a review of a live worktree, or one reused after a revision, cannot be tied to the code
+  that ships. **Provenance:** `[learn]` issue #119. **Landed in:** `references/subagents.md`
+  (Dispatch points).
 - **Heuristic:** treat a zero-findings PASS as a claim that must be justified in one sentence, not a
   silent default. **Why:** "PASS, nothing to say" hides whether the reviewer actually examined the
   artifact; requiring a clean-pass rationale keeps review high-signal without importing a
@@ -332,6 +389,22 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** measure bounded engines at their configured time, memory, and size caps, not only
+  on small fixtures, and treat growth beyond the design's expected complexity as a defect.
+  **Why:** a quadratic scan and a per-byte map near 157 MiB passed every small-fixture test.
+  **Provenance:** `[learn]` issue #135. **Landed in:** `references/hard-to-test-domains.md` (Build
+  the harness first).
+- **Heuristic:** walk each holdout journey against real artifacts as soon as they exist (existing
+  builds, corpora, or template output at Plan-exit; otherwise right after the first build task) and
+  add a task, or fix the scenario, for any expectation they cannot reach.
+  **Why:** a scenario expected a marker in an exported function, but the code template printed it
+  elsewhere, so no feature task could earn those points. **Provenance:** `[learn]` issue #133.
+  **Landed in:** `references/scenarios.md` (Authoring).
+- **Heuristic:** let a holdout scenario's own scoring and tier text set the severity of a partial
+  score on it; keep a validator's conflicting label as a tracked follow-up.
+  **Why:** a validator can call a gap blocking that the scenario explicitly downgrades. The rule
+  never overrides a failing deterministic gate or a blocking correctness finding.
+  **Provenance:** `[learn]` issue #122. **Landed in:** `references/scoring.md` (Running the judge).
 - **Heuristic:** before timing a performance comparison, prove equivalent semantics and measure with
   warmups, repeated pinned runs, and disclosed caveats.
   **Why:** a faster number is meaningless if the candidate changed the result, compiler mode, input
@@ -375,6 +448,17 @@ and result in the audit report.
   issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
 
 ## Swarm & parallelism
+- **Heuristic:** before dispatching lanes, find every file a shared-type change breaks (exhaustive
+  matches, struct literals, trait impls) and put it in the file set of the lane that owns the
+  change, or sequence the lanes. **Why:** a file set drawn around the feature alone leaves the
+  owning lane unable to finish without editing another lane's files. **Provenance:** `[learn]`
+  issue #134. **Landed in:** `references/subagents.md` (Worktree swarm dispatch).
+- **Heuristic:** let lanes commit only on their own branch; only the orchestrator pushes, opens or
+  merges PRs, deletes or recreates refs, and removes worktrees, unless it delegates one named
+  action and records that delegation. **Why:** integration actions scattered across lane agents
+  change shared state under the agent that owns convergence and cannot be audited in one place.
+  **Provenance:** `[learn]` issue #123. **Landed in:** `references/subagents.md` (Worktree swarm
+  dispatch).
 - **Heuristic:** document each subagent's tool budget as a proposed machine-readable `groups:`
   schema, not prose alone — even before any host actually enforces it.
   **Why:** prompt text says what a role *should* do; structured `read` / `edit` / `command` /
