@@ -6,6 +6,7 @@ for the discipline and [`docs/operator/playbook.md`](../operator/playbook.md) fo
 
 | Date (UTC) | Verdict | Covers | Report |
 |---|---|---|---|
+| 2026-10-28T1730Z | AMBER | Heuristics ledger fragments (`feat/heuristics-fragments`): one file per lesson, pins, release-time compile | [2026-10-28T1730Z_heuristics-fragments.md](2026-10-28T1730Z_heuristics-fragments.md) |
 | 2026-10-28T1603Z | AMBER | PR #120 field-harvest ledger: 16 dogfood lessons (#119, #121–#135), remediated in `57aa635` | [2026-10-28T1603Z_field-harvest-ledger.md](2026-10-28T1603Z_field-harvest-ledger.md) |
 | 2026-10-18T0648Z | GREEN | Bounded closure of A1–A12/O1–O2, final persona corrections and observed V1 read-boundary repair; delivery gates recorded separately | [2026-10-18T0648Z_audit-remediation.md](2026-10-18T0648Z_audit-remediation.md) |
 | 2026-10-18T0618Z | RED | Docs, wgm self-audit, and audit-of-audits at `c7b0317`: 5 RED and 9 AMBER findings | [2026-10-18T0618Z_docs-self-meta-review.md](2026-10-18T0618Z_docs-self-meta-review.md) |
