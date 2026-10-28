@@ -48,6 +48,9 @@ flowchart LR
   It reads the codebase to self-answer; it does not plan or implement.
 - **Implement** → dispatch `wgm-implementer` with only what the task needs (its plan entry + spec +
   the files for this one task). The subagent does not read the whole repo or `scenarios/`.
+- **Implementers may edit existing tests, narrowly.** When a behavior change makes an existing test
+  obsolete, allow a targeted edit and justify it in the commit. A blanket ban pushes test-only
+  branches into production code; reviewers flag any such shim.
 - **Review** → **two independent passes**: `wgm-spec-reviewer` first (did we build the right thing?),
   then `wgm-quality-reviewer` (is it correct, and does the check prove it?). Two sets of eyes catch
   spec drift and quality bugs separately — one reviewer rationalizes its own misses. **Neither may

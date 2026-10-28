@@ -60,6 +60,11 @@ and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** allow implementers targeted, justified edits to existing tests; treat test-only
+  branches in production code as a review finding.
+  **Why:** a blanket ban on test edits pushed an implementer to add a production shim that existed
+  only to keep an obsolete assertion green. **Provenance:** `[learn]` issue #132. **Landed in:**
+  `references/subagents.md` (Dispatch points).
 - **Heuristic:** write issue, PR, and comment bodies to a file and pass them with `--body-file`;
   never put Markdown backticks in a double-quoted shell argument.
   **Why:** POSIX shells run backticks inside double quotes as command substitution, and a
