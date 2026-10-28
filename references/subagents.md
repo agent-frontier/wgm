@@ -52,6 +52,9 @@ flowchart LR
   then `wgm-quality-reviewer` (is it correct, and does the check prove it?). Two sets of eyes catch
   spec drift and quality bugs separately — one reviewer rationalizes its own misses. **Neither may
   emit PASS without the iteration's ruggedness verdict in hand** (below).
+- **Review one immutable commit.** Hand each reviewer a pinned commit and pause the writer until
+  the verdict is in. If the commit moves, discard the stale review and restart against the new
+  commit; record the reviewed commit beside each verdict.
 - **Boundary claims stay adversarial in review.** If validation leans on a proxy, omission sentinel,
   intermediary rewrite, embedded host, or SDK mock, the quality reviewer challenges the real
   contract — evidence labels, real shell semantics, host bootstrap, and pinned-SDK async/cleanup —

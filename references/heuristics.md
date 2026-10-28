@@ -303,6 +303,11 @@ and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** give every reviewer one immutable commit and pause the writer until the verdict is
+  in; if the commit moves, discard the stale review and restart against the new commit.
+  **Why:** a review of a live worktree, or one reused after a revision, cannot be tied to the code
+  that ships. **Provenance:** `[learn]` issue #119. **Landed in:** `references/subagents.md`
+  (Dispatch points).
 - **Heuristic:** treat a zero-findings PASS as a claim that must be justified in one sentence, not a
   silent default. **Why:** "PASS, nothing to say" hides whether the reviewer actually examined the
   artifact; requiring a clean-pass rationale keeps review high-signal without importing a
