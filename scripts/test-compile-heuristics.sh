@@ -32,7 +32,7 @@ mkroot() {
   printf '# Ledger\n\nHand-written header.\n\n## Alpha\n- **Heuristic:** stale.\n\n## Beta\n' \
     > "$T/r/references/heuristics.md"
   printf 'Some text with **A pinned rule.** inside.\n' > "$T/r/references/landing.md"
-  printf '1\n' > "$T/r/references/heuristics/UNPINNED_CEILING"
+  printf 'old-rule.md\n' > "$T/r/references/heuristics/UNPINNED"
   frag old-rule Alpha 1 "" "old rule."
   frag new-rule Alpha 9 "$PIN" "new rule."
   frag beta-rule Beta 3 "$PIN" "beta rule."
@@ -67,20 +67,26 @@ else
   fail "--check failed without saying STALE"
 fi
 
-# A valid fixture lints clean and reports its pin counts, so the ceiling stays visible.
+# A valid fixture lints clean and reports how many older entries still have no pin.
 mkroot
-if run --lint && grep -qF '3 fragments, 2 pinned, 1 unpinned (ceiling 1)' "$T/out"; then
+if run --lint && grep -qF '3 fragments, 2 pinned, 1 listed in UNPINNED' "$T/out"; then
   ok "--lint passes and counts pinned fragments"
 else
   fail "--lint on a valid fixture: $(head -3 "$T/out")"
 fi
 
-# A ceiling above the unpinned count is reported, so it is lowered as legacy entries get pins.
-printf '5\n' > "$T/r/references/heuristics/UNPINNED_CEILING"
-if run --lint && grep -qF 'lower references/heuristics/UNPINNED_CEILING to 1' "$T/out"; then
-  ok "--lint asks to lower a loose ceiling"
+# A pin into a landing file with CRLF line endings still resolves.
+mkroot; printf 'Windows text with **A CRLF rule.** inside.\r\nMore.\r\n' > "$T/r/references/landing-crlf.md"
+frag crlf-rule Beta 5 "references/landing-crlf.md :: **A CRLF rule.**" "crlf rule."
+if run --lint; then ok "a pin into a CRLF landing file resolves"; else fail "CRLF pin: $(head -3 "$T/out")"; fi
+
+# An indented '---' inside an entry is entry text, not front matter, and compiles verbatim.
+mkroot; printf -- '---\nsection: Beta\norder: 5\npin: %s\n---\n- **Heuristic:** fence.\n  ---\n%b' "$PIN" "$ENTRY" \
+  > "$T/r/references/heuristics/fence-rule.md"
+if run && grep -qxF -- '  ---' "$T/r/references/heuristics.md"; then
+  ok "an indented --- inside an entry compiles verbatim"
 else
-  fail "no ratchet hint: $(head -3 "$T/out")"
+  fail "--- inside an entry: $(head -3 "$T/out")"
 fi
 
 # Each lint rule below fails closed; every case starts from a fresh, valid fixture.
@@ -96,8 +102,17 @@ mkroot; frag escape Alpha 4 "../outside.md :: **A pinned rule.**" "escape."
 expect_lint_fail "a pin outside the repository fails" "pin must be"
 mkroot; frag Upper-Case Alpha 4 "$PIN" "bad name."
 expect_lint_fail "a non-kebab file name fails" "kebab-case"
+# UNPINNED is a ratchet: new fragments need a pin, and a pinned entry must leave the list.
 mkroot; frag new-unpinned Alpha 4 "" "unpinned."
-expect_lint_fail "an unpinned new fragment above the ceiling fails" "above the ceiling"
+expect_lint_fail "a new fragment without a pin fails" "add a pin"
+mkroot; frag old-rule Alpha 1 "$PIN" "old rule."
+expect_lint_fail "a pinned entry still listed in UNPINNED fails" "now has a pin"
+mkroot; printf 'ghost.md\nold-rule.md\n' > "$T/r/references/heuristics/UNPINNED"
+expect_lint_fail "UNPINNED naming a missing fragment fails" "does not exist"
+mkroot; printf 'old-rule.md\nold-rule.md\n' > "$T/r/references/heuristics/UNPINNED"
+expect_lint_fail "an unsorted or duplicated UNPINNED fails" "sorted"
+mkroot; printf 'notes\n' > "$T/r/references/heuristics/notes.txt"
+expect_lint_fail "a stray file in the fragments directory fails" "unexpected file"
 mkroot; cp "$T/r/references/heuristics/beta-rule.md" "$T/r/references/heuristics/beta-copy.md"
 expect_lint_fail "a duplicated entry fails" "already exists"
 mkroot; printf -- '---\nsection: Alpha\norder: 4\npin: %s\n---\n- **Heuristic:** no why.\n  **Provenance:** p. **Landed in:** l.\n' "$PIN" \

@@ -18,7 +18,6 @@
 #      docs/audit/2026-07-09T0113Z_pr62-65-post-merge-audit.md, Agent action #3).
 #
 #   9. No UTF-8 double-encoding (mojibake) survives from a multi-agent merge.
-#  10. Heuristics ledger fragments lint clean, and every pinned phrase is still in its landing file.
 #  10. Every get-started / companions / reference page ends with a "What to do next" section, so
 #      navigation never dead-ends.
 #  11. docs/README.md still links the style guide that documents all of the above.
@@ -27,6 +26,7 @@
 #  14. The shipped phase, runtime, action, authority, review, and evidence contracts remain present.
 #  15. SKILL.md stays within the repository's documented ~500-line activation budget.
 #  16. Every literal bash harness in Makefile's test recipe appears in a CI run step.
+#  17. Heuristics ledger fragments lint clean, and every pinned phrase is still in its landing file.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -420,7 +420,7 @@ for f in "${MD[@]}"; do
   fi
 done
 
-# 10 — heuristics ledger fragments (references/heuristics/).
+# 17 — heuristics ledger fragments (references/heuristics/).
 # Each lesson is one fragment, so harvest PRs never edit the same ledger lines. The lint checks each
 # fragment's front matter and that every pinned phrase is still in its landing file, so a rule cannot
 # vanish silently. The ledger is compiled when a release is prepared (the release workflow runs

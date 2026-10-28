@@ -302,8 +302,8 @@ A triaged issue is turned into exactly one PR by an agent that runs **with wgm l
   (`check-docs`, `skills-ref`, the harnesses) as any other change.
 
 ## Promote & retain (the ledger)
-When a PR lands a durable lesson, add it as a fragment of [`heuristics.md`](heuristics.md) — the
-curated juice ledger, compiled from one file per lesson (format in its header) — and land the rule
+When a PR lands a durable lesson, add it as a ledger fragment ([how](heuristics/README.md)) — the
+curated juice ledger in [`heuristics.md`](heuristics.md) is compiled from them — and land the rule
 itself once, where it fires:
 - **the reference the agent reads when the rule applies** holds the normative text; the fragment
   summarizes it, records provenance, and pins the landing phrase so it cannot vanish silently;

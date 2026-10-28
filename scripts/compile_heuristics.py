@@ -68,8 +68,13 @@ def check_pin(root, name, pin, errors):
 def lint(root, sections):
     frag_dir = root / "references" / "heuristics"
     errors, frags, bodies = [], [], set()
-    for path in sorted(frag_dir.glob("*.md")):
-        if path.name == "README.md":
+    if not frag_dir.is_dir():
+        return frags, ["references/heuristics/ is missing"], 0
+    for path in sorted(frag_dir.iterdir()):
+        if path.name in ("README.md", "UNPINNED"):
+            continue
+        if not path.is_file() or path.suffix != ".md":
+            errors.append(f"{path.name}: unexpected file; this directory holds only .md fragments")
             continue
         if not NAME.match(path.name):
             errors.append(f"{path.name}: use a lowercase kebab-case name, like 'review-one-commit.md'")
@@ -96,15 +101,24 @@ def lint(root, sections):
         for pin in meta["pin"]:
             check_pin(root, path.name, pin, errors)
         frags.append((meta, body, path.name))
-    unpinned = sum(1 for meta, _, _ in frags if not meta["pin"])
-    try:
-        ceiling = int((frag_dir / "UNPINNED_CEILING").read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        errors.append("UNPINNED_CEILING: missing, or not a whole number")
-        ceiling = unpinned
-    if unpinned > ceiling:
-        errors.append(f"{unpinned} fragments have no pin, above the ceiling of {ceiling}: add a pin to each new fragment")
-    return frags, errors, unpinned, ceiling
+
+    # Only the older entries named in UNPINNED may go without a pin. Naming a new fragment there is a
+    # visible, reviewable edit, and a name must leave the list once its fragment gets a pin.
+    unpinned = {name for meta, _, name in frags if not meta["pin"]}
+    names = {name for _, _, name in frags}
+    listed_file = frag_dir / "UNPINNED"
+    listed = [line.strip() for line in listed_file.read_text(encoding="utf-8").splitlines()] if listed_file.is_file() else []
+    listed = [name for name in listed if name and not name.startswith("#")]
+    if listed != sorted(set(listed)):
+        errors.append("UNPINNED: keep one name per line, sorted, with no duplicates")
+    for name in listed:
+        if name not in names:
+            errors.append(f"UNPINNED lists {name}, which does not exist; delete that line")
+        elif name not in unpinned:
+            errors.append(f"UNPINNED lists {name}, which now has a pin; delete that line")
+    for name in sorted(unpinned - set(listed)):
+        errors.append(f"{name}: add a pin; only the older entries listed in UNPINNED may go without one")
+    return frags, errors, len(unpinned)
 
 
 def render(header, sections, frags):
@@ -125,16 +139,14 @@ def main():
 
     ledger = args.root / "references" / "heuristics.md"
     text, header, sections = load_ledger(ledger)
-    frags, errors, unpinned, ceiling = lint(args.root, sections)
+    frags, errors, unpinned = lint(args.root, sections)
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
     if errors:
         return 1
-    summary = f"{len(frags)} fragments, {len(frags) - unpinned} pinned, {unpinned} unpinned (ceiling {ceiling})"
+    summary = f"{len(frags)} fragments, {len(frags) - unpinned} pinned, {unpinned} listed in UNPINNED"
     if args.lint:
         print(f"ok:   heuristics fragments valid: {summary}")
-        if unpinned < ceiling:
-            print(f"info: lower references/heuristics/UNPINNED_CEILING to {unpinned}")
         return 0
     compiled = render(header, sections, frags)
     if args.check:

@@ -11,34 +11,14 @@ changed how wgm behaves *everywhere*, not just in one build. See
 - **Provenance** — where it was learned (a dogfood run, a `[learn]` issue, an influence).
 - **Landed in** — the skill artifact that now enforces it.
 
-Each entry is its own fragment in [`heuristics/`](heuristics/README.md), and the sections below
-are compiled from them, so add a fragment instead of editing this file; two harvest PRs then never
-touch the same lines. A fragment is a short front matter followed by the entry exactly as it reads
-below:
-
-```text
----
-section: Review
-order: 137
-pin: references/subagents.md :: **Review one immutable commit.**
----
-(the entry)
-```
-
-- `section` is one of this file's section headings.
-- `order` sorts a section newest first: use the `[learn]` issue number, or the PR number.
-- `pin` names the file where the rule landed and an exact phrase that must stay in it. Every new
-  fragment needs at least one pin; `heuristics/UNPINNED_CEILING` caps the older entries that have
-  none, and it only goes down.
-
-`scripts/check-docs.sh` lints every fragment and fails if a pinned phrase disappears. When a release
-is prepared, `python3 scripts/compile_heuristics.py` rebuilds the sections below, and the release
-workflow refuses a ledger that is behind its fragments.
+Each entry is its own fragment in [`heuristics/`](heuristics/README.md), which explains how to add
+one. The sections below are compiled from those fragments when a release is prepared, so never edit
+them by hand; between releases the fragments are the authoritative ledger, and this file can lag.
 
 Prune or merge entries that a protocol change has made redundant — the ledger stays lean, like the
 memory it graduates from. Do not pin a volatile entry count in this header; when an audit needs the
-current count, run `grep -cE '^- \*\*Heuristic:\*\*' references/heuristics.md` and record the date
-and result in the audit report.
+current count, run `python3 scripts/compile_heuristics.py --lint`, which reports it, and record the
+date and result in the audit report.
 
 ## Triage & Grill
 - **Heuristic:** if an unknown fork in Grill is an empirical fact observable by running a cheap
