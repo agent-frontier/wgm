@@ -14,17 +14,19 @@ Hold the scenarios out and the score means something.
   "done." Scenarios **complement** backpressure with holistic, end-to-end, holdout judgment; they do
   not replace it. Deterministic checks still gate; scenarios add confidence the user flow truly works.
 - **A scenario may tighten its spec, never weaken it.** When they conflict, fix the scenario or
-  record the spec change. Before final scoring, map every scenario expectation to one direct
-  assertion.
+  record the spec change. Before final scoring, map each atomic expectation (one step may hold
+  several) to one direct assertion.
 
 ## Authoring (when & who)
 - Write scenarios during **Grill/Plan**, from the spec's success criteria and demo path — before or
   independent of implementation.
 - One coherent journey per file. Favor the **smallest end-to-end slice** that proves value first.
 - Keep them black-box: phrase steps as user actions and observable expectations, not internal calls.
-- **Walk each journey on the real artifact before Plan-exit.** Check that every expectation is
-  reachable from what the build actually produces, and add a task (or fix the scenario) for
-  anything it cannot yet produce.
+- **Walk each journey on real artifacts as soon as they exist.** At Plan-exit, check every
+  expectation against artifacts that already exist (an existing build, corpus, or template output);
+  if none exist yet, the validator walks them right after the first build task. Add a task, or fix
+  the scenario, for any expectation they cannot reach. Plan-exit still judges the plan, never
+  unwritten code.
 
 ## YAML schema
 Each scenario file (`scenarios/<name>.yaml`):

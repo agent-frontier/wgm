@@ -46,8 +46,8 @@ and result in the audit report.
   `github/spec-kit`'s `templates/commands/clarify.md`. **Landed in:** `references/grilling.md`.
 
 ## Planning & artifact quality
-- **Heuristic:** let a scenario tighten its governing spec but never weaken it, and map every
-  scenario expectation to one direct assertion before final scoring.
+- **Heuristic:** let a scenario tighten its governing spec but never weaken it, and map each atomic
+  expectation (one step may hold several) to one direct assertion before final scoring.
   **Why:** a looser scenario awards full marks to a build that violates its spec, and a step with
   several expectations can pass on one. **Provenance:** `[learn]` issue #127. **Landed in:**
   `references/scenarios.md` (Scenarios vs specs vs backpressure).
@@ -179,8 +179,9 @@ and result in the audit report.
   support level, matched rule, and evidence source. **Why:** generic matcher tests stay green while
   the bundled path is broken. **Provenance:** `[learn]` issue #128. **Landed in:**
   `references/ralph-loop.md` (Backpressure in depth).
-- **Heuristic:** prove each claimed guard, branch, and ordering with a mutant the tests kill; a
-  compile error is not a kill, and every survivor is proven equivalent or recorded as a gap.
+- **Heuristic:** prove each claimed guard, branch, and ordering with a mutant (a deliberate small
+  break) that a test fails on; a compile error is not a kill, and every survivor is proven
+  equivalent or recorded as a gap.
   **Why:** green tests passed code whose retry branch never fired, and a harness bug silently
   turned mutants into deletions. **Provenance:** `[learn]` issue #126. **Landed in:**
   `references/ralph-loop.md` (Backpressure in depth).
@@ -348,11 +349,11 @@ and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
-- **Heuristic:** give a task's first candidate the full independent review; close a later fix round
-  without a fresh review only when a non-author re-verifies every changed line against the prior
-  findings and reruns every relevant check green.
+- **Heuristic:** give a task's first candidate both full review passes; a later fix round that
+  changes only the lines its findings named may take a scoped re-review, in which a non-author
+  reviewer checks every changed line against those findings while the relevant checks rerun green.
   **Why:** a full re-review of a two-line fix costs a whole review cycle, while closing it unchecked
-  throws the review away; a wider change, or a fix the checker wrote, still earns a fresh review.
+  throws the review away; a wider change, or a fix the checker wrote, still earns both full passes.
   **Provenance:** `[learn]` issue #121. **Landed in:** `references/subagents.md` (Dispatch points).
 - **Heuristic:** give every reviewer one immutable commit and pause the writer until the verdict is
   in; if the commit moves, discard the stale review and restart against the new commit.
@@ -389,12 +390,13 @@ and result in the audit report.
 
 ## Comparative & hard-to-test scoring
 - **Heuristic:** measure bounded engines at their configured time, memory, and size caps, not only
-  on small fixtures, and treat superlinear growth found there as a defect.
+  on small fixtures, and treat growth beyond the design's expected complexity as a defect.
   **Why:** a quadratic scan and a per-byte map near 157 MiB passed every small-fixture test.
   **Provenance:** `[learn]` issue #135. **Landed in:** `references/hard-to-test-domains.md` (Build
   the harness first).
-- **Heuristic:** before Plan-exit, walk each holdout journey against the real built artifacts and
-  add a task (or fix the scenario) for anything they cannot yet produce.
+- **Heuristic:** walk each holdout journey against real artifacts as soon as they exist (existing
+  builds, corpora, or template output at Plan-exit; otherwise right after the first build task) and
+  add a task, or fix the scenario, for any expectation they cannot reach.
   **Why:** a scenario expected a marker in an exported function, but the code template printed it
   elsewhere, so no feature task could earn those points. **Provenance:** `[learn]` issue #133.
   **Landed in:** `references/scenarios.md` (Authoring).
@@ -447,15 +449,16 @@ and result in the audit report.
 
 ## Swarm & parallelism
 - **Heuristic:** before dispatching lanes, find every file a shared-type change breaks (exhaustive
-  matches, struct literals, trait impls) and fence it with the lane that owns the change, or
-  sequence the lanes. **Why:** a feature-only fence leaves the owning lane unable to finish without
-  editing another lane's files. **Provenance:** `[learn]` issue #134. **Landed in:**
-  `references/subagents.md` (Worktree swarm dispatch).
-- **Heuristic:** let lanes commit only on their own branch; only the coordinator pushes, opens or
+  matches, struct literals, trait impls) and put it in the file set of the lane that owns the
+  change, or sequence the lanes. **Why:** a file set drawn around the feature alone leaves the
+  owning lane unable to finish without editing another lane's files. **Provenance:** `[learn]`
+  issue #134. **Landed in:** `references/subagents.md` (Worktree swarm dispatch).
+- **Heuristic:** let lanes commit only on their own branch; only the orchestrator pushes, opens or
   merges PRs, deletes or recreates refs, and removes worktrees, unless it delegates one named
-  action. **Why:** integration actions scattered across lane agents change shared state under the
-  agent that owns convergence and cannot be audited in one place. **Provenance:** `[learn]`
-  issue #123. **Landed in:** `references/subagents.md` (Worktree swarm dispatch).
+  action and records that delegation. **Why:** integration actions scattered across lane agents
+  change shared state under the agent that owns convergence and cannot be audited in one place.
+  **Provenance:** `[learn]` issue #123. **Landed in:** `references/subagents.md` (Worktree swarm
+  dispatch).
 - **Heuristic:** document each subagent's tool budget as a proposed machine-readable `groups:`
   schema, not prose alone — even before any host actually enforces it.
   **Why:** prompt text says what a role *should* do; structured `read` / `edit` / `command` /

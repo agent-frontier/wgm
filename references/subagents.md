@@ -66,11 +66,12 @@ flowchart LR
   green. It is the only role that opens `scenarios/`, preserving the holdout.
 - **Stall** → dispatch `wgm-diagnostician` (wonder→reflect, escalation, harness building) when
   satisfaction is flat or a check keeps failing.
-- **Fix rounds.** A task's first candidate always gets both passes. A later round that changes only
-  the lines its findings named may close without a fresh review if a non-author re-verifies every
-  changed line against those findings and reruns every relevant check green; that re-verification
-  is the round's closing PASS, recorded with what each line was checked against. Any wider change,
-  new production logic, or a fix the checker wrote gets both passes again.
+- **Fix rounds.** A task's first candidate always gets both full passes. A later round that changes
+  only the lines its findings named may take a scoped re-review instead: the reviewer that raised
+  those findings, or a fresh reviewer of the same role (never the fix's author), checks every
+  changed line against them while the task's validation command and the tests covering those lines
+  rerun green. That scoped PASS stands in for that reviewer's pass on the round, recorded with what
+  each line was checked against. Any wider change or new production logic gets both full passes.
 - A task is recorded `done` only when the deterministic gate exits 0 **and** both reviewers PASS
   **and** the diff carries exactly one recorded ruggedness verdict of RUGGED; the slice's holdout
   satisfaction is judged by the validator against the stop-condition threshold.
@@ -312,13 +313,13 @@ above. Four rules, each earned from a run that got it wrong:
 - **Partition lanes onto disjoint file sets.** Non-overlapping deliverables per lane is what makes
   final consolidation an octopus merge with zero conflicts. Overlapping lanes also create a nastier
   hazard than a conflict: one lane silently reverting a sibling's edits.
-- **Fence what a shared-type change breaks.** Before dispatch, search for every exhaustive match,
-  struct literal, and trait impl that a shared-type change breaks, and fence those files with the
-  lane that owns the change, or sequence the lanes.
-- **Only the coordinator integrates.** Lanes commit on their own branch and return diffs, findings,
+- **Partition by what a shared-type change breaks.** Before dispatch, search for every exhaustive
+  match, struct literal, and trait impl that a shared-type change breaks, and put those files in
+  the file set of the lane that owns the change, or sequence the lanes.
+- **Only the orchestrator integrates.** Lanes commit on their own branch and return diffs, findings,
   and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
-  recreating refs, and removing worktrees belong to the coordinator unless it delegates one named
-  action to one lane.
+  recreating refs, and removing worktrees belong to the orchestrator (the parent session that
+  dispatched the lanes) unless it delegates one named action to one lane and records the delegation.
 - **Size the swarm to the host's concurrency cap and backfill.** Hosts cap concurrent background
   agents (32 in one observed case; the 33rd is refused). Idle agents free a slot, so treat queued
   lanes as backfill that starts as running lanes go idle — do not assume N lanes launch N agents.

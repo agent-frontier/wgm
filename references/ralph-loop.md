@@ -142,10 +142,12 @@ loop, with progress living on disk (not the model's context) between passes
 - **Assert exactly what the spec makes exact.** Event count and variant, bytes or digest, sequence
   range, or the specific terminal error: a generic rejection never satisfies a typed outcome, and
   each test's assertion must measure the behavior its name claims.
-- **Prove guards with mutants.** For each claimed guard, branch, and ordering, apply a mutant and
-  confirm a test kills it. A compile error is not a kill: confirm each mutant applied as intended,
-  and prove a survivor equivalent or record the gap. Mutate a scratch copy so reviewers can still
-  build the tree.
+- **Prove guards with mutants.** A mutant is a deliberate small break in a scratch copy: a flipped
+  condition, a deleted guard, two swapped steps. For each claimed guard, branch, and ordering,
+  confirm a test fails on its mutant (kills it). A compile error is not a kill, so confirm each
+  mutant applied as intended. A survivor is either proven equivalent (no input can tell it from the
+  original, shown for example by an exhaustive sweep) or recorded as a gap. Mutating a scratch copy
+  keeps the tree buildable for reviewers.
 - **Named support needs a positive real-path test.** A claim for a named engine, profile, platform,
   or format needs a test that drives the shipped artifact for that target through its real path
   and asserts its support level, matched rule, and evidence source. Generic matcher tests support
