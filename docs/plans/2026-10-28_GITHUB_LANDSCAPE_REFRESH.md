@@ -54,6 +54,11 @@
 | [`0xNyk/council-of-high-intelligence`](https://github.com/0xNyk/council-of-high-intelligence) | Multi-persona deliberation skill with triads, duo debates, and kill criteria | Full build-and-validate loop; deterministic backpressure | Explicit **kill / reversal criterion** in `references/adr.md` and `assets/adr.template.md` |
 | [`affaan-m/ECC`](https://github.com/affaan-m/ECC) | Large collection of 70+ agents and 300+ domain skills | Lean, cohesive 1-skill + 3-companion architecture with mutation-tested gates | Confirmed wgm's lean core + companion design over a 300-skill catalog |
 | [`github/gh-aw`](https://github.com/github/gh-aw) | Markdown-to-GitHub-Actions compiler with read-only default and `safe-outputs` jobs | Interactive + local CLI portability; Stage 10 local authority envelopes | Confirmed wgm's Stage 10 authority separation and `wgm-hermes` fail-closed courier boundary |
+| [`OthmanAdi/planning-with-files`](https://github.com/OthmanAdi/planning-with-files) | Manus-style file-backed planning with `attest-plan.sh`, monotonic progress guards, and prompt-injection quarantine | Full Ralph build loop; holdout scenarios; subagent swarm | **Monotonic `done`-count guard** in `scripts/loop.sh`; **untrusted-content quarantine** for auto-loaded plan/memory files; **no re-read after write + 2-action multimodal flush** |
+| [`horizon-rust/horizon`](https://github.com/horizon-rust/horizon) | Clean-room Rust rewrite of Minecraft Java 26.3 verified by 324 differential harnesses | Portable skill across any domain/language | **Differential oracle harnesses** + `--changed` selector for ports/replacements; **scratch-home `HOME`/`XDG_*` isolation** for native/GUI runs |
+| [`Fission-AI/OpenSpec`](https://github.com/Fission-AI/OpenSpec) | Spec-driven development with delta specs and change archiving | Autonomous loop + holdout judge + rugged gate | **Brownfield Delta Specs (`ADDED` / `MODIFIED` / `REMOVED`)** in `references/artifacts.md` and `assets/spec.template.md` |
+| [`addyosmani/agent-skills`](https://github.com/addyosmani/agent-skills) | Production engineering skills (`doubt-driven-development`, `source-driven-development`) | External fresh-context loop (`loop.sh`); holdout scenarios | **High-blast-radius floor on Quick track** (`SKILL.md`); **lockfile version pin check** before framework/SDK code |
+| [`wanshuiyin/Auto-claude-code-research-in-sleep`](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep) | Cross-model adversarial review loops with decoupled `effort` and `assurance` axes | Deterministic software build/test gates; Stage 10 runner | **`same-family` vs. `cross-family` reviewer independence** provenance in `references/subagents.md` |
 
 ## Landed changes & provenance
 
@@ -82,6 +87,17 @@
    (`0xNyk/council-of-high-intelligence`) — `SKILL.md`, `references/ralph-loop.md`,
    `references/telemetry.md`, `references/adr.md`, `assets/adr.template.md`, and
    `references/heuristics.md`.
+8. **Monotonic plan-progress guard & untrusted-content quarantine** (`OthmanAdi/planning-with-files`) —
+   `scripts/loop.sh` (`plan_done_count`), `scripts/test-loop.sh` (case 21),
+   `references/ralph-loop.md` (Standing guardrails + Tool-output budget), and
+   `references/heuristics.md`.
+9. **Differential oracle harnesses & scratch-home `XDG_*` isolation** (`horizon-rust/horizon`),
+   **Brownfield Delta Specs (`ADDED` / `MODIFIED` / `REMOVED`)** (`Fission-AI/OpenSpec`),
+   **High-blast-radius floor on Quick track & lockfile version pinning** (`addyosmani/agent-skills`),
+   and **`same-family` vs. `cross-family` reviewer independence** (`wanshuiyin/Auto-claude-code-research-in-sleep`) —
+   `SKILL.md`, `references/hard-to-test-domains.md`, `references/artifacts.md`,
+   `assets/spec.template.md`, `references/subagents.md`, `references/ralph-loop.md`,
+   `references/heuristics.md`, and `scripts/check-docs.sh`.
 
 ## What to do next
 

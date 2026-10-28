@@ -29,6 +29,17 @@ Treat the harness as the product's first feature, not an afterthought.
 - **Run at the caps.** For an engine with configured time, memory, or size limits, add a measured
   run at each cap and record time and peak memory. Growth beyond the design's expected complexity
   found there is a defect even when the cap holds.
+- **Isolate user/app data directories into scratch homes.** Whenever a validation harness launches a
+  native app, CLI, or desktop launcher, redirect `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, and any
+  app-specific data/cache/self-update env vars into a disposable `mktemp -d` directory (with
+  self-update and audio disabled) so test runs never touch the operator's real `~/.local/share` or
+  `~/.config` (adapted from [`horizon-rust/horizon`](https://github.com/horizon-rust/horizon)'s
+  `AGENTS.md`).
+- **Build differential oracle harnesses for ports and replacements.** When porting or reimplementing
+  an existing system, pair each subsystem probe with a differential oracle that runs the reference
+  implementation and the candidate on identical seeds/inputs and diffs their serialized state or
+  output, and provide a changed-path selector (`--changed`) so each iteration runs the affected
+  harnesses fast before the full pre-PR sweep (adapted from `horizon-rust/horizon`).
 
 ## Make the signal deterministic
 - **Drive time by step count, not the wall clock.** If gameplay/sim tics come from `SDL_GetTicks()`

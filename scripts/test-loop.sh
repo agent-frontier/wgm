@@ -559,6 +559,19 @@ else
   fail "unexpected early halt with default max-cost (rc=$RC, iters=$iters)"
 fi
 
+# 21) monotonic plan-progress guard rejects an iteration that drops completed tasks (status: done / [x])
+printf '# plan\n\n- **status**: done\n- **status**: done\n- **status**: pending\n' > IMPLEMENTATION_PLAN.md
+git add IMPLEMENTATION_PLAN.md && git commit -qm "seed with 2 done tasks"
+# shellcheck disable=SC2016
+AGENT_CLOBBER_DONE=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf "# plan\n\n- **status**: done\n- **status**: pending\n" > IMPLEMENTATION_PLAN.md' _)
+run build 1 --max-retries 0 --max-consecutive-failures 1 -- "${AGENT_CLOBBER_DONE[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q "Monotonic plan-progress guard failed" <<<"$OUT" && grep -q "2 -> 1" <<<"$OUT"; then
+  pass "monotonic plan-progress guard rejects an iteration that decreases completed task count"
+else
+  fail "monotonic plan-progress guard did not reject clobbered done count (rc=$RC): $OUT"
+fi
+git checkout -q -- IMPLEMENTATION_PLAN.md
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "loop harness: GREEN"
   exit 0
