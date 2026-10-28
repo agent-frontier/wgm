@@ -312,6 +312,9 @@ above. Four rules, each earned from a run that got it wrong:
 - **Partition lanes onto disjoint file sets.** Non-overlapping deliverables per lane is what makes
   final consolidation an octopus merge with zero conflicts. Overlapping lanes also create a nastier
   hazard than a conflict: one lane silently reverting a sibling's edits.
+- **Fence what a shared-type change breaks.** Before dispatch, search for every exhaustive match,
+  struct literal, and trait impl that a shared-type change breaks, and fence those files with the
+  lane that owns the change, or sequence the lanes.
 - **Only the coordinator integrates.** Lanes commit on their own branch and return diffs, findings,
   and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
   recreating refs, and removing worktrees belong to the coordinator unless it delegates one named

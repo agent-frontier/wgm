@@ -441,6 +441,11 @@ and result in the audit report.
   issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
 
 ## Swarm & parallelism
+- **Heuristic:** before dispatching lanes, find every file a shared-type change breaks (exhaustive
+  matches, struct literals, trait impls) and fence it with the lane that owns the change, or
+  sequence the lanes. **Why:** a feature-only fence leaves the owning lane unable to finish without
+  editing another lane's files. **Provenance:** `[learn]` issue #134. **Landed in:**
+  `references/subagents.md` (Worktree swarm dispatch).
 - **Heuristic:** let lanes commit only on their own branch; only the coordinator pushes, opens or
   merges PRs, deletes or recreates refs, and removes worktrees, unless it delegates one named
   action. **Why:** integration actions scattered across lane agents change shared state under the
