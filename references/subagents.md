@@ -113,7 +113,13 @@ That is deliberate — it means the gate survives on hosts that cannot dispatch 
 ## Why two stages
 A single reviewer conflates "builds the right thing" with "builds it correctly," and tends to bless
 its own assumptions. Splitting intent (spec) from correctness (quality) raises the chance a real
-defect is named, and keeps each review high-signal — no style nits, only issues that matter.
+defect is named, and keeps each review high-signal — no style nits, only issues that matter. Every
+quality finding must state a **concrete trigger case** ("this input or state leads to this wrong
+result" — no case, no finding), and whenever a signature, return value, or shared contract changes,
+the reviewer must grep and inspect **connected callers outside the diff** rather than reading the
+diff alone. An intentional trade-off marked with `shortcut: <limit>, <when to upgrade>` is treated
+as a recorded decision unless the expected load already exceeds that limit (adapted from
+[`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail)'s `ponytail-review`).
 
 ## Dissent preservation
 A binary verdict can hide a real signal: a reviewer that PASSes may still hold a **non-blocking

@@ -192,6 +192,17 @@ else
   fail "candidate sandbox directory leaked evaluation cues in basename: '$CAND_PWD'"
 fi
 
+# 10) GIT_CEILING_DIRECTORIES isolates the sandbox even when TMPDIR sits inside a git repository
+mkdir -p "$TMP/in-repo-tmp"
+TMPDIR="$TMP/in-repo-tmp" run case-1 --agent 'if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo "IN_GIT"; else echo "ISOLATED"; fi; printf "%s" "{\"expectations\":[{\"text\":\"has widget\",\"passed\":true,\"evidence\":\"ok\"}]}"'
+RD="$(run_dir_of)"
+GIT_CHECK="$(head -n 1 "$RD/case-1/candidate/response.txt" 2>/dev/null || true)"
+if [[ "$GIT_CHECK" == "ISOLATED" ]]; then
+  pass "GIT_CEILING_DIRECTORIES prevents a candidate sandbox inside TMPDIR from reading parent git history"
+else
+  fail "candidate sandbox inside a parent git tree leaked git context: '$GIT_CHECK'"
+fi
+
 if (( FAILED == 0 )); then
   echo "grade-evals: GREEN"
   exit 0

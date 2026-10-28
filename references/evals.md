@@ -110,10 +110,15 @@ including why it deliberately does **not** depend on the `microsoft/SkillOpt` pa
   cited evidence snippet for every assertion. `summary` is always recomputed locally from
   `expectations[]` rather than trusted from the grader's own arithmetic.
 - **Anti-gaming blinding:** the candidate sandbox directory uses a neutral basename (`workspace.*`),
-  never words like `eval`, `grade`, `judge`, `benchmark`, or `rubric`, and prompts avoid
-  chain-eliciting cues ("list which rules you applied") so grading measures artifact/transcript
-  behavior rather than self-report (adapted from
-  [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s `eval.md` playbook).
+  never words like `eval`, `grade`, `judge`, `benchmark`, or `rubric`, sets
+  `GIT_CEILING_DIRECTORIES` to the sandbox so a tool-using candidate cannot walk up into a parent
+  repo's `git log` even when `TMPDIR` sits inside a checkout (adapted from
+  [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail)'s agentic benchmark
+  methodology), and prompts avoid chain-eliciting cues ("list which rules you applied") so grading
+  measures artifact/transcript behavior rather than self-report (adapted from
+  [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s `eval.md` playbook). When running
+  multi-trial A/B benchmarks, interleave candidate and baseline per task so provider time-of-day
+  drift hits both arms equally.
 - **Usage:** `./scripts/grade-evals.sh` grades every case against the current `SKILL.md`, using the
   same `$WGM_AGENT`/`--agent`/`--` convention as `scripts/loop.sh`. Add `--baseline <git-ref>` to
   also grade against `SKILL.md` as it existed at that ref and print a gate verdict — `ACCEPT` (no

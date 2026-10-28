@@ -262,7 +262,19 @@ Inject these into **every** iteration — they prevent recurring loop failures:
   before writing framework or SDK code:** read the manifest/lockfile (`package.json`, `Cargo.toml`,
   `pyproject.toml`, `go.mod`) first so you target the project's actual major/minor rather than stale
   training-memory defaults (adapted from [`addyosmani/agent-skills`](https://github.com/addyosmani/agent-skills)'s
-  `source-driven-development`).
+  `source-driven-development`). **Verify historical intent before calling an absence or isolation a
+  bug:** run `git log -p -S "<symbol>"` to check why the code was shaped that way — an isolated
+  profile, omitted fallback, or strict boundary is often the design (adapted from
+  [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent)'s `AGENTS.md`).
+- **Fix the producing boundary, not downstream consumer shims — and climb the reuse ladder.**
+  Normalize once at the owning producer boundary and remove superseded aliases/wrappers in the same
+  change rather than papering over bad state at every consumer (adapted from
+  [`morluto/rea`](https://github.com/morluto/rea)'s `AGENTS.md`). Prefer the smallest complete
+  change in order: (1) skip unrequested options, (2) reuse an existing repo helper/component, (3) use
+  stdlib/platform primitives, (4) use an already-installed dependency, (5) write minimal custom code
+  without ever cutting trust-boundary validation, error handling, security, or accessibility; mark
+  intentional scale trade-offs with `shortcut: <limit>, <when to upgrade>` (adapted from
+  [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail)).
 - **Document why each test exists.** When you add a test, record in a comment what behavior it proves
   and why it matters. A fresh context that can't see the rationale may delete the test as an orphan,
   silently dropping coverage.

@@ -91,6 +91,14 @@ date and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** verify historical intent (`git log -p -S "<symbol>"`) before calling an absence,
+  omitted fallback, or isolated boundary a bug, and fix the producing boundary once rather than
+  adding downstream consumer repair shims.
+  **Why:** an isolation or omission is often a deliberate architectural or security boundary, and
+  consumer-side repair shims leave the producer emitting bad state while multiplying representations.
+  **Provenance:** external research, `NousResearch/hermes-agent`'s `AGENTS.md` +
+  `morluto/rea`'s `AGENTS.md`. **Landed in:** `references/ralph-loop.md` (Standing guardrails) ·
+  `companions/rugged/SKILL.md` (Phase 4 — Simplify).
 - **Heuristic:** enforce monotonic task completion (`status: done` / `[x]` counts never decrease
   across a build iteration) and quarantine raw external web/search content out of auto-loaded plan
   and memory files.
@@ -422,6 +430,15 @@ date and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** when reviewing a change that alters a signature, return value, event payload, or
+  shared contract, grep and inspect connected callers outside the diff, require every finding to
+  name a concrete trigger case ("no case, no finding"), and honor explicit `shortcut: <limit>,
+  <when to upgrade>` comments unless expected load already crosses that limit.
+  **Why:** benchmarks show 22% of regressions break untouched callers outside the diff, while
+  speculative "consider..." findings add noise and punish documented scale trade-offs.
+  **Provenance:** external research, `DietrichGebert/ponytail`'s `skills/ponytail-review/SKILL.md` +
+  `skills/ponytail/SKILL.md`. **Landed in:** `references/subagents.md` (Why two stages) ·
+  `.github/agents/wgm-quality-reviewer.agent.md` · `references/ralph-loop.md` (Standing guardrails).
 - **Heuristic:** record whether non-author review independence was `same-family` (fresh session,
   same model family) or `cross-family` (a different model family).
   **Why:** a fresh session on the same model eliminates author-context rationalization, while a
@@ -477,6 +494,14 @@ date and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** set `GIT_CEILING_DIRECTORIES` to the throwaway sandbox in `grade-evals.sh` so a
+  candidate agent cannot walk up into a parent repository's `git log` when `TMPDIR` sits inside a
+  checkout, and interleave candidate/baseline trials across tasks.
+  **Why:** tool-using agents can read recent commit messages from an enclosing git repo to infer what
+  an eval is testing, and non-interleaved runs confound skill changes with time-of-day provider
+  drift. **Provenance:** external research, `DietrichGebert/ponytail`'s
+  `benchmarks/results/2026-10-07-agentic.md`. **Landed in:** `scripts/grade-evals.sh` ·
+  `scripts/test-grade-evals.sh` · `references/evals.md`.
 - **Heuristic:** blind candidate eval sandboxes against evaluation-cue keywords (`eval`, `grade`,
   `judge`, `benchmark`, `rubric`) and avoid chain-eliciting prompts that ask the candidate to
   self-report which rules it followed.

@@ -67,7 +67,7 @@ bash scripts/test-audit.sh                    # audit.sh dispatch harness, fixtu
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness
 bash scripts/test-compile-heuristics.sh       # heuristics ledger fragments: compile order, stale check, lint
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
-bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (9 cases)
+bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (10 cases)
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness
 actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```

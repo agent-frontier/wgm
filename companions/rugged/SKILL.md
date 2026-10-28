@@ -121,7 +121,11 @@ Propose the reduction, not just the diagnosis: which moving parts should come ou
 replaced with something that degrades visibly instead of silently, and which decisions should become
 atomic and recoverable rather than partial and stuck. State the trade-off being accepted for each
 simplification — ruggedness is rarely free, and pretending otherwise is the same overclaiming this
-skill exists to catch elsewhere.
+skill exists to catch elsewhere. Where a resource or child process has a lifecycle, require
+finalization/cleanup failure paths (cancellation during cleanup, late handshakes, mixed child
+outcomes) to be covered and **retain ownership of any resource whose cleanup failed** rather than
+silently dropping its handle or record (adapted from
+[`morluto/rea`](https://github.com/morluto/rea)'s `AGENTS.md`).
 
 ### Phase 5 — Field test
 State the specific, deterministic evidence needed to settle the Verdict — real load data, a chaos/
