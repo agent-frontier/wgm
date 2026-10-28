@@ -139,6 +139,9 @@ loop, with progress living on disk (not the model's context) between passes
   **measurement defect in your counting method** until authoritative runner output says otherwise —
   concluding "tests are missing" from a source-prefix scan sends you chasing a phantom gap
   (`[learn]` issue #81).
+- **Assert exactly what the spec makes exact.** Event count and variant, bytes or digest, sequence
+  range, or the specific terminal error: a generic rejection never satisfies a typed outcome, and
+  each test's assertion must measure the behavior its name claims.
 - **Check whether CI is even defined on the branch you target.** A workflow can live only on an
   unmerged sibling branch, so tightly-scoped local gates go green while the workspace-wide CI that
   will eventually gate the base branch fails — on **pre-existing** debt in code your change never

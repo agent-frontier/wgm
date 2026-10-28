@@ -149,6 +149,11 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** where a spec is exact, assert exactly (event count and variant, bytes or digest,
+  sequence range, the specific terminal error) and check that each test measures what its name
+  claims. **Why:** a generic rejection or an error string passes while a required typed outcome is
+  missing. **Provenance:** `[learn]` issue #125. **Landed in:** `references/ralph-loop.md`
+  (Backpressure in depth).
 - **Heuristic:** before calling a suspected race, ordering bug, leak, or unbounded growth confirmed
   (or ruled out), measure it with a minimal instrumented probe: a counter, a byte tally, a stress
   loop. **Why:** code-tracing missed an unbounded eviction loop, a stress-only race, and a double
