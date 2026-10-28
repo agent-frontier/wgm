@@ -150,6 +150,9 @@ loop, with progress living on disk (not the model's context) between passes
   or format needs a test that drives the shipped artifact for that target through its real path
   and asserts its support level, matched rule, and evidence source. Generic matcher tests support
   the claim but never substitute for it.
+- **Use inputs that tell old from new.** A behavior-change test needs an input where the old and
+  new code disagree (confirm it fails on the old code), and a scoping test asserts that
+  out-of-scope data is absent, not just that in-scope data is present.
 - **Check whether CI is even defined on the branch you target.** A workflow can live only on an
   unmerged sibling branch, so tightly-scoped local gates go green while the workspace-wide CI that
   will eventually gate the base branch fails — on **pre-existing** debt in code your change never

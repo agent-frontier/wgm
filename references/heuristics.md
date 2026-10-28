@@ -159,6 +159,11 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** give every behavior-change test at least one input where the old and new code
+  disagree, and make scoping tests assert that out-of-scope data is absent.
+  **Why:** tests built on inputs both versions handle the same way pass before and after the fix,
+  and a presence-only scope test misses leaks. **Provenance:** `[learn]` issue #131. **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth).
 - **Heuristic:** when a hosted CI run fails within seconds and no job starts, read its annotations
   for a billing or spending-limit block before editing workflow files.
   **Why:** that signature is an account block, neither a pass nor a source failure; disclose it
