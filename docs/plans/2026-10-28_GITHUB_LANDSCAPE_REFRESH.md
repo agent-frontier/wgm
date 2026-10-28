@@ -59,6 +59,10 @@
 | [`Fission-AI/OpenSpec`](https://github.com/Fission-AI/OpenSpec) | Spec-driven development with delta specs and change archiving | Autonomous loop + holdout judge + rugged gate | **Brownfield Delta Specs (`ADDED` / `MODIFIED` / `REMOVED`)** in `references/artifacts.md` and `assets/spec.template.md` |
 | [`addyosmani/agent-skills`](https://github.com/addyosmani/agent-skills) | Production engineering skills (`doubt-driven-development`, `source-driven-development`) | External fresh-context loop (`loop.sh`); holdout scenarios | **High-blast-radius floor on Quick track** (`SKILL.md`); **lockfile version pin check** before framework/SDK code |
 | [`wanshuiyin/Auto-claude-code-research-in-sleep`](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep) | Cross-model adversarial review loops with decoupled `effort` and `assurance` axes | Deterministic software build/test gates; Stage 10 runner | **`same-family` vs. `cross-family` reviewer independence** provenance in `references/subagents.md` |
+| [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail) | Minimal-diff senior-dev skill (`ponytail`, `ponytail-review`) with 585-run paired benchmark | Full Grill → Plan → Ralph loop + holdout judge | **Connected-caller review outside the diff**; **concrete trigger case required**; **`shortcut:` bound comments**; **`GIT_CEILING_DIRECTORIES` eval isolation** |
+| [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent) | Self-improving multi-platform agent with strict `AGENTS.md` budgets and KV-cache discipline | Portable skill across all coding CLIs | **Historical intent check (`git log -p -S`)** before calling an isolation/absence a bug |
+| [`morluto/rea`](https://github.com/morluto/rea) | Local reverse-engineering CLI/MCP harness with strict producer-boundary and cleanup ownership | General-purpose software build lifecycle | **Normalize once at the owning producer boundary** (no consumer repair shims); **retain ownership of resources whose cleanup failed** |
+| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) & [`vercel-labs/agent-browser`](https://github.com/vercel-labs/agent-browser) | Deterministic anti-slop UI detector rules + accessibility-tree `@eN` browser CLI | Backend, native, and full-stack orchestration | **Accessibility-tree snapshot verification** + **deterministic anti-slop UI checks** in `references/hard-to-test-domains.md` |
 
 ## Landed changes & provenance
 
@@ -98,6 +102,14 @@
    `SKILL.md`, `references/hard-to-test-domains.md`, `references/artifacts.md`,
    `assets/spec.template.md`, `references/subagents.md`, `references/ralph-loop.md`,
    `references/heuristics.md`, and `scripts/check-docs.sh`.
+10. **Connected-caller review outside the diff, concrete trigger cases, `shortcut:` bounds, and `GIT_CEILING_DIRECTORIES` eval isolation** (`DietrichGebert/ponytail`),
+    **Historical intent check (`git log -p -S`)** (`NousResearch/hermes-agent`),
+    **Producer-boundary normalization & failed-cleanup ownership retention** (`morluto/rea`), and
+    **Accessibility-tree UI verification & anti-slop checks** (`pbakaus/impeccable`, `vercel-labs/agent-browser`) —
+    `scripts/grade-evals.sh`, `scripts/test-grade-evals.sh` (case 10), `references/evals.md`,
+    `.github/agents/wgm-quality-reviewer.agent.md`, `adapters/claude/agents/wgm-quality-reviewer.md`,
+    `references/subagents.md`, `references/ralph-loop.md`, `companions/rugged/SKILL.md`,
+    `references/hard-to-test-domains.md`, and `references/heuristics.md`.
 
 ## What to do next
 

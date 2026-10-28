@@ -106,6 +106,8 @@ run_agent() {  # expects global $PROMPT set; prints the agent's response on stdo
   sandbox="$(mktemp -d -t workspace.XXXXXX)"
   (
     cd "$sandbox" || exit 1
+    export GIT_CEILING_DIRECTORIES
+    GIT_CEILING_DIRECTORIES="$(dirname "$sandbox")"
     if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then
       if [[ "$PROMPT_STDIN" == "1" ]]; then printf '%s' "$PROMPT" | "${AGENT_ARGV[@]}"
       else "${AGENT_ARGV[@]}" "$PROMPT"; fi

@@ -20,7 +20,14 @@ report process, scope, cost, or missing measurements, but it cannot satisfy this
 ### Key Capabilities
 - **Defect hunting**: logic errors, edge cases, race conditions, resource leaks, security holes.
 - **Validation audit**: does the task's check actually exercise the behavior, or pass vacuously?
-- **Regression risk**: would this break an adjacent flow the diff doesn't touch?
+- **Regression risk (connected callers outside the diff)**: whenever a function signature, return
+  value, event payload, or config key changes, grep and inspect every caller/consumer outside the
+  diff — a change frequently breaks untouched callers (adapted from
+  [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail)'s `ponytail-review`).
+- **Concrete trigger case & documented shortcuts**: every finding must state a concrete input or
+  situation and the wrong result it causes ("no concrete case, no finding"). Respect an explicit
+  `shortcut: <limit>, <when to upgrade>` comment as a recorded decision unless expected load
+  already crosses that limit.
 - **Source-first adversarial checks**: test the load-bearing claims the author is most likely to be
   certain about, including absolute documentation claims, arithmetic, security statements, and
   copy-paste commands.

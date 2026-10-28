@@ -130,6 +130,14 @@ cannot be queried from a test. Manufacture a deterministic **proxy** instead of 
   ads on, not just with them off.
 - This generalizes past web/SEO: any "is this actually better / faster / ranked-higher" claim that
   lives outside CI benefits from a deterministic proxy scored against a live, served baseline.
+- **Accessibility-tree snapshots and deterministic anti-slop UI checks.** For web and frontend UI
+  builds, verify interactive flows against accessibility-tree snapshots and element refs (e.g.
+  [`vercel-labs/agent-browser`](https://github.com/vercel-labs/agent-browser)) rather than blind CSS
+  edits, keep durable product truth (`PRODUCT.md`) separate from visual tokens (`DESIGN.md`), and
+  check for recurring AI-slop tells (nested cards-in-cards, low-contrast gray-on-color text,
+  unrequested generic SaaS gradients) before calling a UI slice done (adapted from
+  [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) and
+  [`Leonxlnx/taste-skill`](https://github.com/Leonxlnx/taste-skill)).
 
 **Provenance:** `[learn]` issues #32 (SEO/ranking proxy) and #35 (ads/CWV as a perf constraint).
 
