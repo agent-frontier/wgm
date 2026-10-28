@@ -1,6 +1,7 @@
 ---
 section: Comparative & hard-to-test scoring
 order: 9
+pin: references/hard-to-test-domains.md :: **Run at the caps.**
 ---
 - **Heuristic:** measure bounded engines at their configured time, memory, and size caps, not only
   on small fixtures, and treat growth beyond the design's expected complexity as a defect.

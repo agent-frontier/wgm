@@ -1,6 +1,7 @@
 ---
 section: Backpressure
 order: 24
+pin: references/ralph-loop.md :: **Prove guards with mutants.**
 ---
 - **Heuristic:** prove each claimed guard, branch, and ordering with a mutant (a deliberate small
   break) that a test fails on; a compile error is not a kill, and every survivor is proven

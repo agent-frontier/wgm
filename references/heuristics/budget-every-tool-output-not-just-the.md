@@ -1,6 +1,7 @@
 ---
 section: Token economy
 order: 3
+pin: references/ralph-loop.md :: Tool-output budget (every call)
 ---
 - **Heuristic:** budget every tool output, not just the window — if a result may exceed ~2k tokens,
   write it to a file and print one summary line; view with ranges and search count-first.

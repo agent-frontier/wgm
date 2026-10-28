@@ -1,6 +1,7 @@
 ---
 section: Backpressure
 order: 25
+pin: references/ralph-loop.md :: **Named support needs a positive real-path test.**
 ---
 - **Heuristic:** back every named-support claim (engine, profile, platform, format) with a positive
   test that drives the shipped artifact for that target through its real path and asserts its

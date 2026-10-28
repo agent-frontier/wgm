@@ -1,6 +1,7 @@
 ---
 section: Review
 order: 7
+pin: references/subagents.md :: **Fix rounds.**
 ---
 - **Heuristic:** give a task's first candidate both full review passes; a later fix round that
   changes only the lines its findings named may take a scoped re-review, in which a non-author

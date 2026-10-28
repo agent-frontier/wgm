@@ -1,6 +1,7 @@
 ---
 section: Swarm & parallelism
 order: 6
+pin: references/subagents.md :: **Partition by what a shared-type change breaks.**
 ---
 - **Heuristic:** before dispatching lanes, find every file a shared-type change breaks (exhaustive
   matches, struct literals, trait impls) and put it in the file set of the lane that owns the

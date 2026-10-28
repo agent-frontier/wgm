@@ -1,6 +1,7 @@
 ---
 section: Backpressure
 order: 26
+pin: references/ralph-loop.md :: **A run that dies in seconds may be a billing block.**
 ---
 - **Heuristic:** when a hosted CI run fails within seconds and no job starts, read its annotations
   for a billing or spending-limit block before editing workflow files.

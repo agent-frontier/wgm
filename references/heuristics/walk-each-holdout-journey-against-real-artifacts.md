@@ -1,6 +1,7 @@
 ---
 section: Comparative & hard-to-test scoring
 order: 8
+pin: references/scenarios.md :: **Walk each journey on real artifacts as soon as they exist.**
 ---
 - **Heuristic:** walk each holdout journey against real artifacts as soon as they exist (existing
   builds, corpora, or template output at Plan-exit; otherwise right after the first build task) and

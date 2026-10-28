@@ -1,6 +1,7 @@
 ---
 section: Loop discipline
 order: 17
+pin: references/ralph-loop.md :: **Pass bodies by file.**
 ---
 - **Heuristic:** write issue, PR, and comment bodies to a file and pass them with `--body-file`;
   never put Markdown backticks in a double-quoted shell argument.

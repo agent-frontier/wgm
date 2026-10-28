@@ -1,6 +1,7 @@
 ---
 section: Backpressure
 order: 27
+pin: references/ralph-loop.md :: **Use inputs that tell old from new.**
 ---
 - **Heuristic:** give every behavior-change test at least one input where the old and new code
   disagree, and make scoping tests assert that out-of-scope data is absent.

@@ -1,6 +1,7 @@
 ---
 section: Backpressure
 order: 22
+pin: references/stall-recovery.md :: name a minimal instrumented probe
 ---
 - **Heuristic:** before calling a suspected race, ordering bug, leak, or unbounded growth confirmed
   (or ruled out), measure it with a minimal instrumented probe: a counter, a byte tally, a stress

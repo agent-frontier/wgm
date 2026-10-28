@@ -1,6 +1,7 @@
 ---
 section: Planning & artifact quality
 order: 2
+pin: references/scenarios.md :: **A scenario may tighten its spec, never weaken it.**
 ---
 - **Heuristic:** let a scenario tighten its governing spec but never weaken it, and map each atomic
   expectation (one step may hold several) to one direct assertion before final scoring.

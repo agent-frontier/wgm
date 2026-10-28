@@ -1,6 +1,7 @@
 ---
 section: Loop discipline
 order: 18
+pin: references/subagents.md :: **Implementers may edit existing tests, narrowly.**
 ---
 - **Heuristic:** allow implementers targeted, justified edits to existing tests; treat test-only
   branches in production code as a review finding.

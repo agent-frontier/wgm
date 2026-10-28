@@ -1,6 +1,7 @@
 ---
 section: Swarm & parallelism
 order: 5
+pin: references/subagents.md :: **Only the orchestrator integrates.**
 ---
 - **Heuristic:** let lanes commit only on their own branch; only the orchestrator pushes, opens or
   merges PRs, deletes or recreates refs, and removes worktrees, unless it delegates one named

@@ -1,6 +1,7 @@
 ---
 section: Review
 order: 6
+pin: references/subagents.md :: **Review one immutable commit.**
 ---
 - **Heuristic:** give every reviewer one immutable commit and pause the writer until the verdict is
   in; if the commit moves, discard the stale review and restart against the new commit.

@@ -1,6 +1,7 @@
 ---
 section: Backpressure
 order: 23
+pin: references/ralph-loop.md :: **Assert exactly what the spec makes exact.**
 ---
 - **Heuristic:** where a spec is exact, assert exactly (event count and variant, bytes or digest,
   sequence range, the specific terminal error) and check that each test measures what its name
