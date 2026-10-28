@@ -274,12 +274,30 @@ Fresh context per iteration is Ralph's strength, but it also forgets. A small, t
 - End by writing handoff-quality state into the plan.
 - If context feels bloated, stop and hand off rather than push on.
 
+## Tool-output budget (every call)
+The window usually fills with tool *output*, not reasoning. One oversized result — a 300-hit grep,
+a full disassembly, an unranged view of a big file — can jump past the hard limit in a single step,
+before the rotation threshold below ever fires. Budget each call, not just the window:
+- **Estimate before you call.** If an output may exceed ~2k tokens, redirect it to a file and
+  print one summary line (counts, hashes, paths). Read slices of the file afterwards.
+- **Scripts summarize.** Harnesses, dumps, and JSON-producing tools write bulk data to disk and
+  print only a short result line.
+- **View with ranges.** Read large files in line ranges, not whole.
+- **Search count-first.** Run grep in count or files-only mode first, then narrow with a path and a
+  head limit before asking for content.
+- **Don't re-read.** Read a background shell's output once; don't reload a body (skill, spec, log)
+  that is already in context.
+- **Delegate broad exploration.** Send wide reads of a large external repo to a subagent that
+  returns a short summary (`references/subagents.md`).
+
 ## Context rotation (summarize, then refresh)
 Long in-session runs degrade as the window fills — the ecosystem's fix is to **rotate context at a
 token threshold** (e.g. cursor rotates ~80k tokens) and **summarize forward** (Vercel's loop) so no
 progress is lost. wgm's rule:
 - **Set a budget.** Pick a threshold well below the model's window — a practical default is ~50% of
   it, or a host-configured token cap. Treat crossing it as a stop signal, not a soft suggestion.
+  Rotate at the threshold, never at the hard limit — and keep each call small (Tool-output budget,
+  above) so a single result can't skip the threshold entirely.
 - **Summarize before you rotate.** Write handoff-quality state into `IMPLEMENTATION_PLAN.md` (task
   statuses + the exact next step) and append durable lessons to `.wgm/memories.md`. The summary —
   not the transcript — is what survives the rotation.

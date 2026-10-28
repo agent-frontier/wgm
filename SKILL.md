@@ -368,12 +368,12 @@ consider **model escalation**, before recording a
 blocker (`references/stall-recovery.md`). Capture what you learn in `.wgm/memories.md` so the next
 iteration starts ahead of the stall.
 
-**Context hygiene & rotation:** advance exactly one task per iteration. Watch the **context budget**:
-as the window fills (past ~half, or a host-set token cap), don't push on a degrading context —
-**summarize progress into the plan + `.wgm/memories.md`, then rotate to fresh context** (reload only
-the lean plan, the relevant spec, memories, and `CONTEXT.md` — never the old transcript). Ralph-full
-rotates every iteration by construction; Ralph-lite rotates on the threshold. If context is already
-bloated, stop and hand off through the plan (Phase 4) rather than grinding (`references/ralph-loop.md`).
+**Context hygiene & rotation:** advance exactly one task per iteration. Budget **each tool output**
+(>~2k tokens → write to a file, print one summary line; ranged views; count-first search). Watch the
+**context budget**: past ~half (or a host cap), **summarize progress into the plan + `.wgm/memories.md`,
+then rotate to fresh context** (reload only the lean plan, spec, memories, and `CONTEXT.md` — never
+the old transcript). Ralph-full rotates every iteration; Ralph-lite on the threshold. If context is
+already bloated, stop and hand off through the plan (Phase 4) rather than grinding (`references/ralph-loop.md`).
 
 **Iteration-exit gate** (print PASS/FAIL for each): implementation done · the task's exact
 validation command was run and **exited 0** · result recorded · diff reviewed for scope creep +

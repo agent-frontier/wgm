@@ -288,6 +288,11 @@ and result in the audit report.
   octopusgarden. **Landed in:** `SKILL.md` Backpressure · `wgm-validator`.
 
 ## Token economy
+- **Heuristic:** budget every tool output, not just the window — if a result may exceed ~2k tokens,
+  write it to a file and print one summary line; view with ranges and search count-first.
+  **Why:** one oversized output (a 300-hit grep, a full disassembly) overflows the window in a
+  single step, so the ~50% rotation never fires. **Provenance:** `[learn]` issue #117. **Landed
+  in:** `references/ralph-loop.md` (Tool-output budget) · `SKILL.md` (Context hygiene & rotation).
 - **Heuristic:** single-token compaction is model-specific — verify keys against the target
   tokenizer; short ASCII keys are the portable default. **Why:** a CJK glyph is 1 token in OpenAI
   o200k but 2–3 in cl100k, so "kanji == 1 token" is false in general.
