@@ -13,6 +13,9 @@ Hold the scenarios out and the score means something.
 - **Backpressure** (tests/types/build/lint/probes) is the deterministic pass/fail signal that gates
   "done." Scenarios **complement** backpressure with holistic, end-to-end, holdout judgment; they do
   not replace it. Deterministic checks still gate; scenarios add confidence the user flow truly works.
+- **A scenario may tighten its spec, never weaken it.** When they conflict, fix the scenario or
+  record the spec change. Before final scoring, map every scenario expectation to one direct
+  assertion.
 
 ## Authoring (when & who)
 - Write scenarios during **Grill/Plan**, from the spec's success criteria and demo path — before or

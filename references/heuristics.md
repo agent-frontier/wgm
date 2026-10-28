@@ -46,6 +46,11 @@ and result in the audit report.
   `github/spec-kit`'s `templates/commands/clarify.md`. **Landed in:** `references/grilling.md`.
 
 ## Planning & artifact quality
+- **Heuristic:** let a scenario tighten its governing spec but never weaken it, and map every
+  scenario expectation to one direct assertion before final scoring.
+  **Why:** a looser scenario awards full marks to a build that violates its spec, and a step with
+  several expectations can pass on one. **Provenance:** `[learn]` issue #127. **Landed in:**
+  `references/scenarios.md` (Scenarios vs specs vs backpressure).
 - **Heuristic:** treat a spec-quality checklist as "unit tests for English," and re-run it after
   each accepted Grill answer until the pass count stabilizes.
   **Why:** readiness scoring works better as a confirmation step than as the first place basic
