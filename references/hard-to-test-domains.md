@@ -26,6 +26,9 @@ Treat the harness as the product's first feature, not an afterthought.
 - **Soak tests for crash classes.** Many faults appear only after *N* steps and only *under load*
   (more simulation per frame). Run long, with stress (sustained input, many entities), and assert a
   **"no crash marker"** in the log. Short happy-path runs prove almost nothing about stability.
+- **Run at the caps.** For an engine with configured time, memory, or size limits, add a measured
+  run at each cap and record time and peak memory. Superlinear growth found there is a defect even
+  when the cap holds.
 
 ## Make the signal deterministic
 - **Drive time by step count, not the wall clock.** If gameplay/sim tics come from `SDL_GetTicks()`

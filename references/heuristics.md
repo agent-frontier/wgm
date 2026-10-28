@@ -388,6 +388,11 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** measure bounded engines at their configured time, memory, and size caps, not only
+  on small fixtures, and treat superlinear growth found there as a defect.
+  **Why:** a quadratic scan and a per-byte map near 157 MiB passed every small-fixture test.
+  **Provenance:** `[learn]` issue #135. **Landed in:** `references/hard-to-test-domains.md` (Build
+  the harness first).
 - **Heuristic:** before Plan-exit, walk each holdout journey against the real built artifacts and
   add a task (or fix the scenario) for anything they cannot yet produce.
   **Why:** a scenario expected a marker in an exported function, but the code template printed it
