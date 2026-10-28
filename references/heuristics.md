@@ -391,6 +391,11 @@ and result in the audit report.
   issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
 
 ## Swarm & parallelism
+- **Heuristic:** let lanes commit only on their own branch; only the coordinator pushes, opens or
+  merges PRs, deletes or recreates refs, and removes worktrees, unless it delegates one named
+  action. **Why:** integration actions scattered across lane agents change shared state under the
+  agent that owns convergence and cannot be audited in one place. **Provenance:** `[learn]`
+  issue #123. **Landed in:** `references/subagents.md` (Worktree swarm dispatch).
 - **Heuristic:** document each subagent's tool budget as a proposed machine-readable `groups:`
   schema, not prose alone — even before any host actually enforces it.
   **Why:** prompt text says what a role *should* do; structured `read` / `edit` / `command` /

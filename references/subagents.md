@@ -309,6 +309,10 @@ above. Four rules, each earned from a run that got it wrong:
 - **Partition lanes onto disjoint file sets.** Non-overlapping deliverables per lane is what makes
   final consolidation an octopus merge with zero conflicts. Overlapping lanes also create a nastier
   hazard than a conflict: one lane silently reverting a sibling's edits.
+- **Only the coordinator integrates.** Lanes commit on their own branch and return diffs, findings,
+  and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
+  recreating refs, and removing worktrees belong to the coordinator unless it delegates one named
+  action to one lane.
 - **Size the swarm to the host's concurrency cap and backfill.** Hosts cap concurrent background
   agents (32 in one observed case; the 33rd is refused). Idle agents free a slot, so treat queued
   lanes as backfill that starts as running lanes go idle — do not assume N lanes launch N agents.
