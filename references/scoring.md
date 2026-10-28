@@ -48,6 +48,11 @@ sub-100 scores, an optional `diagnostics` array (short category slugs such as `a
 iterations instead of burying them in prose; this follows `foundatron/octopusgarden`'s
 `internal/llm/prompt.go`.
 
+**The scenario's own rule sets partial-score severity.** Before accepting a validator's "blocking"
+on a sub-100 score, read the scenario: its authored scoring and tier text governs that severity,
+and a conflicting label becomes a tracked follow-up, not a silent PASS or a stop. This never
+overrides a failing deterministic gate or a blocking correctness finding.
+
 ## Relative-to-incumbent scoring (clone/replacement builds)
 When the job is to **beat or replace an existing artifact** (a redesign, a port, a faster library, a
 leaner CLI), an absolute threshold is necessary but not sufficient — it is blind to "worse than the

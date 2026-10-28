@@ -343,6 +343,11 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** let a holdout scenario's own scoring and tier text set the severity of a partial
+  score on it; keep a validator's conflicting label as a tracked follow-up.
+  **Why:** a validator can call a gap blocking that the scenario explicitly downgrades. The rule
+  never overrides a failing deterministic gate or a blocking correctness finding.
+  **Provenance:** `[learn]` issue #122. **Landed in:** `references/scoring.md` (Running the judge).
 - **Heuristic:** before timing a performance comparison, prove equivalent semantics and measure with
   warmups, repeated pinned runs, and disclosed caveats.
   **Why:** a faster number is meaningless if the candidate changed the result, compiler mode, input
