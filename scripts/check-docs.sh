@@ -329,6 +329,10 @@ PROTOCOL_FILES=(
   "references/subagents.md"
   "companions/rugged/SKILL.md"
   "references/evals.md"
+  "references/ralph-loop.md"
+  "references/hard-to-test-domains.md"
+  "references/artifacts.md"
+  "SKILL.md"
 )
 PROTOCOL_PHRASES=(
   "two independent reviewer passes"
@@ -370,6 +374,10 @@ PROTOCOL_PHRASES=(
   "check symbol/API scopes for cross-file collisions"
   "State the certainty rung reached."
   "Anti-gaming blinding"
+  "Monotonic plan progress & untrusted-content quarantine."
+  "Build differential oracle harnesses for ports and replacements."
+  "group requirements into explicit delta sections"
+  "no high-blast-radius boundary"
 )
 if (( ${#PROTOCOL_FILES[@]} != ${#PROTOCOL_PHRASES[@]} )); then
   note "protocol contract file/phrase arrays are misaligned (${#PROTOCOL_FILES[@]} files, ${#PROTOCOL_PHRASES[@]} phrases)"

@@ -18,7 +18,9 @@
 
 ## Acceptance criteria → backpressure
 Phrase each criterion in **EARS** (see `references/artifacts.md`) — e.g. "When [trigger], the
-[system] shall [response]" — so it is unambiguous and a command or judge can settle it.
+[system] shall [response]" — so it is unambiguous and a command or judge can settle it. For
+brownfield changes, tag or group each row as `ADDED`, `MODIFIED`, or `REMOVED` against the
+existing behavior (after `Fission-AI/OpenSpec`).
 
 | Criterion (EARS) | How it's verified (command/check) |
 |---|---|

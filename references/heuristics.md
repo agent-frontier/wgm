@@ -17,6 +17,13 @@ current count, run `grep -cE '^- \*\*Heuristic:\*\*' references/heuristics.md` a
 and result in the audit report.
 
 ## Triage & Grill
+- **Heuristic:** keep high-blast-radius changes (auth, security, data migrations, public API or
+  schema boundaries) off the Quick track even when the diff is 1–5 files.
+  **Why:** file count measures change size, not reversibility or blast radius; a two-line auth or
+  migration edit still needs Standard review and scenario assurance. **Provenance:** external
+  research, `addyosmani/agent-skills`'s `skills/doubt-driven-development/SKILL.md` +
+  `wanshuiyin/Auto-claude-code-research-in-sleep` (ARIS). **Landed in:** `SKILL.md` (Triage track
+  table).
 - **Heuristic:** if an unknown fork in Grill is an empirical fact observable by running a cheap
   local command or throwaway probe, run the probe and let the observation decide instead of asking
   the human.
@@ -53,6 +60,13 @@ and result in the audit report.
   `github/spec-kit`'s `templates/commands/clarify.md`. **Landed in:** `references/grilling.md`.
 
 ## Planning & artifact quality
+- **Heuristic:** in brownfield repositories, structure spec requirements as explicit `ADDED`,
+  `MODIFIED`, and `REMOVED` deltas against the existing baseline, and fold or archive completed
+  deltas on ship.
+  **Why:** greenfield-style specs blur existing behavior with the current change; explicit delta
+  sections show reviewers and implementers the exact behavioral boundary being moved. **Provenance:**
+  external research, `Fission-AI/OpenSpec`. **Landed in:** `references/artifacts.md` ·
+  `assets/spec.template.md`.
 - **Heuristic:** include an explicit kill / reversal criterion in every ADR naming what observation
   or threshold would prove the decision wrong and trigger superseding it.
   **Why:** hard-to-reverse choices suffer from sunk-cost inertia unless the condition that falsifies
@@ -73,6 +87,21 @@ and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** enforce monotonic task completion (`status: done` / `[x]` counts never decrease
+  across a build iteration) and quarantine raw external web/search content out of auto-loaded plan
+  and memory files.
+  **Why:** stale-read or concurrent writes silently clobber completed tasks without invalidating
+  Markdown syntax, and untrusted third-party text pasted into `IMPLEMENTATION_PLAN.md` or
+  `.wgm/memories.md` is re-injected into context on every subsequent iteration. **Provenance:**
+  external research, `OthmanAdi/planning-with-files`. **Landed in:** `scripts/loop.sh`
+  (`plan_done_count`) · `scripts/test-loop.sh` · `references/ralph-loop.md` (Standing guardrails).
+- **Heuristic:** before writing framework- or SDK-specific code, inspect the project's dependency
+  manifest or lockfile (`package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`) to pin the exact
+  major/minor version in use.
+  **Why:** training-memory defaults frequently mix incompatible major versions (e.g. React 18 vs 19,
+  Tailwind 3 vs 4, Pydantic v1 vs v2), causing avoidable iteration churn. **Provenance:** external
+  research, `addyosmani/agent-skills`'s `skills/source-driven-development/SKILL.md`. **Landed in:**
+  `references/ralph-loop.md` (Standing guardrails).
 - **Heuristic:** when pausing mid-iteration or picking up an interrupted session, leave a clean
   `wip:` checkpoint commit plus a cold-start resume note, and on pickup neither re-derive already-
   completed tasks from scratch nor trust an uncommitted self-report without checking the artifact.
@@ -184,6 +213,14 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** when validating native apps, CLIs, or desktop launchers, isolate `HOME`,
+  `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, and app-specific data/update directories into a disposable
+  `mktemp -d` scratch home, and use differential oracle harnesses (reference vs. candidate on
+  identical inputs) for ports and rewrites.
+  **Why:** unisolated app launches corrupt the operator's real `~/.local/share` or `~/.config`, and
+  differential oracles catch subtle behavioral drift across hundreds of cases that hand-written
+  assertions miss. **Provenance:** external research, `horizon-rust/horizon`'s `AGENTS.md`.
+  **Landed in:** `references/hard-to-test-domains.md` (Build the harness first).
 - **Heuristic:** guard against test tampering in the diff (deleted tests, new skip/xfail/ignore
   markers, weakened assertions) unless an acceptance criterion authorizes it, and for bug fixes
   prove the regression test fails on the merge-base and passes on `HEAD`.
@@ -361,6 +398,11 @@ and result in the audit report.
   octopusgarden. **Landed in:** `SKILL.md` Backpressure · `wgm-validator`.
 
 ## Token economy
+- **Heuristic:** never read back a file you just wrote or edited in the same turn, and flush
+  visual/multimodal/browser inspections to disk after at most 2 view actions.
+  **Why:** a just-written file is already in active context, and unrecorded multimodal observations
+  evaporate as soon as the session rotates or compacts. **Provenance:** external research,
+  `OthmanAdi/planning-with-files`. **Landed in:** `references/ralph-loop.md` (Tool-output budget).
 - **Heuristic:** budget every tool output, not just the window — if a result may exceed ~2k tokens,
   write it to a file and print one summary line; view with ranges and search count-first.
   **Why:** one oversized output (a 300-hit grep, a full disassembly) overflows the window in a
@@ -376,6 +418,13 @@ and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** record whether non-author review independence was `same-family` (fresh session,
+  same model family) or `cross-family` (a different model family).
+  **Why:** a fresh session on the same model eliminates author-context rationalization, while a
+  different model family additionally catches shared model blind spots; naming which ran keeps the
+  review provenance honest. **Provenance:** external research,
+  `wanshuiyin/Auto-claude-code-research-in-sleep` (ARIS) `skills/shared-references/reviewer-backends.md`.
+  **Landed in:** `references/subagents.md` (The ruggedness gate).
 - **Heuristic:** in rugged and risk reviews, state which rung of the five-step certainty ladder each
   load-bearing claim reached (prose assertion → cited `file:line` → walked failure trace → executed
   script/test against real code → reproduced in running system), and keep empirical claims below

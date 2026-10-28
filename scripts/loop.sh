@@ -472,6 +472,14 @@ plan_hash() {
   fi
 }
 
+plan_done_count() {
+  if [[ -n "$PLAN" && -f "$PLAN" ]]; then
+    grep -ciE '(status\*\*:[[:space:]]*done|status:[[:space:]]*done|\[x\])' "$PLAN" 2>/dev/null || echo 0
+  else
+    echo 0
+  fi
+}
+
 file_hash() {
   local file="$1"
   if command -v sha1sum >/dev/null 2>&1; then sha1sum "$file" | awk '{print $1}'
@@ -848,6 +856,7 @@ while :; do
   echo ""
   echo "==================== wgm ${MODE} (${ACTIVE}) — iteration ${ITER} ===================="
   HASH_BEFORE="$(plan_hash)"
+  DONE_BEFORE="$(plan_done_count)"
   ITER_START=$(date +%s)
   STOP_BEFORE=0
   stop_requested && STOP_BEFORE=1
@@ -869,6 +878,14 @@ Commit ownership: before you finish, write every repository-relative file path y
     unset WGM_OWNERSHIP_MANIFEST
   fi
   if run_iteration; then
+    if [[ "$MODE" == "build" ]]; then
+      DONE_AFTER="$(plan_done_count)"
+      if [[ "$DONE_AFTER" -lt "$DONE_BEFORE" ]]; then
+        discard_iteration_ownership
+        iteration_failure "Monotonic plan-progress guard failed after iteration ${ITER}: completed task count decreased (${DONE_BEFORE} -> ${DONE_AFTER}) in ${PLAN_REF}."
+        continue
+      fi
+    fi
     if [[ "$MODE" == "build" ]] && ! run_project_gates; then
       discard_iteration_ownership
       iteration_failure "Project-wide gate failure after iteration ${ITER}."

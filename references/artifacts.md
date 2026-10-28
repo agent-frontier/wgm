@@ -74,7 +74,11 @@ One spec per coherent slice of work. Source from `assets/spec.template.md`. Must
 - **Magic moment** — the one thing that should impress; the demo path; the smallest end-to-end
   slice that proves value.
 - **Acceptance criteria → backpressure** — each criterion paired with the command/check that
-  verifies it. Write the criterion in **EARS** (Easy Approach to Requirements Syntax) so it is
+  verifies it. In a **brownfield** codebase, group requirements into explicit delta sections —
+  `ADDED`, `MODIFIED`, and `REMOVED` requirements — so reviewers and implementers see the exact
+  behavioral change against the existing baseline, and fold or archive completed deltas on ship so
+  the living spec stays clean (adapted from [`Fission-AI/OpenSpec`](https://github.com/Fission-AI/OpenSpec)).
+  Write the criterion in **EARS** (Easy Approach to Requirements Syntax) so it is
   unambiguous and testable — one of five shapes:
   - *Ubiquitous:* "The [system] shall [response]."
   - *Event-driven:* "When [trigger], the [system] shall [response]."

@@ -97,7 +97,11 @@ That is deliberate — it means the gate survives on hosts that cannot dispatch 
 - **If independent review is unavailable, the gate is blocked.** Without native dispatch, hand the
   bounded diff, spec/acceptance criteria, exact validation evidence, and ruggedness verdict to
   separate fresh non-author reviewer invocations (one per pass) or independent human reviewers.
-  Record their identities, scope, verdicts, and dissent. Re-labeling the author or doing sequential
+  Record their identities, scope, verdicts, dissent, and whether review independence was
+  `same-family` (a fresh session on the same model family, which catches context rot) or
+  `cross-family` (a different model family, which also catches shared model blind spots — adapted from
+  [`wanshuiyin/Auto-claude-code-research-in-sleep`](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)).
+  Re-labeling the author or doing sequential
   self-review in the author's context is not independence. If no independent reviewer is available,
   record the missing capability and required handoff; do not mark `done` or advance past Review.
   `scripts/audit.sh` remains the separate docs-audit dispatcher, not a correctness-review substitute.

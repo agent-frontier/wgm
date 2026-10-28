@@ -178,7 +178,7 @@ retain superseded verdicts only as dated history, never as a second current verd
 
    | Track | When | Ceremony |
    |---|---|---|
-   | **Quick** | Bug fix or small 1–5 file change with an obvious check, and completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions) | Grill only what's unclear · short plan · inline deterministic validation · **inline** ruggedness rubric (the invariant is never skipped) · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
+   | **Quick** | Bug fix or small 1–5 file change with an obvious check, completable from a single short prompt in one agent turn once grilling clears (no unsettled research/decisions, and **no high-blast-radius boundary** such as auth, security, data migration, or public API/schema) | Grill only what's unclear · short plan · inline deterministic validation · **inline** ruggedness rubric (the invariant is never skipped) · **skip** holdout scenarios + Preflight + the docs-audit swarm (`scripts/check-docs.sh` structural check only) |
    | **Standard** (default) | A normal feature | The full lifecycle as written below — unchanged, including the `/rugged plan` + `/rugged review` ruggedness gate; the docs-audit swarm runs once, at Ship/Handoff |
    | **Full** | Large / multi-slice / greenfield or high-risk | Standard **plus** holdout scenarios · stratified scoring · containerized validation · a Plan-exit **baseline** docs-audit pass |
 5. Decide loop mode — **prefer Ralph-full whenever it is practically invocable**:
