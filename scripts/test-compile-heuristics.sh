@@ -86,6 +86,14 @@ else
   fail "--lint on a valid fixture: $(head -3 "$T/out")"
 fi
 
+# The fixture holds only one of the frozen older entries, so the rest must be reported as unused;
+# that report is how the frozen set keeps shrinking as older entries get pins.
+if grep -qF 'frozen digests match no unpinned entry' "$T/out"; then
+  ok "--lint reports frozen digests that no entry uses"
+else
+  fail "no report of unused frozen digests: $(head -3 "$T/out")"
+fi
+
 # The older-entry exemption follows the text, not the file name, and README.md is not a fragment.
 mkroot; mv "$T/r/references/heuristics/old-rule.md" "$T/r/references/heuristics/renamed-rule.md"
 printf '# Notes for humans\n' > "$T/r/references/heuristics/README.md"
@@ -149,9 +157,10 @@ expect_lint_fail "a subdirectory fails" "unexpected file"
 mkroot; mkdir "$T/r/references/heuristics/README.md"
 expect_lint_fail "a README.md that is not a file fails" "unexpected file"
 
-# The repository's own fragments must lint clean, so make test catches a broken pin too.
-if python3 "$TOOL" --lint > "$T/out" 2>&1; then
-  ok "the repository's fragments lint clean"
+# The repository's own fragments must lint clean, and every frozen digest must still match an older
+# entry here, so make test catches a broken pin or a frozen set that drifted from the repository.
+if python3 "$TOOL" --lint > "$T/out" 2>&1 && ! grep -qF 'frozen digests match no unpinned entry' "$T/out"; then
+  ok "the repository's fragments lint clean and every frozen digest is in use"
 else
   fail "repository fragments: $(head -3 "$T/out")"
 fi

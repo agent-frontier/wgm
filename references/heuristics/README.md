@@ -38,7 +38,7 @@ the authoritative ledger; the compiled file is rebuilt when a release is prepare
 Every fragment needs a pin, except the older entries that predate pins. `compile_heuristics.py`
 knows those by the text they had when the ledger moved to fragments, so a new or reworded entry
 always needs a pin, while renaming a file changes nothing. That frozen set only shrinks: once an
-older entry gets a pin, delete its digest from the tool.
+older entry gets a pin, delete its digest from the tool; `--lint` reports any digest left behind.
 
 ## Fold-ins
 
