@@ -299,14 +299,18 @@ printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
 | `--dry-run` | print the plan; create nothing |
 
 ### Planning a swarm well
-- **Partition file ownership, not just features.** Worktree isolation only prevents *live* file
-  contention — two peer streams can still independently touch the **same shared module** (a
-  registry, an `index`/`mod`/`use` file, a shared FFI/utils file), which then surfaces only as a
-  merge conflict at integration time, the most expensive moment to find it. Assign each stream a
-  disjoint set of files/areas it owns, name them explicitly in its prompt, and route shared
-  additions (helpers, constants, FFI) into the stream's *own* module instead of the common file.
-  Treat any unavoidably-shared declaration file as a known merge point and have each stream append
-  in a stable, non-adjacent location so a 3-way merge stays trivial.
+- **Partition file ownership AND symbol/API intent, not just features.** Worktree isolation only
+  prevents *live* file contention — two peer streams can still independently touch the **same shared
+  module** (a registry, an `index`/`mod`/`use` file, a shared FFI/utils file), which then surfaces
+  only as a merge conflict at integration time, the most expensive moment to find it. Worse, two
+  streams can touch completely disjoint files and still silently break each other if one
+  `replaces`/`deletes`/`renames` a symbol or interface that another stream `extends`/`calls`
+  (adapted from [`naw103/foremerge`](https://github.com/naw103/foremerge)). Assign each stream a
+  disjoint set of files/areas it owns, name its symbol-level intent (`replace`/`delete` vs.
+  `extend`/`call`) up front, and route shared additions (helpers, constants, FFI) into the stream's
+  *own* module instead of the common file. Treat any unavoidably-shared declaration file as a known
+  merge point and have each stream append in a stable, non-adjacent location so a 3-way merge stays
+  trivial.
 - **A feasibility spike is a legitimate stream too.** Not every stream has to ship code — dispatch an
   open "is this even possible?" question as a peer stream whose deliverable is a **go/no-go writeup
   with provenance**, not a diff. Fold the verdict back into `IMPLEMENTATION_PLAN.md`: drop any task

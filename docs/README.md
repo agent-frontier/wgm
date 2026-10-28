@@ -143,6 +143,9 @@ Design records, kept for provenance rather than as current instructions:
 - [2026-08-20 — Stage 8+ growth record](plans/2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md) — why wgm is
   assessed as Stage 9 emerging/supervised, what is already orchestrated, and what full self-improvement
   autonomy still requires.
+- [2026-10-28 — GitHub agent-skills & orchestrators landscape refresh](plans/2026-10-28_GITHUB_LANDSCAPE_REFRESH.md) —
+  how wgm compares to pstack, no_human, foremerge, martin-loop, council-of-high-intelligence, ECC,
+  and gh-aw, and the seven zero-dependency upgrades assimilated from them.
 - [2026-06-16 — competitive analysis and improvement roadmap](plans/2026-06-16_PLAN.md) — how wgm
   compares to Spec Kit, BMAD, Superpowers, Ralph Orchestrator, agent-os, and grill-me (**all tiers
   shipped**).

@@ -310,9 +310,14 @@ above. Four rules, each earned from a run that got it wrong:
   If this does happen, **never repair it by discarding commits**: preserve reachability first (keep
   the accidental commits on the intended branch plus an explicit recovery branch), then restore the
   intended checkout from the remote.
-- **Partition lanes onto disjoint file sets.** Non-overlapping deliverables per lane is what makes
-  final consolidation an octopus merge with zero conflicts. Overlapping lanes also create a nastier
-  hazard than a conflict: one lane silently reverting a sibling's edits.
+- **Partition lanes onto disjoint file sets — and check symbol/API scopes for cross-file collisions.**
+  Non-overlapping deliverables per lane is what makes final consolidation an octopus merge with zero
+  conflicts. Overlapping lanes also create a nastier hazard than a conflict: one lane silently
+  reverting a sibling's edits. Because two lanes can touch different files and still collide
+  semantically (e.g. one replaces `PaymentService` while another extends it), have each stream also
+  declare the shared symbols/interfaces it `replaces`/`deletes`/`renames` versus `extends`/`calls`
+  before coding, and resolve any `replace`/`delete` vs. `extend`/`call` collision up front (adapted
+  from [`naw103/foremerge`](https://github.com/naw103/foremerge)).
 - **Partition by what a shared-type change breaks.** Before dispatch, search for every exhaustive
   match, struct literal, and trait impl that a shared-type change breaks, and put those files in
   the file set of the lane that owns the change, or sequence the lanes.

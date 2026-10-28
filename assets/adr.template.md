@@ -22,3 +22,4 @@ fresh agent or human.
 ## Consequences
 - **Upside:** <benefit accepted>
 - **Trade-off:** <cost / limitation accepted>
+- **Kill / reversal criterion:** <what observation or threshold would prove this choice wrong and trigger superseding it>

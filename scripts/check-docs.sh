@@ -323,6 +323,12 @@ PROTOCOL_FILES=(
   "docs/reference/gates.md"
   "references/ralph-loop.md"
   "SKILL.md"
+  "references/ralph-loop.md"
+  "SKILL.md"
+  "references/grilling.md"
+  "references/subagents.md"
+  "companions/rugged/SKILL.md"
+  "references/evals.md"
 )
 PROTOCOL_PHRASES=(
   "two independent reviewer passes"
@@ -358,6 +364,12 @@ PROTOCOL_PHRASES=(
   "there is no automatic waiver"
   "Tool-output budget (every call)"
   "Budget **each tool output**"
+  "Guard against test tampering, and prove bug-fix repro on the base."
+  "Test-tamper & bug-repro"
+  "Explore and probe before asking."
+  "check symbol/API scopes for cross-file collisions"
+  "State the certainty rung reached."
+  "Anti-gaming blinding"
 )
 if (( ${#PROTOCOL_FILES[@]} != ${#PROTOCOL_PHRASES[@]} )); then
   note "protocol contract file/phrase arrays are misaligned (${#PROTOCOL_FILES[@]} files, ${#PROTOCOL_PHRASES[@]} phrases)"

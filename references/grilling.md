@@ -15,8 +15,13 @@ Walk down each branch of the decision tree, resolving dependencies between decis
    `**Recommended:** Option [X] - <reasoning>`, then a compact options table, then a one-line
    reply rule: "Reply with the letter, say `yes` / `recommended` to accept, or give your own short
    answer." The user should be able to reply "yes" and move on.
-3. **Explore before asking.** If a question can be answered by reading the codebase, read the
-   codebase instead. Questions you can resolve yourself are not questions for the user.
+3. **Explore and probe before asking.** If a question can be answered by reading the codebase, read
+   the codebase instead. If a fork is an empirical fact observable by running a cheap local probe or
+   throwaway sketch (CLI flags, runtime behavior, layout, timing, dependency support), run the probe
+   and let the observation decide — never ask the human a question a 30-second test can settle
+   (adapted from [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s `poteto-mode` and
+   [`tzachbon/smart-ralph`](https://github.com/tzachbon/smart-ralph)). Reserve human questions for
+   genuine product, UX, or policy preferences.
 4. **Resolve dependencies in order.** Some decisions gate others (data model before API shape,
    auth model before routes). Ask the upstream one first; let its answer prune the tree.
 5. **Ask vs assume.** Only ask when the answer would *materially* change one of:
@@ -83,7 +88,7 @@ Stop interviewing and move to planning when **all** hold:
 - [ ] The user said "go," or the remaining ambiguity cannot change the build.
 
 ## Anti-patterns
-- Asking what the code already answers.
+- Asking what the code or a 30-second local probe already answers.
 - Ten questions in one message.
 - Open-ended questions with no recommendation ("How should auth work?" → instead: "I recommend
   email+password with sessions because X — good, or do you need OAuth?").

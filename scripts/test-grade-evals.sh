@@ -182,6 +182,16 @@ else
   rm -f "$TMP/sandbox-canary.txt"
 fi
 
+# 9) the throwaway sandbox directory name is blinded (no eval/grade/judge/test cues in pwd)
+run case-1 --agent 'pwd; printf "%s" "{\"expectations\":[{\"text\":\"has widget\",\"passed\":true,\"evidence\":\"ok\"}]}"'
+RD="$(run_dir_of)"
+CAND_PWD="$(head -n 1 "$RD/case-1/candidate/response.txt" 2>/dev/null || true)"
+if [[ -n "$CAND_PWD" ]] && ! grep -qiE '(eval|grade|judge|benchmark|rubric|candidate)' <<<"$(basename "$CAND_PWD")"; then
+  pass "candidate sandbox directory basename is blinded against evaluation-cue keywords"
+else
+  fail "candidate sandbox directory leaked evaluation cues in basename: '$CAND_PWD'"
+fi
+
 if (( FAILED == 0 )); then
   echo "grade-evals: GREEN"
   exit 0
