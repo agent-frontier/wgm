@@ -5,16 +5,20 @@ of ephemeral `.wgm/memories.md` into the shared skill. This is wgm's long-term m
 changed how wgm behaves *everywhere*, not just in one build. See
 [`self-improvement.md`](self-improvement.md) for how lessons get here.
 
-**Adding an entry** (one thought per entry, newest at the top of its section):
+**Adding an entry** (one thought per entry):
 - **Heuristic** — the durable rule, stated as an imperative.
 - **Why** — the failure it prevents or the value it adds.
 - **Provenance** — where it was learned (a dogfood run, a `[learn]` issue, an influence).
 - **Landed in** — the skill artifact that now enforces it.
 
+Each entry is its own fragment in [`heuristics/`](heuristics/README.md), which explains how to add
+one. The sections below are compiled from those fragments when a release is prepared, so never edit
+them by hand; between releases the fragments are the authoritative ledger, and this file can lag.
+
 Prune or merge entries that a protocol change has made redundant — the ledger stays lean, like the
 memory it graduates from. Do not pin a volatile entry count in this header; when an audit needs the
-current count, run `grep -cE '^- \*\*Heuristic:\*\*' references/heuristics.md` and record the date
-and result in the audit report.
+current count, run `python3 scripts/compile_heuristics.py --lint`, which reports it, and record the
+date and result in the audit report.
 
 ## Triage & Grill
 - **Heuristic:** keep high-blast-radius changes (auth, security, data migrations, public API or

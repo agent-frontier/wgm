@@ -387,7 +387,7 @@ wgm/
 - `main` is the canonical release line.
 - The `SKILL.md` frontmatter version is the public skill version; a release **tag must match it
   exactly**, prefixed with `v` (version `0.5.1` → tag `v0.5.1`).
-- **To cut a release:** push the matching tag — `git tag v0.5.1 && git push origin v0.5.1`.
+- **To cut a release:** run `python3 scripts/compile_heuristics.py` and commit the rebuilt ledger, then push the matching tag — `git tag v0.5.1 && git push origin v0.5.1`.
   [`.github/workflows/release.yml`](.github/workflows/release.yml) then verifies the tag against
   `SKILL.md`, re-runs shellcheck + `skills-ref` + the docs check, packages `wgm-v0.5.1.tar.gz` (plus a
   stable-named `wgm.tar.gz` for `…/releases/latest/download`), and publishes a GitHub release with

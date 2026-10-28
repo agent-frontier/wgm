@@ -26,6 +26,7 @@
 #  14. The shipped phase, runtime, action, authority, review, and evidence contracts remain present.
 #  15. SKILL.md stays within the repository's documented ~500-line activation budget.
 #  16. Every literal bash harness in Makefile's test recipe appears in a CI run step.
+#  17. Heuristics ledger fragments lint clean, and every pinned phrase is still in its landing file.
 #
 # Exit 0 = green (all checks pass). Exit 1 = red (one or more failures, listed).
 # Scope: docs/**/*.md, references/**/*.md, README.md, SKILL.md, CONTRIBUTING.md,
@@ -426,6 +427,21 @@ for f in "${MD[@]}"; do
     note "UTF-8 double-encoding (mojibake) in $f — ${hits} line(s); re-encode as UTF-8"
   fi
 done
+
+# 17 — heuristics ledger fragments (references/heuristics/).
+# Each lesson is one fragment, so harvest PRs never edit the same ledger lines. The lint checks each
+# fragment's front matter and that every pinned phrase is still in its landing file, so a rule cannot
+# vanish silently. The ledger is compiled when a release is prepared (the release workflow runs
+# --check), so here a ledger that is behind its fragments is reported, not failed.
+if heur="$(python3 scripts/compile_heuristics.py --lint 2>&1)"; then
+  printf '%s\n' "$heur"
+  if ! python3 scripts/compile_heuristics.py --check >/dev/null 2>&1; then
+    printf 'info: references/heuristics.md is behind its fragments; it is compiled when a release is prepared\n'
+  fi
+else
+  note "heuristics fragments fail lint (python3 scripts/compile_heuristics.py --lint):"
+  printf '%s\n' "$heur" | head -20 >&2
+fi
 
 if (( FAIL == 0 )); then
   ok "docs check passed (${#MD[@]} files, ${MERMAID_TOTAL} mermaid diagram(s), ${#AGENT_FILES[@]} agent file(s))"
