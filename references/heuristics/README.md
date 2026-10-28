@@ -33,11 +33,12 @@ the authoritative ledger; the compiled file is rebuilt when a release is prepare
    if a fragment is malformed or a pinned phrase disappears. Do not edit `heuristics.md`: a PR that
    only adds fragments never conflicts with another one.
 
-## Pins and UNPINNED
+## Pins
 
-Every fragment needs a pin, except the older entries named in `UNPINNED`. That list only shrinks:
-once a listed entry gets a pin, delete its line, and the lint fails until you do. Adding a new name
-to it is a visible exception that needs a maintainer's approval.
+Every fragment needs a pin, except the older entries that predate pins. `compile_heuristics.py`
+knows those by the text they had when the ledger moved to fragments, so a new or reworded entry
+always needs a pin, while renaming a file changes nothing. That frozen set only shrinks: once an
+older entry gets a pin, delete its digest from the tool.
 
 ## Fold-ins
 

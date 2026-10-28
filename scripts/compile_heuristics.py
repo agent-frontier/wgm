@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import pathlib
 import re
 import sys
@@ -22,6 +23,30 @@ KEYS = ("section", "order", "pin")
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 FIELDS = ("**Why:**", "**Provenance:**", "**Landed in:**")
 MIN_PIN = 12
+
+# Entries that predate pins, frozen by the sha256 of their text when the ledger moved to fragments.
+# Only these may go without a pin, so a new or reworded entry always needs one. Never add to this
+# set; delete a digest once its entry gets a pin.
+LEGACY_UNPINNED = frozenset("""
+08814293f98655ec 09a45eb3509bf809 0ce48dc82e4ee51d 10a51b97ae787974 10da44d1129e7465 14f37182e7e34a88
+159a7ec73fd956a3 190c0f910429d30d 1bd4116057c000c4 1c9764eb6dfb76fd 1f9eafdb98f77914 280ca99a99217ede
+294d690fbcd40af7 40a381639574feb9 41b679878069bc4f 420910f55a1c0c8b 4a255f1664b74c45 4b6b4511a0ab8117
+4b9076b317c099f8 5093a101c76a5724 52c5193917902367 538cecec6f68c4df 583921a583965317 60fea0988e25123d
+6791eebdef139258 67cc5b64560bfe84 6b6db8b49a589be6 6c9806eaef3ba693 6f74efdd9a48d3c7 713915cb6348f695
+71f061206ec13eff 724464a1a7d70a35 762ddddbb478d8d4 78977844124cacbc 7c944f6f94143168 7cb47a723f3459ca
+7e366c073dc0cc2b 801424e5190abdbd 8099545fe42aa2da 85a9cc842fe9038d 88a95914241d90b5 8a84da2ffa3195bc
+8b16d5d07ad69bae 906e7de2f454722d 93324e68cd307614 949a8dfcae61645d 99ea04dc43b8aadb 9b8900013418ac73
+a05260dce20b06f3 a594e2d175cf8028 a70f5aeec1ef8186 a7b64f1fdb8d34ba ada6d920e176f836 ae39503c4d9a33e5
+b038ab8529ecf089 b2ba198acce88620 b2c85c67857546e1 baf1fd1916bb7391 bd24715141e2a662 c08cb10cefc5bd6b
+c48185c2f3d1b891 c73d527b283c0c01 c8d34fb197decb18 d2860355790074dc d41050178010aa02 d69de61ac990fb19
+da6f317c65d1eb5d dbba27a3f773f5d7 dc66dd2901b0f429 e05703c98610d927 e2bcdabd92f41413 e3012cbc130bd44d
+e5fccdae2e5334eb e6760e23a9af92a7 e96726d317efc39f eeb17601319b36c5 f46aa0c8b7cbe59e f6f52f9e43b737e2
+faf3965f6ad95085 ff642de2e674abdf
+""".split())
+
+
+def digest(body):
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
 
 
 def load_ledger(path):
@@ -71,7 +96,7 @@ def lint(root, sections):
     if not frag_dir.is_dir():
         return frags, ["references/heuristics/ is missing"], 0
     for path in sorted(frag_dir.iterdir()):
-        if path.name in ("README.md", "UNPINNED"):
+        if path.name == "README.md" and path.is_file():
             continue
         if not path.is_file() or path.suffix != ".md":
             errors.append(f"{path.name}: unexpected file; this directory holds only .md fragments")
@@ -102,22 +127,11 @@ def lint(root, sections):
             check_pin(root, path.name, pin, errors)
         frags.append((meta, body, path.name))
 
-    # Only the older entries named in UNPINNED may go without a pin. Naming a new fragment there is a
-    # visible, reviewable edit, and a name must leave the list once its fragment gets a pin.
-    unpinned = {name for meta, _, name in frags if not meta["pin"]}
-    names = {name for _, _, name in frags}
-    listed_file = frag_dir / "UNPINNED"
-    listed = [line.strip() for line in listed_file.read_text(encoding="utf-8").splitlines()] if listed_file.is_file() else []
-    listed = [name for name in listed if name and not name.startswith("#")]
-    if listed != sorted(set(listed)):
-        errors.append("UNPINNED: keep one name per line, sorted, with no duplicates")
-    for name in listed:
-        if name not in names:
-            errors.append(f"UNPINNED lists {name}, which does not exist; delete that line")
-        elif name not in unpinned:
-            errors.append(f"UNPINNED lists {name}, which now has a pin; delete that line")
-    for name in sorted(unpinned - set(listed)):
-        errors.append(f"{name}: add a pin; only the older entries listed in UNPINNED may go without one")
+    # Only entries whose text predates pins may go without one; renaming a file does not matter.
+    unpinned = [(name, body) for meta, body, name in frags if not meta["pin"]]
+    for name, body in unpinned:
+        if digest(body) not in LEGACY_UNPINNED:
+            errors.append(f"{name}: add a pin; only the entries that predate pins may go without one")
     return frags, errors, len(unpinned)
 
 
@@ -144,7 +158,7 @@ def main():
         print(f"FAIL: {error}", file=sys.stderr)
     if errors:
         return 1
-    summary = f"{len(frags)} fragments, {len(frags) - unpinned} pinned, {unpinned} listed in UNPINNED"
+    summary = f"{len(frags)} fragments, {len(frags) - unpinned} pinned, {unpinned} older entries without a pin"
     if args.lint:
         print(f"ok:   heuristics fragments valid: {summary}")
         return 0
