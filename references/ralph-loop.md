@@ -91,6 +91,13 @@ loop, with progress living on disk (not the model's context) between passes
   leave the missing tier blocked/unverified (`[learn]` issue #104).
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
+- **Guard against test tampering, and prove bug-fix repro on the base.** Before review, inspect the
+  diff over existing tests: deleted tests, newly added skip/xfail/ignore annotations, or weakened
+  assertions are a hard block unless an acceptance criterion explicitly authorizes removing the test.
+  For bug-fix tasks, the regression test offered as evidence must **fail on the merge-base** (or with
+  the fix reverted) and **pass on `HEAD`** — a test that passes on both proves nothing. Adapted from
+  [`no-human-ai/no_human`](https://github.com/no-human-ai/no_human)'s tamper guard and reproduction
+  gate.
 - **Freeze public mathematical boundary behavior before promising it.** If docs or callers will rely
   on a mathematical/numerical API, first state what undefined or out-of-domain inputs do (error,
   status, NaN, clamp, etc.) and add deterministic boundary tests; examples or today's
@@ -331,6 +338,14 @@ progress is lost. wgm's rule:
 - **Small/local-context models (≲65–100k tokens):** the generic ~50% default under-rotates — the
   fixed skill+plan+spec overhead is a bigger slice of a small window. Rotate earlier (~35–40% of the
   window) and read narrower; see `references/local-models.md` for concrete budgets.
+- **Pause safely & cold session pickup.** When an operator pauses a run mid-iteration or a session
+  rotates before a task is green, stop at a safe boundary, cancel nested subagents, take no external
+  action (no push/PR), commit any dirty in-flight work as a single explicit `wip:` commit on the
+  branch (noting in one line if the tree is red), and write a cold-start resume note in
+  `IMPLEMENTATION_PLAN.md`. On pickup, reconstruct state from `git log`/`git diff` and the plan:
+  neither re-derive already-completed tasks from scratch nor trust an uncommitted self-report
+  without checking the artifact on disk (adapted from [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s
+  `pause-safely` and `session-pickup` playbooks).
 
 ## Stop / regenerate conditions
 - All must-have tasks are `done` → ship/handoff.

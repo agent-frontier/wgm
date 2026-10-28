@@ -40,6 +40,9 @@ An ADR records:
   necessary.
 - **Alternatives considered** — the realistic options and why they were rejected.
 - **Consequences** — the trade-offs, follow-on constraints, and costs accepted by choosing it.
+- **Kill / reversal criterion** — the concrete observation, threshold, or failure signal that would
+  prove this decision wrong and trigger superseding it (adapted from
+  [`0xNyk/council-of-high-intelligence`](https://github.com/0xNyk/council-of-high-intelligence)).
 
 ## Where it lives
 

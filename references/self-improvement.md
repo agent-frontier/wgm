@@ -176,12 +176,13 @@ because neither leaves the repo to go find out. Nothing else in this file police
 make it explicit and checkable rather than something a maintainer has to reconstruct by hand:
 
 - **Real-dogfood cadence — update this line whenever a new one lands:** last real, cross-project
-  `[learn]` issues — the **#119–#135 wave (2026-10-28)**: sixteen review, evidence, and fleet
-  lessons from about ten builds in a single private Rust workspace on Windows with WSL. It is one
-  host project, so it is real dogfood but single-workspace evidence. Before it came the
-  **#101–#117** reports (resolved 2026-08-28 → 2026-10-28). Before those, the **#67–#86 wave
-  (2026-07-11 → 2026-07-28)**, harvested from genuinely different real projects and all resolved
-  on 2026-07-30/31. Representative: **#76** (an
+  `[learn]` issues — the **#119–#135 wave (2026-10-28, PR #120)**: sixteen review, evidence, and fleet
+  lessons from about ten builds in a single private Rust workspace on Windows with WSL (one host
+  project, so real dogfood but single-workspace evidence), plus a recorded Pi 1.4.0 Linux dogfood
+  journey on 2026-10-28 (`compatibility/harnesses.json`). Before it came **#117 (2026-10-28, PR #118)**
+  (per-tool-call output budget) and the **#101–#113** reports (resolved 2026-08-28 → 2026-10-18).
+  Before those, the **#67–#86 wave (2026-07-11 → 2026-07-28)**, harvested from genuinely different
+  real projects and all resolved on 2026-07-30/31. Representative: **#76** (an
   immediate-mode Rust/`iced` GUI whose only visual gate was a screenshot smoke a human had to
   judge), **#77** (a Rust workspace whose CI lived only on an unmerged sibling branch, so scoped
   local gates passed while the workspace gate would fail on pre-existing debt), **#75** (a multi-lane

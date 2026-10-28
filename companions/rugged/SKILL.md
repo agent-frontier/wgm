@@ -135,6 +135,13 @@ actually supplies:
   build; it is not evidence that the future implementation already works.
 - **Review/stress mode:** execute or inspect the real field/stress evidence for implementation and
   operational claims. A promised future check is not evidence in these modes.
+- **State the certainty rung reached.** For each load-bearing safety or field claim, climb as far
+  down this five-rung ladder as is practical and name where the evidence stopped: (1) prose assertion
+  (unusable alone) · (2) cited `file:line` · (3) walked failure trace showing the bad case cannot
+  reach · (4) ran a script/test calling the real code that fails loud if wrong · (5) reproduced in
+  the running system under target conditions (adapted from
+  [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s `blast-radius` skill). In
+  review/stress mode, stopping below rung 4 on an empirical claim leaves the verdict **UNKNOWN**.
 - Evidence supplied and it is deterministic (reproducible, dated, sourced) -> usable for Verdict.
 - Evidence supplied but is a claim, a demo, or a proving-ground-only benchmark -> **not** field
   evidence; name the gap.

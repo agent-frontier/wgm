@@ -109,6 +109,11 @@ including why it deliberately does **not** depend on the `microsoft/SkillOpt` pa
   pattern — hand it the transcript plus the case's assertions, and it writes `grading.json` with a
   cited evidence snippet for every assertion. `summary` is always recomputed locally from
   `expectations[]` rather than trusted from the grader's own arithmetic.
+- **Anti-gaming blinding:** the candidate sandbox directory uses a neutral basename (`workspace.*`),
+  never words like `eval`, `grade`, `judge`, `benchmark`, or `rubric`, and prompts avoid
+  chain-eliciting cues ("list which rules you applied") so grading measures artifact/transcript
+  behavior rather than self-report (adapted from
+  [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s `eval.md` playbook).
 - **Usage:** `./scripts/grade-evals.sh` grades every case against the current `SKILL.md`, using the
   same `$WGM_AGENT`/`--agent`/`--` convention as `scripts/loop.sh`. Add `--baseline <git-ref>` to
   also grade against `SKILL.md` as it existed at that ref and print a gate verdict — `ACCEPT` (no

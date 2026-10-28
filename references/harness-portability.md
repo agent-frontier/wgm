@@ -67,7 +67,7 @@ any disagreement, and the gate fails if an entry here is deleted from it.
 | Gemini CLI | `Expected` | `~/.gemini/skills/`, `~/.agents/skills/`, `.agents/skills/` | `gemini -p "…"` | unknown | needed |
 | Cursor CLI | `Expected` | `.agents/skills/`, `.cursor/skills/`, user equivalents | `agent -p "…"` | native, unwired | needed |
 | OpenCode | `Expected` | `.opencode/skills/`, `~/.config/opencode/skills/`, `~/.agents/skills/` | `opencode run "…"` | native, unwired | needed |
-| Pi | `Degraded` | `~/.pi/agent/skills/`, `~/.agents/skills/`, `.pi/skills/`, `.agents/skills/` | `pi -p "…"` (documented, not executed) | **none — by design** | needed |
+| Pi | `Degraded` | `~/.pi/agent/skills/`, `~/.agents/skills/`, `.pi/skills/`, `.agents/skills/` | `pi -p "…"` (verified on Linux) | **none — by design** | needed |
 | Aider | `Degraded` | none documented | `aider --message "…" --yes-always` | none | needed (explicit `--read`) |
 | Windsurf (Cascade) | `Unknown` | `~/.agents/skills/`, `~/.codeium/windsurf/skills/` | none corroborated | unknown | unknown |
 
@@ -102,9 +102,7 @@ the ownership rules.
   [`scripts/test-install.sh`](../scripts/test-install.sh) asserts on every run, plus the installer
   source and the published install docs for the `~/.copilot/skills/wgm` client target — no harness
   asserts that client path today. The journey evidence is what carries the status.
-- **Pi's headless details are documented, not executed.** Pi's README documents print, JSON, and RPC
-  modes; wgm has never run [`scripts/loop.sh`](../scripts/loop.sh) against it, so the flags in the
-  record may drift from the real CLI.
+- **Pi's discovery, CLI, and portable-kernel journey are verified on Linux; subagent dispatch remains absent by design.** Pi's README documents print, JSON, and RPC modes, and wgm has now recorded skill discovery from `~/.agents/skills/`, Stage 10 inspection, and an end-to-end portable-kernel journey on Linux; the entry remains `Degraded` because Pi ships no native subagent primitive.
 - **Codex subagent claims are unverified.** Third-party pages describe Codex delegation features
   that OpenAI's own skills documentation does not define as a dispatchable primitive.
 - **OpenCode's flag surface is unverified.** `opencode run` is documented as non-interactive; the

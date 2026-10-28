@@ -47,11 +47,14 @@ An estimate silently replaces a measurement with a guess, and the guess is what 
 `swarm.sh` prints the counts and appends a lower-bound warning whenever anything is unmetered.
 
 ## Ratios are heuristics, not claims
-Two are worth reporting, both labelled:
+Three are worth reporting, all labelled:
 
 - **Lifecycle effectiveness** = active agent time ÷ lifecycle wall time. Includes coordination.
 - **Implementation parallelism** = allocated lane time ÷ the longest lane (the critical path).
   Excludes coordination, so the pair separates coordination overhead from lane execution.
+- **Retry / loop-tax ratio** = failed or retried turns (`result=fail` or `plan_changed=0`) ÷ total
+  turns. Exposes how much spend and time went into fix-and-retry churn versus first-pass progress
+  (adapted from [`Keesan12/martin-loop`](https://github.com/Keesan12/martin-loop)'s loop-tax audit).
 
 Neither is billing data, and neither is a causal speedup claim — you did not run the counterfactual
 serial build. From one run they are operational heuristics for capacity planning and nothing more.

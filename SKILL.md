@@ -211,8 +211,8 @@ retain superseded verdicts only as dated history, never as a second current verd
 ## Phase 1 — Grill (align)
 Read `references/grilling.md`. Core rules:
 - Ask **one question at a time**. For every question, **state your recommended answer**.
-- **Explore the codebase to self-answer before asking.** A question you can resolve by reading code
-  is not a question for the user.
+- **Explore and probe before asking.** A question you can resolve by reading code or running a cheap
+  local command probe is not a question for the user; reserve questions for product/preference calls.
 - **Ask vs assume:** only ask when the answer would materially change architecture, UX, data model,
   security, deployment, or acceptance criteria. Otherwise record a recommended assumption in the
   spec and proceed.
@@ -319,14 +319,15 @@ stop condition fires. **One task per iteration.** Each iteration:
    **Document why each test exists:** when you add a test, note in a comment what behavior it proves,
    so a fresh context never deletes it as an orphan. **Format only what you touched:** never run a
    project-wide auto-formatter mid-iteration — it buries the one-task diff in reformatting noise.
-3. **Validate** — run the task's backpressure command (test/type/build/lint). If none exists,
-   creating one **is** this iteration's task. No green signal → not done. **If acceptance names a
-   live service, embedded host, or release, keep evidence tiered** — PR green or an offline proxy is
-   not proof of that boundary; run the real host/service/deploy check when available and otherwise leave
-   it blocked or unverified (`references/ralph-loop.md`, Backpressure in depth). Then **judge satisfaction
-   (0–100)** against this slice's holdout scenarios, converging by tier (stratified); run the app in
-   a container if a scenario needs a live service (`references/scoring.md`,
-   `references/validation-env.md`). Deterministic checks still gate "done."
+3. **Validate** — run the task's backpressure command (test/type/build/lint); if none exists,
+   creating one **is** this iteration's task. No green signal → not done. **Test-tamper & bug-repro
+   guard:** never delete, skip (`skip`/`xfail`/`ignore`), or weaken an existing test without explicit
+   acceptance authorization; bug fixes must fail before the fix and pass with it. **If acceptance
+   names a live service, embedded host, or release, keep evidence tiered** — PR green or an offline
+   proxy is not proof of that boundary; run the real check or leave it blocked/unverified
+   (`references/ralph-loop.md`, Backpressure in depth). Then **judge satisfaction (0–100)** against
+   holdout scenarios by tier (`references/scoring.md`, `references/validation-env.md`). Deterministic
+   checks still gate "done."
 4. **Review** — inspect the diff: scope creep? acceptance criteria met? does the validation
    actually prove the task (not just "didn't crash")? Run **two independent reviewer passes** —
    spec-compliance then code-quality — and ensure neither reviewer produced the artifact it is
@@ -364,16 +365,15 @@ stop condition fires. **One task per iteration.** Each iteration:
 **On a stall** — any *struggle signal*: satisfaction flat ~2 iterations, a task failing its check
 repeatedly, the diff churning without moving a signal, the same tool/setup error repeating, or an
 A→B→A→B oscillation across the last 4 iterations — stop generating and run **wonder → reflect**, and
-consider **model escalation**, before recording a
-blocker (`references/stall-recovery.md`). Capture what you learn in `.wgm/memories.md` so the next
-iteration starts ahead of the stall.
+consider **model escalation**, before recording a blocker (`references/stall-recovery.md`). Capture
+what you learn in `.wgm/memories.md` so the next iteration starts ahead of the stall.
 
 **Context hygiene & rotation:** advance exactly one task per iteration. Budget **each tool output**
 (>~2k tokens → write to a file, print one summary line; ranged views; count-first search). Watch the
 **context budget**: past ~half (or a host cap), **summarize progress into the plan + `.wgm/memories.md`,
 then rotate to fresh context** (reload only the lean plan, spec, memories, and `CONTEXT.md` — never
 the old transcript). Ralph-full rotates every iteration; Ralph-lite on the threshold. If context is
-already bloated, stop and hand off through the plan (Phase 4) rather than grinding (`references/ralph-loop.md`).
+already bloated or interrupted mid-iteration, checkpoint safely or hand off (`references/ralph-loop.md`).
 
 **Iteration-exit gate** (print PASS/FAIL for each): implementation done · the task's exact
 validation command was run and **exited 0** · result recorded · diff reviewed for scope creep +

@@ -62,6 +62,12 @@ thing you're replacing." Score relative to a live baseline instead:
 2. **Run the exact same deterministic audit on both** (the same checks, the same scenarios).
 3. **Gate on parity-or-better:** the new build must be ≥ the incumbent on every dimension that
    matters, plus still clear its own absolute floor.
+4. **Explain the number and prove harness sensitivity.** Before freezing a comparative benchmark or
+   claiming a speedup/metric win, confirm the harness separates a known-bad case from a good case,
+   name the physical or code limiter ("why not double?") from profiler or counter evidence, rule out
+   skipped/cached/errored work, and record `(run_count, median, spread, named_limiter)` alongside the
+   number (adapted from [`backnotprop/pstack`](https://github.com/backnotprop/pstack)'s
+   `principle-explain-the-number` and `hillclimb` playbook).
 4. **For performance claims, prove semantic parity before timing:** contenders must keep the same observable
    contract/results, not just the same interface shape.
 5. **Benchmark like a measurement, not a demo:** exclude warmups from repeated pinned timings, and

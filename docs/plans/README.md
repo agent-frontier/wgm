@@ -20,6 +20,7 @@ project and is intentionally not represented by this historical inventory.
 | 2026-07-06 | [Hive Growth Loop](2026-07-06_HIVE_GROWTH_LOOP.md) | Adopted design |
 | 2026-07-08 | [SkillOpt adoption](2026-07-08_SKILLOPT_ADOPTION.md) | Adopted evaluation |
 | 2026-08-20 | [WGM Stage 8+ growth](2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md) | Current maturity record |
+| 2026-10-28 | [GitHub landscape refresh](2026-10-28_GITHUB_LANDSCAPE_REFRESH.md) | Adopted design |
 
 When a new dated plan is added, add one row here and classify it as historical, adopted, standing,
 or current. Do not use this file as a substitute for an active plan.

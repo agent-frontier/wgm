@@ -97,10 +97,13 @@ fi
 # greenfield CLI") was taken literally and committed into the repo under test. So every agent call
 # runs in a throwaway sandbox OUTSIDE the repo — the prompt already embeds the SKILL.md text being
 # graded, and the agent needs nothing else from disk.
+# Anti-gaming blinding (adapted from backnotprop/pstack's eval.md): the sandbox directory name uses
+# a neutral project-shaped prefix (`workspace.XXXXXX`), never words like `eval`, `grade`, `test`,
+# `judge`, or `benchmark` that leak to a tool-using candidate that it is being evaluated.
 # Deliberately no retry/backoff (unlike loop.sh) — see the header's Scope note.
 run_agent() {  # expects global $PROMPT set; prints the agent's response on stdout
   local sandbox rc=0
-  sandbox="$(mktemp -d -t wgm-grade-sandbox.XXXXXX)"
+  sandbox="$(mktemp -d -t workspace.XXXXXX)"
   (
     cd "$sandbox" || exit 1
     if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then

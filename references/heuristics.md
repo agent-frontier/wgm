@@ -17,6 +17,13 @@ current count, run `grep -cE '^- \*\*Heuristic:\*\*' references/heuristics.md` a
 and result in the audit report.
 
 ## Triage & Grill
+- **Heuristic:** if an unknown fork in Grill is an empirical fact observable by running a cheap
+  local command or throwaway probe, run the probe and let the observation decide instead of asking
+  the human.
+  **Why:** asking a human what a 30-second local check can settle wastes an interview turn and swaps
+  observable evidence for a guess; human questions belong to product, UX, and policy preferences.
+  **Provenance:** external research, `backnotprop/pstack`'s `skills/poteto-mode/SKILL.md` +
+  `tzachbon/smart-ralph`. **Landed in:** `references/grilling.md` · `SKILL.md` (Phase 1 — Grill).
 - **Heuristic:** run a cross-requirement consistency scan before leaving Grill: contradictions,
   vague thresholds, and undefined referenced concepts must be resolved or made measurable.
   **Why:** requirements that look fine in isolation can still be mutually impossible or vague enough
@@ -46,6 +53,12 @@ and result in the audit report.
   `github/spec-kit`'s `templates/commands/clarify.md`. **Landed in:** `references/grilling.md`.
 
 ## Planning & artifact quality
+- **Heuristic:** include an explicit kill / reversal criterion in every ADR naming what observation
+  or threshold would prove the decision wrong and trigger superseding it.
+  **Why:** hard-to-reverse choices suffer from sunk-cost inertia unless the condition that falsifies
+  them is stated before implementation begins. **Provenance:** external research,
+  `0xNyk/council-of-high-intelligence`. **Landed in:** `references/adr.md` ·
+  `assets/adr.template.md`.
 - **Heuristic:** let a scenario tighten its governing spec but never weaken it, and map each atomic
   expectation (one step may hold several) to one direct assertion before final scoring.
   **Why:** a looser scenario awards full marks to a build that violates its spec, and a step with
@@ -60,6 +73,13 @@ and result in the audit report.
   `references/artifacts.md`.
 
 ## Loop discipline
+- **Heuristic:** when pausing mid-iteration or picking up an interrupted session, leave a clean
+  `wip:` checkpoint commit plus a cold-start resume note, and on pickup neither re-derive already-
+  completed tasks from scratch nor trust an uncommitted self-report without checking the artifact.
+  **Why:** mid-iteration stops otherwise leave dirty trees that the next session either discards or
+  burns half its context re-auditing from zero. **Provenance:** external research,
+  `backnotprop/pstack`'s `playbooks/pause-safely.md` + `playbooks/session-pickup.md`. **Landed in:**
+  `references/ralph-loop.md` (Context rotation) · `SKILL.md` (Context hygiene & rotation).
 - **Heuristic:** allow implementers targeted, justified edits to existing tests; treat test-only
   branches in production code as a review finding.
   **Why:** a blanket ban on test edits pushed an implementer to add a production shim that existed
@@ -164,6 +184,13 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** guard against test tampering in the diff (deleted tests, new skip/xfail/ignore
+  markers, weakened assertions) unless an acceptance criterion authorizes it, and for bug fixes
+  prove the regression test fails on the merge-base and passes on `HEAD`.
+  **Why:** an agent can turn a red suite green by deleting or skipping a test, and a bug-fix test
+  that already passes on the unpatched base proves nothing about the fix. **Provenance:** external
+  research, `no-human-ai/no_human`'s tamper guard and reproduction gate. **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth) · `SKILL.md` (Loop Validate step).
 - **Heuristic:** give every behavior-change test at least one input where the old and new code
   disagree, and make scoping tests assert that out-of-scope data is absent.
   **Why:** tests built on inputs both versions handle the same way pass before and after the fix,
@@ -349,6 +376,14 @@ and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** in rugged and risk reviews, state which rung of the five-step certainty ladder each
+  load-bearing claim reached (prose assertion → cited `file:line` → walked failure trace → executed
+  script/test against real code → reproduced in running system), and keep empirical claims below
+  rung 4 as `UNKNOWN`.
+  **Why:** a plausible prose explanation of why a change is safe reads as convincing whether or not
+  it is true; naming the rung separates code-reading confidence from executed proof. **Provenance:**
+  external research, `backnotprop/pstack`'s `skills/blast-radius/SKILL.md`. **Landed in:**
+  `companions/rugged/SKILL.md` (Phase 5 — Field test).
 - **Heuristic:** give a task's first candidate both full review passes; a later fix round that
   changes only the lines its findings named may take a scoped re-review, in which a non-author
   reviewer checks every changed line against those findings while the relevant checks rerun green.
@@ -389,6 +424,21 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** blind candidate eval sandboxes against evaluation-cue keywords (`eval`, `grade`,
+  `judge`, `benchmark`, `rubric`) and avoid chain-eliciting prompts that ask the candidate to
+  self-report which rules it followed.
+  **Why:** tool-using agents inspect their working directory and alter behavior when they detect an
+  evaluation harness, and self-reported rule-following is not evidence of artifact behavior.
+  **Provenance:** external research, `backnotprop/pstack`'s `skills/poteto-mode/playbooks/eval.md`.
+  **Landed in:** `scripts/grade-evals.sh` · `scripts/test-grade-evals.sh` · `references/evals.md`.
+- **Heuristic:** before freezing a comparative benchmark or reporting a speedup, confirm the harness
+  separates a known-bad case from a good case, name the physical/code limiter ("why not double?")
+  from profiler/counter evidence, rule out skipped/cached/errored work, and record `(run_count,
+  median, spread, named_limiter)`.
+  **Why:** a comparative win can come from an insensitive harness or skipped/cached work unless the
+  bounding resource and spread are named alongside the number. **Provenance:** external research,
+  `backnotprop/pstack`'s `skills/principle-explain-the-number/SKILL.md` + `playbooks/hillclimb.md`.
+  **Landed in:** `references/scoring.md` (Relative-to-incumbent scoring).
 - **Heuristic:** measure bounded engines at their configured time, memory, and size caps, not only
   on small fixtures, and treat growth beyond the design's expected complexity as a defect.
   **Why:** a quadratic scan and a per-byte map near 157 MiB passed every small-fixture test.
@@ -448,6 +498,12 @@ and result in the audit report.
   issue #35. **Landed in:** `references/hard-to-test-domains.md` (Web SEO / ranking).
 
 ## Swarm & parallelism
+- **Heuristic:** when partitioning parallel worktree streams, check symbol- and API-level intent
+  (`replace`/`delete`/`rename` vs. `extend`/`call`) in addition to file ownership before coding.
+  **Why:** two streams can touch completely disjoint files and still silently break each other at
+  integration time if one replaces or deletes an interface another stream extends or calls.
+  **Provenance:** external research, `naw103/foremerge`. **Landed in:** `references/subagents.md`
+  (Worktree swarm dispatch) · `docs/operator/running-the-loop.md` (Planning a swarm well).
 - **Heuristic:** before dispatching lanes, find every file a shared-type change breaks (exhaustive
   matches, struct literals, trait impls) and put it in the file set of the lane that owns the
   change, or sequence the lanes. **Why:** a file set drawn around the feature alone leaves the
@@ -542,6 +598,13 @@ and result in the audit report.
   operational heuristic — not billing data, not a causal speedup claim. **Provenance:** `[learn]`
   issues #70, #72, #74, #84, #85. **Landed in:** `references/telemetry.md` · `scripts/swarm.sh`
   (the `== swarm telemetry ==` block) · `scripts/loop.sh` (per-turn ledger) · `SKILL.md` Phase 4.
+- **Heuristic:** report the retry / loop-tax ratio (failed or no-progress turns ÷ total turns)
+  alongside wall and active agent time so fix-and-retry churn is visible separately from first-pass
+  progress.
+  **Why:** an unattended run can finish green after burning most of its budget on retry loops;
+  surfacing the loop-tax ratio exposes thrashing that total duration alone hides. **Provenance:**
+  external research, `Keesan12/martin-loop`'s loop-tax audit. **Landed in:**
+  `references/telemetry.md` (Ratios are heuristics, not claims).
 - **Heuristic:** re-pin a swarm lane's absolute worktree and branch in **every** state-mutating
   instruction, and guard before mutating. **Why:** retained context is not a guarantee — in a
   32-lane run four lanes executed git from the parent checkout on a later turn and one advanced

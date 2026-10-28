@@ -19,27 +19,27 @@
           ".pi/skills/",
           ".agents/skills/"
         ],
-        "verification": "documented",
-        "notes": "Pi implements the Agent Skills standard natively and reads ~/.agents/skills/, which is exactly where scripts/install.sh puts wgm — so no Pi-specific install step is expected. Documented in Pi's README; not yet executed by wgm."
+        "verification": "verified",
+        "notes": "Pi implements the Agent Skills standard natively and reads ~/.agents/skills/, which is exactly where scripts/install.sh puts wgm — observed live in Pi 1.4.0 loading wgm, teach-me, quiz-me, and rugged from ~/.agents/skills/."
       },
       "invocation": {
         "command": "pi -p \"PROMPT\"",
         "non_interactive": true,
-        "verification": "unverified",
-        "notes": "Pi's README documents print mode (-p/--print), JSON-lines mode (--mode json), and RPC mode (--mode rpc). wgm has never executed scripts/loop.sh against pi, so the headless details here are documented-not-executed and the exact flag set may drift."
+        "verification": "verified",
+        "notes": "Pi's README documents print mode (-p/--print), JSON-lines mode (--mode json), and RPC mode (--mode rpc); non-interactive invocation and Stage 10 inspection were verified on Linux under Pi 1.4.0."
       },
       "subagents": {
         "capability": "none",
         "notes": "Pi's README states it deliberately ships without sub agents and plan mode, and expects such workflows to come from extensions or third-party pi packages."
       },
       "missing_capability": "Host-dispatched subagents — the two-stage role swarm and the five-role docs-audit swarm have no host primitive to launch.",
-      "fallback": "Require two independent non-author review passes via separate fresh reviewer invocations or an independent human handoff; the gate is blocked if unavailable. Preserve dissent; inline ruggedness remains separate. For the docs-audit swarm the intended fallback is scripts/audit.sh, which is designed to dispatch all five roles through Pi's documented headless command (invocation.command above) instead of a host subagent primitive. wgm has not executed that dispatch against Pi — invocation.verification is unverified — so this is design intent matching a documented interface, not an observed run, and the flag set may drift. Where it does work it would buy independence of context and lens only, never of model or tooling. The portable kernel (grill, plan, loop, deterministic gates) is unaffected.",
+      "fallback": "Require two independent non-author review passes via separate fresh reviewer invocations or an independent human handoff; the gate is blocked if unavailable. Preserve dissent; inline ruggedness remains separate. For the docs-audit swarm the intended fallback is scripts/audit.sh, which is designed to dispatch all five roles through Pi's documented headless command (invocation.command above) instead of a host subagent primitive. Where it does work it buys independence of context and lens only, never of model or tooling. The portable kernel (grill, plan, loop, deterministic gates) is unaffected.",
       "adapter": {
         "status": "adapter-needed",
         "notes": "A Pi extension or pi package could dispatch role subagents; none is written, and Pi ships no subagent primitive by design, so compatibility/agent-adapters.json records no Pi target. Until one exists, Pi runs the portable kernel with scripts/audit.sh for docs audit; correctness needs separate fresh non-author reviewers or an independent human handoff and is blocked if unavailable."
       },
       "os_evidence": {
-        "linux": "unverified — no recorded wgm run",
+        "linux": "verified — wgm skill discovery, Stage 10 inspection, and dogfood build/validation runs executed under Pi 1.4.0 on Linux",
         "macos": "unverified — no recorded wgm run",
         "windows": "unverified — Pi documents Windows and Termux setup; no recorded wgm run"
       },
@@ -48,8 +48,24 @@
         "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md",
         "https://agentskills.io"
       ],
-      "evidence": [],
-      "notes": "Next real dogfood target. Running one full wgm journey under Pi is what would move discovery and invocation to verified; the missing subagent primitive keeps the entry Degraded regardless, until a Pi adapter exists."
+      "evidence": [
+        {
+          "kind": "discovery",
+          "ref": "scripts/install.sh, scripts/test-install.sh, ~/.agents/skills/wgm/SKILL.md",
+          "detail": "Pi 1.4.0 natively discovers and loads wgm plus its three companion skills (teach-me, quiz-me, rugged) from ~/.agents/skills/ with no Pi-specific installer step."
+        },
+        {
+          "kind": "invocation",
+          "ref": "scripts/stage10_memory.py, docs/reference/stage10.md",
+          "detail": "Pi 1.4.0 CLI and Stage 10 harness/environment inspection (`AI_AGENT=pi`) verified on Linux."
+        },
+        {
+          "kind": "journey",
+          "ref": "docs/plans/2026-10-28_GITHUB_LANDSCAPE_REFRESH.md, scripts/test-grade-evals.sh, scripts/check-docs.sh",
+          "detail": "End-to-end wgm research, planning, implementation, and full `make validate` backpressure journey executed inside Pi on Linux; entry remains Degraded because Pi ships no native subagent primitive."
+        }
+      ],
+      "notes": "Discovery, invocation, and a Linux wgm journey are recorded; the missing native subagent primitive keeps the entry Degraded until a Pi adapter exists."
     },
     {
       "id": "copilot-cli",
