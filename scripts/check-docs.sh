@@ -321,6 +321,8 @@ PROTOCOL_FILES=(
   "references/subagents.md"
   "SKILL.md"
   "docs/reference/gates.md"
+  "references/ralph-loop.md"
+  "SKILL.md"
 )
 PROTOCOL_PHRASES=(
   "two independent reviewer passes"
@@ -354,6 +356,8 @@ PROTOCOL_PHRASES=(
   "If independent review is unavailable, the gate is blocked."
   "if unavailable, the correctness-review gate is blocked."
   "there is no automatic waiver"
+  "Tool-output budget (every call)"
+  "Budget **each tool output**"
 )
 if (( ${#PROTOCOL_FILES[@]} != ${#PROTOCOL_PHRASES[@]} )); then
   note "protocol contract file/phrase arrays are misaligned (${#PROTOCOL_FILES[@]} files, ${#PROTOCOL_PHRASES[@]} phrases)"
