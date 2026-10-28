@@ -149,6 +149,11 @@ and result in the audit report.
   **Provenance:** Ralph loop. **Landed in:** `SKILL.md` Iteration-exit gate.
 
 ## Backpressure
+- **Heuristic:** prove each claimed guard, branch, and ordering with a mutant the tests kill; a
+  compile error is not a kill, and every survivor is proven equivalent or recorded as a gap.
+  **Why:** green tests passed code whose retry branch never fired, and a harness bug silently
+  turned mutants into deletions. **Provenance:** `[learn]` issue #126. **Landed in:**
+  `references/ralph-loop.md` (Backpressure in depth).
 - **Heuristic:** where a spec is exact, assert exactly (event count and variant, bytes or digest,
   sequence range, the specific terminal error) and check that each test measures what its name
   claims. **Why:** a generic rejection or an error string passes while a required typed outcome is

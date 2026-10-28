@@ -142,6 +142,10 @@ loop, with progress living on disk (not the model's context) between passes
 - **Assert exactly what the spec makes exact.** Event count and variant, bytes or digest, sequence
   range, or the specific terminal error: a generic rejection never satisfies a typed outcome, and
   each test's assertion must measure the behavior its name claims.
+- **Prove guards with mutants.** For each claimed guard, branch, and ordering, apply a mutant and
+  confirm a test kills it. A compile error is not a kill: confirm each mutant applied as intended,
+  and prove a survivor equivalent or record the gap. Mutate a scratch copy so reviewers can still
+  build the tree.
 - **Check whether CI is even defined on the branch you target.** A workflow can live only on an
   unmerged sibling branch, so tightly-scoped local gates go green while the workspace-wide CI that
   will eventually gate the base branch fails — on **pre-existing** debt in code your change never
