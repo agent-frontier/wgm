@@ -65,6 +65,7 @@ bash scripts/test-loop.sh                     # loop.sh limits + resilience + me
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness
 bash scripts/test-audit.sh                    # audit.sh dispatch harness, fixture agents only
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness
+bash scripts/test-compile-heuristics.sh       # heuristics ledger fragments: compile order, stale check, lint
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
 bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (9 cases)
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness
@@ -120,7 +121,8 @@ context that maintainers can turn the report into a better heuristic, doc note, 
 This is the path we should use for our own dogfood runs too.
 
 Durable, cross-project lessons graduate into [`references/heuristics.md`](references/heuristics.md) —
-wgm's curated juice ledger — and from there into the protocol. See the
+wgm's curated juice ledger, compiled from one fragment per lesson in
+[`references/heuristics/`](references/heuristics/README.md) — and from there into the protocol. See the
 [growth flywheel](docs/plans/2026-06-16_GROWTH_LOOP.md) and
 [`references/self-improvement.md`](references/self-improvement.md) for how a report becomes a durable
 upgrade.

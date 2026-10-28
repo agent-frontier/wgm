@@ -18,6 +18,7 @@
 #      docs/audit/2026-07-09T0113Z_pr62-65-post-merge-audit.md, Agent action #3).
 #
 #   9. No UTF-8 double-encoding (mojibake) survives from a multi-agent merge.
+#  10. Heuristics ledger fragments lint clean, and every pinned phrase is still in its landing file.
 #  10. Every get-started / companions / reference page ends with a "What to do next" section, so
 #      navigation never dead-ends.
 #  11. docs/README.md still links the style guide that documents all of the above.
@@ -418,6 +419,21 @@ for f in "${MD[@]}"; do
     note "UTF-8 double-encoding (mojibake) in $f — ${hits} line(s); re-encode as UTF-8"
   fi
 done
+
+# 10 — heuristics ledger fragments (references/heuristics/).
+# Each lesson is one fragment, so harvest PRs never edit the same ledger lines. The lint checks each
+# fragment's front matter and that every pinned phrase is still in its landing file, so a rule cannot
+# vanish silently. The ledger is compiled when a release is prepared (the release workflow runs
+# --check), so here a ledger that is behind its fragments is reported, not failed.
+if heur="$(python3 scripts/compile_heuristics.py --lint 2>&1)"; then
+  printf '%s\n' "$heur"
+  if ! python3 scripts/compile_heuristics.py --check >/dev/null 2>&1; then
+    printf 'info: references/heuristics.md is behind its fragments; it is compiled when a release is prepared\n'
+  fi
+else
+  note "heuristics fragments fail lint (python3 scripts/compile_heuristics.py --lint):"
+  printf '%s\n' "$heur" | head -20 >&2
+fi
 
 if (( FAIL == 0 )); then
   ok "docs check passed (${#MD[@]} files, ${MERMAID_TOTAL} mermaid diagram(s), ${#AGENT_FILES[@]} agent file(s))"

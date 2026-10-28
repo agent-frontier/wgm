@@ -46,6 +46,11 @@ jobs:
       - name: Docs backpressure check
         run: bash scripts/check-docs.sh
 
+      - name: Heuristics ledger compiled
+        # Harvest PRs add ledger fragments only; the ledger is compiled when a release is prepared,
+        # so a release must not ship a ledger that is behind its fragments.
+        run: python3 scripts/compile_heuristics.py --check
+
       - name: Release-index harness
         # Runs the offline harness before anything is built, so a broken metadata generator fails the
         # release rather than publishing an immutable tag with a record nobody can trust.

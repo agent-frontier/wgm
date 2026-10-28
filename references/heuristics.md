@@ -5,11 +5,35 @@ of ephemeral `.wgm/memories.md` into the shared skill. This is wgm's long-term m
 changed how wgm behaves *everywhere*, not just in one build. See
 [`self-improvement.md`](self-improvement.md) for how lessons get here.
 
-**Adding an entry** (one thought per entry, newest at the top of its section):
+**Adding an entry** (one thought per entry):
 - **Heuristic** — the durable rule, stated as an imperative.
 - **Why** — the failure it prevents or the value it adds.
 - **Provenance** — where it was learned (a dogfood run, a `[learn]` issue, an influence).
 - **Landed in** — the skill artifact that now enforces it.
+
+Each entry is its own fragment in [`heuristics/`](heuristics/README.md), and the sections below
+are compiled from them, so add a fragment instead of editing this file; two harvest PRs then never
+touch the same lines. A fragment is a short front matter followed by the entry exactly as it reads
+below:
+
+```text
+---
+section: Review
+order: 137
+pin: references/subagents.md :: **Review one immutable commit.**
+---
+(the entry)
+```
+
+- `section` is one of this file's section headings.
+- `order` sorts a section newest first: use the `[learn]` issue number, or the PR number.
+- `pin` names the file where the rule landed and an exact phrase that must stay in it. Every new
+  fragment needs at least one pin; `heuristics/UNPINNED_CEILING` caps the older entries that have
+  none, and it only goes down.
+
+`scripts/check-docs.sh` lints every fragment and fails if a pinned phrase disappears. When a release
+is prepared, `python3 scripts/compile_heuristics.py` rebuilds the sections below, and the release
+workflow refuses a ledger that is behind its fragments.
 
 Prune or merge entries that a protocol change has made redundant — the ledger stays lean, like the
 memory it graduates from. Do not pin a volatile entry count in this header; when an audit needs the
