@@ -22,6 +22,9 @@ Hold the scenarios out and the score means something.
   independent of implementation.
 - One coherent journey per file. Favor the **smallest end-to-end slice** that proves value first.
 - Keep them black-box: phrase steps as user actions and observable expectations, not internal calls.
+- **Walk each journey on the real artifact before Plan-exit.** Check that every expectation is
+  reachable from what the build actually produces, and add a task (or fix the scenario) for
+  anything it cannot yet produce.
 
 ## YAML schema
 Each scenario file (`scenarios/<name>.yaml`):

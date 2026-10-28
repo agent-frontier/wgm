@@ -388,6 +388,11 @@ and result in the audit report.
   `references/docs-audit.md`, `references/subagents.md`, the docs-writer brief, and the report template.
 
 ## Comparative & hard-to-test scoring
+- **Heuristic:** before Plan-exit, walk each holdout journey against the real built artifacts and
+  add a task (or fix the scenario) for anything they cannot yet produce.
+  **Why:** a scenario expected a marker in an exported function, but the code template printed it
+  elsewhere, so no feature task could earn those points. **Provenance:** `[learn]` issue #133.
+  **Landed in:** `references/scenarios.md` (Authoring).
 - **Heuristic:** let a holdout scenario's own scoring and tier text set the severity of a partial
   score on it; keep a validator's conflicting label as a tracked follow-up.
   **Why:** a validator can call a gap blocking that the scenario explicitly downgrades. The rule
