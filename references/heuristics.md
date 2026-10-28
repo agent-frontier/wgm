@@ -303,6 +303,12 @@ and result in the audit report.
   **Provenance:** token-economy pass. **Landed in:** `references/artifacts.md` (Token economy).
 
 ## Review
+- **Heuristic:** give a task's first candidate the full independent review; close a later fix round
+  without a fresh review only when a non-author re-verifies every changed line against the prior
+  findings and reruns every relevant check green.
+  **Why:** a full re-review of a two-line fix costs a whole review cycle, while closing it unchecked
+  throws the review away; a wider change, or a fix the checker wrote, still earns a fresh review.
+  **Provenance:** `[learn]` issue #121. **Landed in:** `references/subagents.md` (Dispatch points).
 - **Heuristic:** give every reviewer one immutable commit and pause the writer until the verdict is
   in; if the commit moves, discard the stale review and restart against the new commit.
   **Why:** a review of a live worktree, or one reused after a revision, cannot be tied to the code

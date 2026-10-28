@@ -63,6 +63,11 @@ flowchart LR
   green. It is the only role that opens `scenarios/`, preserving the holdout.
 - **Stall** → dispatch `wgm-diagnostician` (wonder→reflect, escalation, harness building) when
   satisfaction is flat or a check keeps failing.
+- **Fix rounds.** A task's first candidate always gets both passes. A later round that changes only
+  the lines its findings named may close without a fresh review if a non-author re-verifies every
+  changed line against those findings and reruns every relevant check green; that re-verification
+  is the round's closing PASS, recorded with what each line was checked against. Any wider change,
+  new production logic, or a fix the checker wrote gets both passes again.
 - A task is recorded `done` only when the deterministic gate exits 0 **and** both reviewers PASS
   **and** the diff carries exactly one recorded ruggedness verdict of RUGGED; the slice's holdout
   satisfaction is judged by the validator against the stop-condition threshold.
