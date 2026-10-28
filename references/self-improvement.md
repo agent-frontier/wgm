@@ -175,7 +175,7 @@ about other tools without ever running wgm against a real one) can quietly subst
 because neither leaves the repo to go find out. Nothing else in this file polices that balance, so
 make it explicit and checkable rather than something a maintainer has to reconstruct by hand:
 
-- **Real-dogfood cadence — update this line whenever a new one lands:** last real, cross-project
+- **Real-dogfood cadence — refresh at release, not per harvest PR:** last real, cross-project
   `[learn]` issues — the **#119–#135 wave (2026-10-28, PR #120)**: sixteen review, evidence, and fleet
   lessons from about ten builds in a single private Rust workspace on Windows with WSL (one host
   project, so real dogfood but single-workspace evidence), plus a recorded Pi 1.4.0 Linux dogfood
@@ -302,11 +302,18 @@ A triaged issue is turned into exactly one PR by an agent that runs **with wgm l
   (`check-docs`, `skills-ref`, the harnesses) as any other change.
 
 ## Promote & retain (the ledger)
-When a PR lands a durable lesson, record it in [`heuristics.md`](heuristics.md) — the curated juice
-ledger — and fold it into wherever it belongs:
-- a one-liner heuristic → `heuristics.md` (always) and, if it changes behavior, `SKILL.md`;
-- a recurring failure pattern → a new **holdout scenario** so a future build is graded against it;
-- a "why" that needs space → a `references/` or `docs/` note.
+When a PR lands a durable lesson, add it as a fragment of [`heuristics.md`](heuristics.md) — the
+curated juice ledger, compiled from one file per lesson (format in its header) — and land the rule
+itself once, where it fires:
+- **the reference the agent reads when the rule applies** holds the normative text; the fragment
+  summarizes it, records provenance, and pins the landing phrase so it cannot vanish silently;
+- **a role's brief** (`.github/agents/`) also carries a rule that binds one dispatched role, because
+  that agent may never open the reference;
+- **`SKILL.md`** takes a rule only as a one-line gate check that must fire on every run; it is loaded
+  every time, so keep it lean;
+- **a recurring failure pattern** → a new holdout scenario or eval case, so a future build is graded
+  against it;
+- **a "why" that needs space** → a `references/` or `docs/` note.
 
 **Strategic forgetting.** The ledger is the long-term memory; `.wgm/memories.md` is the short-term
 buffer. Prune the buffer aggressively; only graduated lessons persist.

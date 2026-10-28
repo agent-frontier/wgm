@@ -73,8 +73,9 @@ closing the finding. A doc-only fix leaves the trap armed for the next reader
 For the **PM** lens, also check whether
 [`docs/plans/2026-06-16_RALPH_LANDSCAPE.md`](../docs/plans/2026-06-16_RALPH_LANDSCAPE.md)'s
 "point-in-time snapshot" has fallen meaningfully behind the sources that have since been
-assimilated. Sweep **both** of these, not just the first: (a)
-[`references/heuristics.md`](heuristics.md)'s **Provenance** fields, and (b) any new external-tool
+assimilated. Sweep **both** of these, not just the first: (a) the **Provenance** fields of the
+ledger fragments in [`references/heuristics/`](heuristics/README.md) (the compiled ledger can lag
+until a release), and (b) any new external-tool
 citation landing anywhere else in `references/*.md` this round — a watchlist item can be overtaken
 by a topical reference file (a new pattern doc, a loop-mechanics addition) documenting it as an
 optional/future pattern without ever touching `heuristics.md`, which is invisible to a check scoped
