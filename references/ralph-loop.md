@@ -160,6 +160,10 @@ loop, with progress living on disk (not the model's context) between passes
   as a dedicated chore task — do **not** fold unrelated fmt/lint cleanup into a feature PR to chase
   a not-yet-active CI, and do not let it silently sink the first PR that lands after the CI does
   (`[learn]` issue #77).
+- **A run that dies in seconds may be a billing block.** If a hosted CI run fails within about 1-5
+  seconds and no job starts, read its annotations (`gh run view` with the run id) for a billing or
+  spending-limit message before editing workflow files. Record that run as neither a pass nor a
+  source failure, and keep the exact local gates authoritative.
 - **Exit codes are still only one signal.** `scripts/loop.sh` now probes write capability before a
   build and treats repeated `plan_changed=0` build iterations as a first-class stall, but it does
   not semantically judge an agent's prose response. A future enhancement pattern is **semantic exit /
