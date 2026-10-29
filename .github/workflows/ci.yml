@@ -24,6 +24,15 @@ jobs:
         run: |
           for s in scripts/*.sh; do bash -n "$s"; done
 
+      - name: Install pinned jj for contributor tests
+        run: |
+          curl --fail --location --retry 3 'https://github.com/jj-vcs/jj/releases/download/v0.46.0/jj-v0.46.0-x86_64-unknown-linux-musl.tar.gz' --output "$RUNNER_TEMP/jj.tar.gz"
+          bash .github/scripts/verify-jj-archive.sh "$RUNNER_TEMP/jj.tar.gz"
+          mkdir -p "$RUNNER_TEMP/jj-bin"
+          tar -xzf "$RUNNER_TEMP/jj.tar.gz" -C "$RUNNER_TEMP/jj-bin" ./jj
+          echo "$RUNNER_TEMP/jj-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/jj-bin/jj" --version
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -115,6 +124,9 @@ jobs:
 
       - name: Swarm harness (bash)
         run: bash scripts/test-swarm.sh
+
+      - name: Jujutsu workspace swarm harness (bash, local fixtures)
+        run: bash scripts/test-jj-swarm.sh
 
       - name: Audit harness (bash, fixture agents)
         run: bash scripts/test-audit.sh

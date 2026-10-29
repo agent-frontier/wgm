@@ -315,8 +315,9 @@ above. Four rules, each earned from a run that got it wrong:
   guarantee. Prefer `git -C <absolute-worktree>` over an ambient `cd`, and guard before mutating:
   if `rev-parse --show-toplevel` or `branch --show-current` disagrees with the lane assignment,
   stop rather than mutate. In a 32-lane run, four lanes executed git from the parent checkout on a
-  second turn and one advanced local `main`. `swarm.sh` now enforces both halves — it injects the
-  pin into each lane's request and fails the lane outright if the guard does not match.
+  second turn and one advanced local `main`. `swarm.sh` injects the pin and the loop checks path,
+  branch, tip, and a parent-state fingerprint around turns and host commits. These checks are not a
+  sandbox: arbitrary agent commands and changes reverted between checks remain outside their reach.
   If this does happen, **never repair it by discarding commits**: preserve reachability first (keep
   the accidental commits on the intended branch plus an explicit recovery branch), then restore the
   intended checkout from the remote.
@@ -331,13 +332,17 @@ above. Four rules, each earned from a run that got it wrong:
 - **Partition by what a shared-type change breaks.** Before dispatch, search for every exhaustive
   match, struct literal, and trait impl that a shared-type change breaks, and put those files in
   the file set of the lane that owns the change, or sequence the lanes.
-- **Only the orchestrator integrates.** Lanes commit on their own branch and return diffs, findings,
-  and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
+- **Keep the jj boundary explicit.** `swarm.sh --backend jj` creates colocated jj workspaces, but
+  the loop still owns Git commits on per-lane branches. Do not run `jj new` or other operations
+  that move a lane's Git HEAD during the loop; a failed/dirty/unverified lane is retained for review.
+  See [`docs/reference/cli-swarm.md`](../docs/reference/cli-swarm.md).
+- **Only the orchestrator integrates.** The host loop commits each lane's declared changes on its
+  branch; lanes return diffs, findings, and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
   recreating refs, and removing worktrees belong to the orchestrator (the parent session that
   dispatched the lanes) unless it delegates one named action to one lane and records the delegation.
-- **Size the swarm to the host's concurrency cap and backfill.** Hosts cap concurrent background
-  agents (32 in one observed case; the 33rd is refused). Idle agents free a slot, so treat queued
-  lanes as backfill that starts as running lanes go idle — do not assume N lanes launch N agents.
+- **Size each swarm batch to the host's concurrency cap.** Hosts can cap background agents (32 in
+  one observed case; the 33rd was refused). `swarm.sh` launches every ready lane concurrently; it
+  does not queue or backfill. Run remaining tasks in later batches or use a separate scheduler.
 
 **Then verify what the lanes claim.** A lane's own `done` is an *unverified assertion*, and plan
 files full of plausible completions are the swarm's most expensive failure mode: in one Full-track

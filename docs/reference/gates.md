@@ -12,9 +12,12 @@ there, the backpressure is your own project's test, build, lint, or probe comman
 make validate
 ```
 
-This is the complete portable local suite. CI includes the same bash harness inventory, including
-audit and devcontainer checks, plus the `skills-ref`, PowerShell, and separate `actionlint` checks
-listed below.
+This is the complete local contributor suite. Its real jj workspace fixture requires `jj` 0.46.0+
+and Git with `worktree add --orphan` (normally upstream Git 2.42+; compatible backports also work).
+Ordinary wgm use and the default Git swarm do not require jj or this jj-specific capability. CI includes the same bash harness
+inventory, including audit and devcontainer checks, plus the `skills-ref`, PowerShell, and separate
+`actionlint` checks listed below. CI downloads jj 0.46.0 and verifies the pinned SHA-256 with
+`.github/scripts/verify-jj-archive.sh` before extraction; the local harness makes no download.
 
 `check-docs.sh` compares literal `bash scripts/test-*.sh` commands in `Makefile`'s `test` recipe
 with single-line and literal-block (`run: |`) steps in `.github/workflows/ci.yml`. Every local entry
@@ -64,8 +67,12 @@ scripts/check-trailers.sh --base main --trailer Co-authored-by --trailer Copilot
 ```
 
 Required keys come from `--trailer` flags, or one-per-line from `.wgm/required-trailers` or
-`.github/required-trailers`. With neither present the check is an explicit no-op — this is opt-in
-governance, not an imposed policy.
+`.github/required-trailers`. Keys are literal, case-insensitive text at the start of a line,
+immediately followed by `:` and a value containing a non-whitespace character on that same line.
+For example, `X.Build` accepts `x.build: passed`, not `X-Build: passed`; punctuation is not a
+regular expression. Indented or longer keys and empty values do not match. This remains a
+line-oriented check, not a full Git-footer parser. With neither source present the check is an
+explicit no-op — this is opt-in governance, not an imposed policy.
 
 **Caution:** If a non-compliant commit is already published, do not rewrite shared history or
 promote a sibling replacement merge. Record the offending SHA, missing trailers, and a forward-only
@@ -142,17 +149,18 @@ operator authorization and `--allow-live` path.
 | `test-stage10-pr.sh` | Disposable local Git fixtures proving failed/stale/tampered/out-of-scope/under-retired evidence refusal, absent/expired/mismatched approval refusal, final-candidate snapshot binding, bounded report-derived JSON/Markdown output, and unchanged local/remote authority |
 | `test-stage10-policy.sh` | Offline learned-policy comparison, sparse-history deferral, per-task regression rejection, metric direction, and no-activation authority |
 | `test-stage10-deferred-e2e.sh` | Final disposable composition of T10-T13, T7, prior T1-T9 gates, and the T14 ShellCheck/boundary gate; artifact-derived bounded reporting; unauthorized live refusal; authorized local-double labeling; positive/negative worktree lifecycle; explicit approval gating; and unchanged real/fixture checkout and remotes |
-| `test-loop.sh` | Limit knobs, capability probe, no-progress stall, monotonic plan-progress guard, project-gate execution, container selection, phase artifacts, watchdog timeout, harvest idempotency, commit ownership, retry and circuit breaker, metrics ledger, cost ceiling |
-| `test-swarm.sh` | Parallel branches, worktree/artifact pinning, project-gate propagation, partial-setup failure, zero-commit failure, memory consolidation, telemetry summary |
+| `test-loop.sh` | Limit knobs, capability probe, no-progress and monotonic-plan guards, project gates, container selection, phase artifacts, watchdog, harvest idempotency, tracked `.wgm` and manifest commit ownership, retries, circuit breaker, metrics, and cost ceiling |
+| `test-swarm.sh` | Parallel Git branches, lane/root/tip pinning, parent checks, tracked/ignored artifact and failed-lane retention, memory consolidation, telemetry summary |
+| `test-jj-swarm.sh` | Real jj 0.46.0+ in disposable Git fixtures: Git `--orphan` capability/error/backport preflight, colocated workspaces, branch/parent identity, mixed outcomes, interruption, cleanup failures, no-consent harvest, CI checksum rejection, and a separate native conflict/undo spike; missing jj fails rather than skips |
 | `test-audit.sh` | Argument errors, dry-run, four independent personas and writer-last ordering; terminal HEAD/stash/tracked/untracked/ignored mutation detection, including durable `.wgm/` contents; filtered-index inspection with real-index/staging preservation and no reviewer override; fail-closed preparation/inspection errors; Linux inotify positive-control and tracked-canary open/read regression (explicitly skipped off Linux); exact scratch/holdout exclusions; unknown-origin deltas; locks, retries, timeouts, non-git refusal, placement, argv/stdin modes; downstream retention rules; shared native/portable complete-report validation without mutation or paid agents; RED/AMBER completion wording; real tracked-source installation with spaces and five fake roles reading installed canonical resources |
 | `test-devcontainer.sh` | Sandbox init, base-image build, run, prune |
 | `test-harvest-hive.sh` | Anonymization, consent state machine, and the fail-closed publish contract |
 | `test-compile-heuristics.sh` | Ledger fragments compile newest first under the hand-written header, `--check` catches a stale ledger, and every fragment lint rule (front matter, pins, the frozen exemption for older entries, stray files) fails closed |
-| `test-grade-evals.sh` | Grading, baseline comparison, accept and regression verdicts |
+| `test-grade-evals.sh` | Exact ordered checklist, JSON types/count/evidence, single-document and fenced parsing, forged-summary resistance, raw error artifacts, informational exit 0, candidate/baseline/mixed-case error exit 2, valid recovery, accept/regression arithmetic, sandbox and history blinding |
 | `test-check-evals.sh` | The schema gate rejects unknown and missing keys, and the shipped fixture keeps its pinned ruggedness, evidence-boundary, numerical/API/performance, and cleanup ids and assertions |
 | `test-check-harnesses.sh` | The harness-contract gate rejects an invalid status, a missing discovery path, a `Verified` entry with no evidence, malformed JSON, a deleted harness entry, and a duplicate id — while still accepting a valid `Degraded` entry |
 | `test-check-docs.sh` | The docs gate rejects missing phase/runtime/action/authority/governance contracts, mojibake, broken links, unbalanced fences, blank marked-table cells, and missing local harnesses in CI; comments/echoes do not satisfy inventory parity, while literal run blocks do |
-| `test-check-trailers.sh` | Bare generated merges fail; forward-only attestations preserve history and cannot clear the original violation |
+| `test-check-trailers.sh` | Literal, case-insensitive keys require nonempty same-line values through flags and both config sources; bare generated merges fail; forward-only attestations preserve history and cannot clear the original violation |
 | `test-check-doc-sync.sh` | Undocumented surface is caught; valid default/ref/HEAD, staged/unstaged/untracked, and advisory paths are preserved; invalid/non-commit refs and injected Git inspection failures cannot become GREEN or advisory success |
 
 **Note:** A gate is only proven by watching it go **red** on the class it claims to catch. A
@@ -166,6 +174,16 @@ with a harness that fails it deliberately.
 |---|---|
 | `grade-evals.sh` | Costs real agent and API calls (one task call plus one grader call per case, doubled with `--baseline`). Run it by hand before landing a `SKILL.md` or `references/` change that could affect behavior quality. |
 | `harvest-hive.sh` | Has a real external side effect (filing a public issue). The harness exercises it only on guaranteed no-network paths. |
+
+`grade-evals.sh --baseline REF` accepts only fully graded comparisons: `GATE: ACCEPT` exits 0
+when no case regresses, and `GATE: REGRESSION` exits 1 for a valid regression. Any invalid
+candidate **or** baseline grade instead blocks comparison with `GATE: ERROR`, exit 2, including
+mixed valid/invalid case sets. Invalid grades retain raw output and diagnostic zero totals, report
+`ungraded/error`, and disclose incomplete coverage rather than counting as model failures.
+Without `--baseline`, recorded malformed grades remain informational (exit 0). See the
+[grading contract](../../references/evals.md#automated-grading-protocol) and
+[research record](../plans/2026-10-29_MULTI_SOURCE_GROWTH.md); fixture green is not live grading
+quality or measured reliability.
 
 ## Additional gates in CI
 

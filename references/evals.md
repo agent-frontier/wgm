@@ -109,6 +109,15 @@ including why it deliberately does **not** depend on the `microsoft/SkillOpt` pa
   pattern — hand it the transcript plus the case's assertions, and it writes `grading.json` with a
   cited evidence snippet for every assertion. `summary` is always recomputed locally from
   `expectations[]` rather than trusted from the grader's own arithmetic.
+- **Complete grading contract:** accept exactly one JSON object (the fenced-JSON fallback remains),
+  with exactly one expectation per fixture assertion, in fixture order and with identical text.
+  Each `passed` must be a JSON boolean and each `evidence` a non-whitespace string. Missing,
+  extra, duplicate, reordered, wrong-text or wrongly typed entries, empty arrays, multiple
+  documents and unparseable output are instrument errors, not scored model failures. Invalid
+  output retains `grader_raw.txt` and a diagnostic `grading.json` with `error` and zero totals.
+  The console reports `ungraded/error` and incomplete coverage; any aggregate shown covers only
+  valid candidate grades. Without `--baseline`, recorded malformed grades remain informational
+  (exit 0), not proof of success.
 - **Anti-gaming blinding:** the candidate sandbox directory uses a neutral basename (`workspace.*`),
   never words like `eval`, `grade`, `judge`, `benchmark`, or `rubric`, sets
   `GIT_CEILING_DIRECTORIES` to the sandbox so a tool-using candidate cannot walk up into a parent
@@ -122,8 +131,11 @@ including why it deliberately does **not** depend on the `microsoft/SkillOpt` pa
 - **Usage:** `./scripts/grade-evals.sh` grades every case against the current `SKILL.md`, using the
   same `$WGM_AGENT`/`--agent`/`--` convention as `scripts/loop.sh`. Add `--baseline <git-ref>` to
   also grade against `SKILL.md` as it existed at that ref and print a gate verdict — `ACCEPT` (no
-  case regressed) or `REGRESSION` (exit 1) — the one idea borrowed from SkillOpt's validation gate,
-  expressed as a single comparison rather than a training loop.
+  case regressed, exit 0), `REGRESSION` (exit 1), or `ERROR` (exit 2 if any selected candidate
+  or baseline grade is invalid). An error blocks comparison even if other cases are valid or
+  regressed; missing measurements never become acceptance or an invalid-score-derived regression.
+  Non-regression is the one idea borrowed from SkillOpt's validation gate, expressed as a single
+  comparison rather than a training loop.
 - **Not yet automated:** aggregating *many* paired runs into a `benchmark.json` (mean/stddev/min/max
   across repeated trials) is `skill-creator`'s `python -m scripts.aggregate_benchmark` — still a
   manual step if you want it; `scripts/grade-evals.sh` covers one paired run per invocation, which
@@ -150,3 +162,5 @@ opt-in step (`scripts/test-grade-evals.sh` is its own fake-agent smoke test and 
 research) · [`references/heuristics.md`](heuristics.md) (Comparative & hard-to-test scoring — the
 SkillOpt-derived gate heuristic) · `assets/evals.template.json` · `scripts/check-evals.sh` ·
 `scripts/grade-evals.sh` · `docs/plans/2026-07-08_SKILLOPT_ADOPTION.md`.
+The [2026-10-29 multi-source research record](../docs/plans/2026-10-29_MULTI_SOURCE_GROWTH.md)
+documents the reproduced false acceptance, integrity repair, provenance and deferred ideas.

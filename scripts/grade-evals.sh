@@ -29,7 +29,7 @@
 #
 #   eval-id         grade only this case id (default: every case in evals/evals.json)
 #   --baseline REF  also grade the same case(s) against SKILL.md as it existed at git ref REF, and
-#                   print a gate verdict: ACCEPT (no case regressed) or REGRESSION (exit 1)
+#                   print ACCEPT (exit 0), REGRESSION (exit 1), or ERROR (invalid grade, exit 2)
 #
 # Agent configuration is identical to scripts/loop.sh:
 #   $WGM_AGENT (or --agent "CMD") — shell-evaluated, prompt appended as the final argument
@@ -40,7 +40,8 @@
 # is printed, so results are never lost); a one-line pass_rate per case; an overall summary; and,
 # with --baseline, a final gate verdict.
 #
-# Exit codes: 2 = misconfigured (no agent / bad flags / jq missing); 1 = --baseline given and at
+# Exit codes: 2 = misconfigured (no agent / bad flags / jq missing) or invalid baseline comparison
+# (any candidate/baseline grade is ungraded/error); 1 = --baseline given and at
 # least one case regressed; 0 = otherwise (grading without --baseline is informational, not gating —
 # see references/evals.md for why an absolute score alone isn't treated as pass/fail here).
 
@@ -122,21 +123,21 @@ skill_at_ref() {  # $1 = git ref; prints SKILL.md content as it existed at that 
   git show "${1}:SKILL.md" 2>/dev/null || { echo "ERROR: could not read SKILL.md at ref '$1'" >&2; exit 2; }
 }
 
-# Best-effort JSON extraction: try the raw grader output, then strip ```-fence lines and retry.
-# Returns 1 (no output) if neither parses — the caller treats that as a graded failure, not a crash.
+# Accept one object only, including after the existing fence-stripping fallback. jq normally
+# accepts a stream of documents; slurping prevents a second document from becoming a second grade.
 extract_json() {  # $1 = raw grader text
   local raw="$1" stripped
-  if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
+  if printf '%s' "$raw" | jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
   stripped="$(printf '%s' "$raw" | sed -e '/^```/d')"
-  if printf '%s' "$stripped" | jq -e . >/dev/null 2>&1; then printf '%s' "$stripped"; return 0; fi
+  if printf '%s' "$stripped" | jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then printf '%s' "$stripped"; return 0; fi
   return 1
 }
 
-# Grade one case against one skill revision. Prints "passed total pass_rate" on stdout (the only
+# Grade one case against one skill revision. Prints "passed total pass_rate status" on stdout (the only
 # line this function writes there); writes response.txt + grading.json under $3.
 grade_one() {
   local id="$1" skill="$2" outdir="$3"
-  local prompt expected assertions_json numbered response grader_raw json total passed failed pass_rate
+  local prompt expected assertions_json numbered response grader_raw json total passed failed pass_rate error=""
 
   prompt=$(jq -r --arg id "$id" '.evals[] | select(.id==$id) | .prompt' "$FIXTURE")
   expected=$(jq -r --arg id "$id" '.evals[] | select(.id==$id) | .expected_output' "$FIXTURE")
@@ -153,9 +154,26 @@ grade_one() {
   printf '%s\n' "$response" > "$outdir/response.txt"
 
   if ! json="$(extract_json "$grader_raw")"; then
+    error="grader output did not parse as exactly one JSON object"
+  elif ! jq -e --argjson assertions "$assertions_json" '
+    (.expectations | type == "array") and
+    ($assertions | length > 0) and
+    (.expectations | length == ($assertions | length)) and
+    (.expectations | to_entries | all(.[];
+      .key as $i | .value |
+      type == "object" and
+      (.text == $assertions[$i]) and
+      (.passed | type == "boolean") and
+      (.evidence | type == "string" and test("\\S"))
+    ))
+  ' <<<"$json" >/dev/null 2>&1; then
+    error="grader expectations did not match the complete ordered assertion checklist with boolean passed and nonblank evidence"
+  fi
+
+  if [[ -n "$error" ]]; then
     printf '%s\n' "$grader_raw" > "$outdir/grader_raw.txt"
-    jq -n '{expectations: [], summary: {passed:0, failed:0, total:0, pass_rate:0}, error:"grader output did not parse as JSON"}' > "$outdir/grading.json"
-    echo "0 0 0.0000"
+    jq -n --arg error "$error" '{expectations: [], summary: {passed:0, failed:0, total:0, pass_rate:0}, error:$error}' > "$outdir/grading.json"
+    echo "0 0 0.0000 error"
     return 0
   fi
 
@@ -168,7 +186,7 @@ grade_one() {
      '{expectations: (.expectations // []), summary: {passed:$passed, failed:$failed, total:$total, pass_rate:$pass_rate}}' \
      <<<"$json" > "$outdir/grading.json"
 
-  echo "$passed $total $pass_rate"
+  echo "$passed $total $pass_rate valid"
 }
 
 CANDIDATE_SKILL="$(cat SKILL.md)"
@@ -181,19 +199,33 @@ echo "Run directory: $RUN_DIR"
 OVERALL_TOTAL=0
 OVERALL_PASSED=0
 REGRESSED=0
+GRADE_ERRORS=0
+CANDIDATE_GRADED=0
 
 for id in "${IDS[@]}"; do
   echo "== grading '$id' (candidate) =="
-  read -r c_passed c_total c_rate < <(grade_one "$id" "$CANDIDATE_SKILL" "$RUN_DIR/$id/candidate")
-  echo "   candidate: ${c_passed}/${c_total} (pass_rate=${c_rate})"
+  read -r c_passed c_total c_rate c_status < <(grade_one "$id" "$CANDIDATE_SKILL" "$RUN_DIR/$id/candidate")
+  if [[ "$c_status" == valid ]]; then
+    echo "   candidate: ${c_passed}/${c_total} (pass_rate=${c_rate})"
+    CANDIDATE_GRADED=$((CANDIDATE_GRADED + 1))
+  else
+    echo "   candidate: ungraded/error (see $RUN_DIR/$id/candidate/grading.json)"
+    GRADE_ERRORS=$((GRADE_ERRORS + 1))
+  fi
   OVERALL_TOTAL=$((OVERALL_TOTAL + c_total))
   OVERALL_PASSED=$((OVERALL_PASSED + c_passed))
 
   if [[ -n "$BASELINE_REF" ]]; then
     echo "== grading '$id' (baseline @ ${BASELINE_REF}) =="
-    read -r b_passed b_total b_rate < <(grade_one "$id" "$BASELINE_SKILL" "$RUN_DIR/$id/baseline")
-    echo "   baseline:  ${b_passed}/${b_total} (pass_rate=${b_rate})"
-    if awk -v c="$c_rate" -v b="$b_rate" 'BEGIN{exit !(c < b)}'; then
+    read -r b_passed b_total b_rate b_status < <(grade_one "$id" "$BASELINE_SKILL" "$RUN_DIR/$id/baseline")
+    if [[ "$b_status" == valid ]]; then
+      echo "   baseline:  ${b_passed}/${b_total} (pass_rate=${b_rate})"
+    else
+      echo "   baseline: ungraded/error (see $RUN_DIR/$id/baseline/grading.json)"
+      GRADE_ERRORS=$((GRADE_ERRORS + 1))
+    fi
+    if [[ "$c_status" == valid && "$b_status" == valid ]] &&
+       awk -v c="$c_rate" -v b="$b_rate" 'BEGIN{exit !(c < b)}'; then
       echo "   REGRESSION on '$id': candidate ${c_rate} < baseline ${b_rate}"
       REGRESSED=1
     fi
@@ -202,10 +234,19 @@ done
 
 OVERALL_RATE=$(awk -v p="$OVERALL_PASSED" -v t="$OVERALL_TOTAL" 'BEGIN{ if (t==0) print "0.0000"; else printf "%.4f", p/t }')
 echo ""
-echo "Overall candidate pass_rate: ${OVERALL_PASSED}/${OVERALL_TOTAL} (${OVERALL_RATE})"
+if [[ "$GRADE_ERRORS" -gt 0 ]]; then
+  echo "Incomplete grading coverage: ${CANDIDATE_GRADED}/${#IDS[@]} candidate cases graded; ${GRADE_ERRORS} candidate/baseline grade error(s)"
+  echo "Overall candidate pass_rate (graded cases only; incomplete coverage): ${OVERALL_PASSED}/${OVERALL_TOTAL} (${OVERALL_RATE})"
+else
+  echo "Overall candidate pass_rate: ${OVERALL_PASSED}/${OVERALL_TOTAL} (${OVERALL_RATE})"
+fi
 echo "Results written under: $RUN_DIR"
 
 if [[ -n "$BASELINE_REF" ]]; then
+  if [[ "$GRADE_ERRORS" -gt 0 ]]; then
+    echo "GATE: ERROR (comparison blocked by ungraded/error candidate or baseline output)"
+    exit 2
+  fi
   if [[ "$REGRESSED" -eq 1 ]]; then
     echo "GATE: REGRESSION (candidate scored lower than baseline '${BASELINE_REF}' on at least one case)"
     exit 1

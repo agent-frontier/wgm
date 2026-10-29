@@ -162,11 +162,14 @@ task remains, so a healthy loop self-terminates without your intervention.
 
 ## Safety
 
-- Non-destructive by default: no commits and no pushes unless you pass `--commit`.
+- The host commits only with `--commit` or `--checkpoint-interval`; swarm lanes use `--commit`.
+  The runner does not push.
 - The agent still edits files during a non-dry run. Run this only in a workspace you are willing to
   let an agent operate in autonomously.
-- With `--commit`, do not edit the worktree while the loop runs. Use another worktree for concurrent
-  human edits; undeclared paths make the commit fail closed.
+- With `--commit` or `--checkpoint-interval`, do not edit the worktree while the loop runs. Use another worktree for concurrent
+  human edits; undeclared paths make the commit fail closed. Tracked `.wgm` files are project data:
+  they must be clean at baseline and explicitly declared to be committed. Only untracked `.wgm`
+  runtime scratch is excluded from that check.
 - `build`, `review`, and `preflight` refuse to start without an `IMPLEMENTATION_PLAN.md` in the
   project root or `.wgm/`.
 

@@ -289,7 +289,9 @@ Inject these into **every** iteration — they prevent recurring loop failures:
   record the tool, input, date, and regeneration command so a reviewer can reproduce it.
 - **Commit ownership is explicit.** `loop.sh --commit` takes exclusive ownership of the worktree.
   Start clean, declare the files intentionally changed in the iteration manifest, and refuse to stage
-  undeclared paths. A concurrent human edit belongs in another worktree or after the loop stops.
+  undeclared paths. Tracked `.wgm` files are project data and need the same ownership declaration;
+  only untracked `.wgm` runtime scratch is excluded. A concurrent human edit belongs elsewhere or
+  after the loop stops.
 - **Pass bodies by file.** Write issue, PR, and comment bodies to a file and pass them with
   `--body-file`. Markdown backticks inside a double-quoted shell argument run as command
   substitution, and a Windows-to-WSL hop hides the quoting.

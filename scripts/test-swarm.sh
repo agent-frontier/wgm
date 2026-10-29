@@ -25,6 +25,7 @@ git init -q
 git config user.email "wgm-test@example.com"
 git config user.name "wgm test"
 printf '# plan\n\n- seed\n' > IMPLEMENTATION_PLAN.md
+printf '*.cache\n' > .gitignore
 git add -A && git commit -qm seed
 BASE="$(git rev-parse HEAD)"
 
@@ -57,6 +58,19 @@ reset_swarm() {  # tear down every worktree under .wgm/worktrees + every wgm/* b
   rm -f .wgm/memories.md
 }
 
+# The installed help must point operators and contributors to the jj prerequisite guidance without
+# implying that the Git-only backend requires jj or a newer Git.
+run --help
+if [[ "$RC" -eq 0 ]] && grep -Fq 'worktree add --orphan' <<<"$OUT" \
+   && grep -Fq 'backports work' <<<"$OUT" && grep -Fq 'exits 129' <<<"$OUT" \
+   && grep -Fq 'default Git backend' <<<"$OUT" && grep -Fq 'scripts/test-jj-swarm.sh' <<<"$OUT" \
+   && grep -Fq 'CONTRIBUTING.md#check-git-for-jj' <<<"$OUT" \
+   && grep -Fq 'docs/reference/cli-swarm.md#try-the-jj-backend' <<<"$OUT"; then
+  pass "swarm help points to jj prerequisites and Git-only boundaries"
+else
+  fail "swarm help lost jj prerequisite guidance (rc=$RC): $OUT"
+fi
+
 # 1) --dry-run lists the streams and creates nothing
 run --tasks tasks.txt --dry-run -- "${AGENT_OK[@]}"
 if [[ "$RC" -eq 0 ]] && grep -q "streams=2" <<<"$OUT" && grep -q "wgm/swarm/1" <<<"$OUT" && [[ ! -d .wgm/worktrees ]]; then
@@ -75,6 +89,15 @@ if [[ "$RC" -eq 0 ]] \
   pass "two streams produce two committed branches in parallel"
 else
   fail "parallel streams did not produce two committed branches (rc=$RC)"
+fi
+reset_swarm
+
+# A successful host commit updates the expected lane tip so the next legitimate turn can proceed.
+run -n 1 --max-iterations 2 --prefix wgm/two-turns -- "${AGENT_OK[@]}"
+if [[ "$RC" -eq 0 ]] && [[ "$(git rev-list --count "$BASE..wgm/two-turns/1")" -eq 2 ]]; then
+  pass "successive host-owned commits advance the guarded lane tip"
+else
+  fail "the lane tip guard rejected a later legitimate turn (rc=$RC): $OUT"
 fi
 reset_swarm
 
@@ -219,7 +242,84 @@ else
 fi
 reset_swarm
 
-# 8) a missing --tasks file is rejected before anything runs
+# 8) If an agent detaches HEAD during a turn, the host must refuse its automatic commit and keep
+#    the lane, even when cleanup was requested. A prompt alone cannot enforce the branch pin.
+# shellcheck disable=SC2016
+AGENT_DRIFT=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; git switch -q --detach; printf -- "- retained after branch drift\n" >> IMPLEMENTATION_PLAN.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+run -n 1 --max-iterations 1 --prefix wgm/drift --cleanup -- "${AGENT_DRIFT[@]}"
+if [[ "$RC" -ne 0 ]] \
+   && [[ -f .wgm/worktrees/wgm-drift-1/IMPLEMENTATION_PLAN.md ]] \
+   && grep -q "retained after branch drift" .wgm/worktrees/wgm-drift-1/IMPLEMENTATION_PLAN.md \
+   && grep -q "lane guard" .wgm/swarm-logs/wgm-drift-1.log \
+   && [[ "$(git rev-parse wgm/drift/1)" == "$BASE" ]]; then
+  pass "branch drift is refused before commit and the failed lane is retained"
+else
+  fail "branch drift was committed or its failed lane was removed (rc=$RC): $OUT"
+fi
+reset_swarm
+
+# 9) The host owns commits. An agent that advances the same branch during a turn must be caught
+#    even though its branch name and worktree path still match; retain its commit for inspection.
+# shellcheck disable=SC2016
+AGENT_MOVED_TIP=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- agent commit\n" >> IMPLEMENTATION_PLAN.md; git add IMPLEMENTATION_PLAN.md; git commit -qm "agent moved tip"; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+run -n 1 --max-iterations 1 --prefix wgm/moved --cleanup -- "${AGENT_MOVED_TIP[@]}"
+if [[ "$RC" -ne 0 ]] && [[ -d .wgm/worktrees/wgm-moved-1 ]] \
+   && grep -q "lane guard" .wgm/swarm-logs/wgm-moved-1.log \
+   && [[ "$(git log -1 --format=%s wgm/moved/1)" == "agent moved tip" ]] \
+   && [[ "$(git rev-list --count "$BASE..wgm/moved/1")" -eq 1 ]]; then
+  pass "agent-moved branch tip is refused and retained without another commit"
+else
+  fail "agent-moved branch tip was not refused or preserved (rc=$RC): $OUT"
+fi
+reset_swarm
+
+# 10) An undeclared edit makes the loop fail; cleanup must not destroy the diagnostic work.
+# shellcheck disable=SC2016
+AGENT_UNDECLARED=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- tracked change\n" >> IMPLEMENTATION_PLAN.md; printf "recover this\n" > undeclared.txt; mkdir -p .wgm; printf "untrusted failed lesson\n" > .wgm/memories.md; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+run -n 1 --max-iterations 1 --prefix wgm/dirty --cleanup -- "${AGENT_UNDECLARED[@]}"
+if [[ "$RC" -ne 0 ]] && [[ -f .wgm/worktrees/wgm-dirty-1/undeclared.txt ]] \
+   && [[ -f .wgm/worktrees/wgm-dirty-1/.wgm/memories.md ]] \
+   && [[ ! -f .wgm/memories.md ]] && grep -q "retained" <<<"$OUT"; then
+  pass "failed dirty lane and its untrusted memory survive without parent harvest"
+else
+  fail "failed dirty lane was not retained (rc=$RC): $OUT"
+fi
+reset_swarm
+
+# 11) Git normally hides ignored files. A successful lane with an ignored non-wgm artifact must
+#     still be retained; --cleanup is not permission to erase unknown user/build data.
+# shellcheck disable=SC2016
+AGENT_IGNORED=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- committed work\n" >> IMPLEMENTATION_PLAN.md; printf "valuable ignored artifact\n" > result.cache; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+run -n 1 --max-iterations 1 --prefix wgm/ignored --cleanup -- "${AGENT_IGNORED[@]}"
+if [[ "$RC" -ne 0 ]] && [[ -f .wgm/worktrees/wgm-ignored-1/result.cache ]] \
+   && grep -q "retained" <<<"$OUT"; then
+  pass "ignored non-wgm artifacts prevent destructive cleanup"
+else
+  fail "ignored non-wgm artifact was not retained (rc=$RC): $OUT"
+fi
+reset_swarm
+
+# 12) A tracked .wgm file is project data, not disposable scratch, even though untracked .wgm
+#     runtime files are excluded from cleanup checks.
+SAVED_BASE="$BASE"
+mkdir -p .wgm
+printf 'tracked baseline\n' > .wgm/tracked-state.txt
+git add -f .wgm/tracked-state.txt && git commit -qm 'seed tracked wgm state'
+BASE="$(git rev-parse HEAD)"
+# shellcheck disable=SC2016
+AGENT_TRACKED_WGM=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- committed work\n" >> IMPLEMENTATION_PLAN.md; printf "tracked project edit\n" >> .wgm/tracked-state.txt; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+run -n 1 --max-iterations 1 --prefix wgm/tracked --cleanup -- "${AGENT_TRACKED_WGM[@]}"
+if [[ "$RC" -ne 0 ]] && [[ -f .wgm/worktrees/wgm-tracked-1/.wgm/tracked-state.txt ]] \
+   && grep -q 'tracked project edit' .wgm/worktrees/wgm-tracked-1/.wgm/tracked-state.txt; then
+  pass "tracked .wgm project edits prevent cleanup"
+else
+  fail "tracked .wgm project edit was discarded (rc=$RC): $OUT"
+fi
+reset_swarm
+BASE="$SAVED_BASE"
+git reset -q --hard "$BASE"
+
+# 13) a missing --tasks file is rejected before anything runs
 run --tasks does-not-exist.txt -- "${AGENT_OK[@]}"
 if [[ "$RC" -eq 2 ]] && grep -q "tasks file not found" <<<"$OUT"; then
   pass "missing --tasks file is rejected"

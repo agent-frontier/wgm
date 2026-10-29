@@ -219,8 +219,16 @@ and reinstalls in one step.
 | | |
 |---|---|
 | **Symptom** | A lane exits immediately with a guard message. |
-| **Cause** | The lane was not in its assigned worktree and branch. The guard refuses to let it mutate the wrong tree. |
-| **Resolution** | This is working as intended. Check for a leftover worktree or branch from a prior run — `make clean-worktrees` clears both. |
+| **Cause** | The lane's path, branch, tip, or parent state no longer matches its assignment. The host refuses its own commit; it does not sandbox agent commands. |
+| **Resolution** | Inspect the lane log, `git worktree list`, and the retained files/branch before recovery. For jj also inspect `jj --ignore-working-copy workspace list`; never run destructive cleanup before saving work. See [swarm recovery](../reference/cli-swarm.md#merging-and-cleanup). |
+
+### The jj swarm refuses setup or retains a lane
+
+| | |
+|---|---|
+| **Symptom** | `--backend jj` reports missing/old jj, unsupported Git `--orphan`, an unclean parent, an unignored runtime path, or changed workspace identity. |
+| **Cause** | jj is opt-in and requires Git with `worktree add --orphan` (normally 2.42+), a clean colocated checkout, and ignored runtime/lane paths. Failed or ambiguous cleanup retains work. |
+| **Resolution** | Install jj 0.46.0+ and compatible Git, or explicitly select `--backend git`. Inspect the parent and `jj --ignore-working-copy workspace list`; follow the [jj setup and recovery guide](../reference/cli-swarm.md#try-the-jj-backend). Do not use `make clean-worktrees` in a jj checkout. |
 
 ### A swarm lane says `ok` but has zero commits
 
@@ -298,7 +306,7 @@ and reinstalls in one step.
 |---|---|
 | **Symptom** | `make validate` is red before you changed anything. |
 | **Cause** | Usually a missing development dependency. |
-| **Resolution** | Check the contributor prerequisites in [Requirements](../get-started/requirements.md). `shellcheck` is needed for `lint`, `jq` for `docs`. |
+| **Resolution** | Check [Requirements](../get-started/requirements.md): `shellcheck` is needed for `lint`, `jq` for `docs`, and jj 0.46.0+ for the real workspace harness. |
 
 ### check-evals.sh exits 2
 

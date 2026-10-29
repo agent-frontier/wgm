@@ -95,6 +95,25 @@ if [[ "$RC" -eq 0 ]] && grep -qE "container=(podman|docker|unavailable)" <<<"$OU
 else
   fail "explicit container auto did not resolve (rc=$RC): $OUT"
 fi
+# The initialized variable says podman, but the default resolver must still fall back to Docker.
+# Isolate PATH so this proves the default and explicit auto behavior without a container engine.
+mkdir -p "$TMP/docker-only"
+ln -s "$(command -v bash)" "$TMP/docker-only/bash"
+ln -s "$(command -v dirname)" "$TMP/docker-only/dirname"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/docker-only/docker"
+chmod +x "$TMP/docker-only/docker"
+set +e
+DEFAULT_CONTAINER_OUT="$(PATH="$TMP/docker-only" "$LOOP" build --dry-run -- true 2>&1)"; DEFAULT_CONTAINER_RC=$?
+AUTO_CONTAINER_OUT="$(PATH="$TMP/docker-only" "$LOOP" build --dry-run --container auto -- true 2>&1)"; AUTO_CONTAINER_RC=$?
+set -e
+if [[ "$DEFAULT_CONTAINER_RC" -eq 0 && "$AUTO_CONTAINER_RC" -eq 0 ]] \
+   && grep -q 'container=docker' <<<"$DEFAULT_CONTAINER_OUT" \
+   && grep -q 'container=docker' <<<"$AUTO_CONTAINER_OUT"; then
+  pass "default and explicit auto both select Docker when Podman is absent"
+else
+  fail "default/auto did not fall back to Docker (default=$DEFAULT_CONTAINER_RC, auto=$AUTO_CONTAINER_RC)"
+fi
+rm -rf "$TMP/docker-only"
 run build --dry-run --devcontainer --devcontainer-mount "$TMP/auth:/home/wgm/.copilot" -- true
 if [[ "$RC" -eq 0 ]] && grep -q "mounts=1" <<<"$OUT"; then
   pass "devcontainer auth mounts are forwarded by the loop"
@@ -168,6 +187,39 @@ if [[ "$RC" -eq 0 && ! -e rename-source.txt && -e rename-dest.txt ]] \
   pass "--commit accepts a declared rename"
 else
   fail "--commit mishandled a declared rename (rc=$RC)"
+fi
+
+# Tracked .wgm files are project data: dirty baselines and undeclared staged changes must not be
+# hidden by the scratch-directory exclusion, while explicitly owned tracked paths remain committable.
+mkdir -p .wgm
+printf 'tracked baseline\n' > .wgm/tracked-state.txt
+git add -f .wgm/tracked-state.txt && git commit -qm 'seed tracked wgm state'
+printf 'human edit\n' >> .wgm/tracked-state.txt
+run build 1 --commit --max-retries 0 -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 1 ]] && grep -q 'requires a clean worktree' <<<"$OUT"; then
+  pass "tracked .wgm baseline edits are not treated as disposable scratch"
+else
+  fail "tracked .wgm baseline edit was not rejected (rc=$RC): $OUT"
+fi
+git restore -- .wgm/tracked-state.txt
+# shellcheck disable=SC2016
+AGENT_WGM_UNDECLARED=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "undeclared tracked edit\n" >> .wgm/tracked-state.txt; git add .wgm/tracked-state.txt; printf "IMPLEMENTATION_PLAN.md\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+before="$(git rev-parse HEAD)"
+run build 1 --commit --max-retries 0 -- "${AGENT_WGM_UNDECLARED[@]}"
+if [[ "$RC" -eq 1 && "$(git rev-parse HEAD)" == "$before" ]] && grep -q 'absent from its ownership manifest' <<<"$OUT"; then
+  pass "undeclared staged .wgm project data cannot enter a host commit"
+else
+  fail "undeclared staged .wgm project data was committed (rc=$RC): $OUT"
+fi
+git reset -q HEAD -- .wgm/tracked-state.txt
+git restore -- .wgm/tracked-state.txt IMPLEMENTATION_PLAN.md
+# shellcheck disable=SC2016
+AGENT_WGM_DECLARED=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf -- "- step\n" >> IMPLEMENTATION_PLAN.md; printf "owned tracked edit\n" >> .wgm/tracked-state.txt; printf "IMPLEMENTATION_PLAN.md\n.wgm/tracked-state.txt\n" > "$WGM_OWNERSHIP_MANIFEST"' _)
+run build 1 --commit --max-retries 0 -- "${AGENT_WGM_DECLARED[@]}"
+if [[ "$RC" -eq 0 ]] && git show HEAD:.wgm/tracked-state.txt | grep -q 'owned tracked edit'; then
+  pass "declared tracked .wgm project data can be committed explicitly"
+else
+  fail "declared tracked .wgm project data was not committed (rc=$RC): $OUT"
 fi
 
 # 4) --max-runtime-seconds caps the wall clock
@@ -442,16 +494,19 @@ else
 fi
 
 # 12) a transient agent failure is retried and recovers (the loop does not abort)
-rm -f .retry_n
+rm -f .retry_n retry-events.log
 # shellcheck disable=SC2016  # the agent script body must stay literal; loop.sh's child shell expands it
 AGENT_FLAKY=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; n=$(cat .retry_n 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > .retry_n; [ "$n" -ge 2 ] || exit 1; printf -- "- recovered\n" >> IMPLEMENTATION_PLAN.md' _)
-run build 1 --max-retries 2 --retry-base-delay 0 -- "${AGENT_FLAKY[@]}"
-if [[ "$RC" -eq 0 ]] && grep -q "retry 1/2" <<<"$OUT" && grep -q -- "- recovered" IMPLEMENTATION_PLAN.md; then
-  pass "retries a transient agent failure and recovers"
+# The retry event is part of the documented --notify contract, not just console output.
+# shellcheck disable=SC2016
+run build 1 --max-retries 2 --retry-base-delay 0 --notify 'printf "%s\n" "$WGM_EVENT" >> retry-events.log' -- "${AGENT_FLAKY[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q "retry 1/2" <<<"$OUT" && grep -q -- "- recovered" IMPLEMENTATION_PLAN.md \
+   && grep -qx retry retry-events.log; then
+  pass "retries a transient agent failure, emits retry, and recovers"
 else
-  fail "did not recover from a transient failure (rc=$RC)"
+  fail "did not recover from a transient failure or emit retry (rc=$RC)"
 fi
-rm -f .retry_n
+rm -f .retry_n retry-events.log
 
 # 13) persistent failure trips the circuit breaker (and does not loop forever)
 # shellcheck disable=SC2016

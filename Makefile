@@ -40,7 +40,7 @@ docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixtu
 	bash scripts/check-harnesses.sh
 	bash scripts/sync-agent-adapters.sh --check
 
-test: ## Run the bash harnesses (install, agent-adapters, plugin-registry, Stage 10 focused/integration, loop, swarm, audit, devcontainer, harvest-hive, heuristics-compile, eval/docs/gate checks, release-index, wsl-boundary)
+test: ## Run the bash harnesses (install, adapters, Stage 10, loop, Git/jj swarm, audit, devcontainer, harvest, eval/docs/gate checks, release-index, wsl-boundary)
 	bash scripts/test-install.sh
 	bash scripts/test-agent-adapters.sh
 	bash scripts/test-plugin-registry.sh
@@ -57,6 +57,7 @@ test: ## Run the bash harnesses (install, agent-adapters, plugin-registry, Stage
 	bash scripts/test-stage10-deferred-e2e.sh
 	bash scripts/test-loop.sh
 	bash scripts/test-swarm.sh
+	bash scripts/test-jj-swarm.sh
 	bash scripts/test-audit.sh
 	bash scripts/test-devcontainer.sh
 	bash scripts/test-harvest-hive.sh
@@ -75,10 +76,19 @@ validate: lint docs test ## The local backpressure suite (CI also runs skills-re
 
 check: validate ## Alias for validate
 
-clean-worktrees: ## Remove leftover swarm worktrees + branches (.wgm/worktrees, wgm/* branches)
-	-git worktree list --porcelain | awk '/^worktree /{print $$2}' | grep '/\.wgm/worktrees/' \
-		| xargs -r -I{} git worktree remove --force {}
-	-git worktree prune
-	-git for-each-ref --format='%(refname:short)' refs/heads/ | grep -E '^wgm/' \
-		| xargs -r -n1 git branch -D
-	-rm -rf .wgm/worktrees
+clean-worktrees: ## Remove clean Git swarm worktrees; keep branches (refuses jj checkouts)
+	@if [ -e .jj ] || [ -L .jj ]; then \
+		echo 'Refusing Git-only cleanup in a jj checkout; inspect jj workspace list and preserve branches first.' >&2; exit 1; \
+	fi
+	@set -euo pipefail; \
+		root="$$(git rev-parse --show-toplevel)"; base="$$root/.wgm/worktrees"; \
+		list="$$(mktemp)"; trap 'rm -f "$$list"' EXIT; \
+		git worktree list --porcelain -z > "$$list"; \
+		while IFS= read -r -d '' record; do \
+			case "$$record" in \
+				"worktree $$base/"*) path="$${record#worktree }"; \
+					echo "Removing clean Git worktree: $$path"; git worktree remove -- "$$path" ;; \
+			esac; \
+		done < "$$list"; \
+		if [ -d "$$base" ]; then rmdir "$$base" 2>/dev/null || true; fi; \
+		echo 'Branches and unrelated worktrees are retained; inspect them before manual removal.'

@@ -13,8 +13,9 @@ If you are changing **wgm itself**, start with the [local-development SOP](../CO
 make validate
 ```
 
-Local validation and CI share the bash harness inventory in `Makefile`'s `test` recipe, including
-audit and devcontainer harnesses. The docs gate checks literal CI run-command coverage, not general
+Local validation requires jj 0.46.0+ and Git with `worktree add --orphan` (normally Git 2.42+)
+for the real-workspace harness; jj and that capability are optional for the default Git swarm. Local validation and CI share the bash harness inventory in
+`Makefile`'s `test` recipe, including audit and devcontainer harnesses. The docs gate checks literal CI run-command coverage, not general
 workflow control flow; real devcontainer cases visibly skip only if neither Podman nor Docker is
 installed. For doc-sync, `--warn` makes findings advisory, not inspection errors: bad/non-commit
 bases and failed Git operations exit `2` and never print GREEN. See the precise
@@ -143,6 +144,11 @@ Design records, kept for provenance rather than as current instructions:
 - [2026-08-20 — Stage 8+ growth record](plans/2026-08-20_WGM_STAGE_8_PLUS_GROWTH.md) — why wgm is
   assessed as Stage 9 emerging/supervised, what is already orchestrated, and what full self-improvement
   autonomy still requires.
+- [2026-10-29 — Git worktrees and Jujutsu workspaces](plans/2026-10-29_JJ_WORKSPACES_EVALUATION.md) —
+  the opt-in hybrid decision, real fixture evidence, trade-offs, and promotion criteria.
+- [2026-10-29 — Multi-source growth and grader integrity](plans/2026-10-29_MULTI_SOURCE_GROWTH.md) —
+  eight-source synthesis, one reproduced false-acceptance repair, source limitations, and deferred
+  growth candidates; incomplete grading now blocks baseline acceptance.
 - [2026-10-28 — GitHub agent-skills & orchestrators landscape refresh](plans/2026-10-28_GITHUB_LANDSCAPE_REFRESH.md) —
   how wgm compares to pstack, no_human, foremerge, martin-loop, council-of-high-intelligence, ECC,
   and gh-aw, and the seven zero-dependency upgrades assimilated from them.

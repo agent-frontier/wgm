@@ -43,6 +43,12 @@ and prepends its `bin/` to `PATH`, so an already-installed CLI (`copilot`, `clau
 resolves inside the sandbox unchanged. Native addons in that CLI could still misbehave across a
 different base distro — a convenience, not a guarantee.
 
+For an opt-in jj workspace swarm run inside a sandbox, jj is not bundled and Git must support
+`worktree add --orphan` (normally Git 2.42+). A Debian bookworm fixture using the shared image's
+Git package source reported Git 2.39.5 in a Linux bakeoff; install compatible tools in a deliberate
+custom environment or use the Git
+backend. The jj preflight fails before lane creation rather than silently falling back.
+
 ## Auth/config beyond the CLI binary itself
 Some agent CLIs need more than their binary — a token or config file under the host's `$HOME`
 (`~/.copilot`, `~/.claude`, `~/.config/gh`, …). `run --mount HOST[:CONTAINER]` (repeatable) opts

@@ -19,10 +19,27 @@ welcome.
 
 | Tool | Used for |
 |---|---|
-| `bash`, [`shellcheck`](https://www.shellcheck.net/) | shell scripts + lint |
+| `bash`, `git`, [`shellcheck`](https://www.shellcheck.net/) | shell scripts, Git fixtures, and lint |
+| [`jj` (Jujutsu) 0.46.0+](https://docs.jj-vcs.dev/latest/install-and-setup/) and Git with `git worktree add --orphan` (normally Git 2.42+) | Real workspace fixture in `make validate`; jj is optional when merely using wgm |
 | `jq` | `scripts/check-evals.sh` (evals fixture schema check) |
 | `pwsh` (PowerShell 7+) | the Windows installer + its test harness |
 | `python3` + `pip` | `skills-ref` (skill validator) |
+
+### Check Git for jj
+
+From the repository root, inspect the actual Git capability and run the focused prerequisite check:
+
+```bash
+jj --version
+git --version
+git worktree add -h 2>&1 || true  # look for --orphan or --[no-]orphan; Git help normally exits 129
+bash scripts/test-jj-swarm.sh      # runs the real preflight and the disposable fixture
+```
+
+A Debian bookworm fixture reported Git 2.39.5 without this capability on 2026-10-29. Install a
+[compatible Git](https://git-scm.com/install/) (normally upstream 2.42+) or a vendor backport, then
+rerun the harness. CI runs the same harness, but does not make an unavailable local gate green.
+Ordinary wgm use and the default Git swarm do not require jj or this jj-specific capability.
 
 Install the validator once:
 
@@ -32,7 +49,11 @@ pip install "git+https://github.com/agentskills/agentskills.git#subdirectory=ski
 
 ## The backpressure suite (run before every PR)
 
-`make validate` is the complete portable local suite. The canonical bash harness inventory is
+`make validate` is the complete local contributor suite; its real workspace fixture needs jj and
+Git's `worktree add --orphan` capability. A vendor backport is accepted. Normal wgm use and the
+default Git swarm do not require jj or this jj-specific Git capability. CI installs the official
+0.46.0 Linux archive after a pinned SHA-256 check; the default harness itself does not download tools.
+The canonical bash harness inventory is
 `Makefile`'s `test` recipe; CI includes those harnesses, including audit and devcontainer checks,
 and adds `skills-ref` and PowerShell checks in `ci.yml`, plus `actionlint` in `lint.yml`.
 The docs gate rejects a local harness missing from CI's literal run-command inventory; it does
@@ -63,11 +84,12 @@ bash scripts/test-stage10-policy.sh           # offline learned-policy compariso
 bash scripts/test-stage10-deferred-e2e.sh     # final disposable deferred-boundary integration
 bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness
 bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness
+bash scripts/test-jj-swarm.sh                 # real jj workspace, Git interop + recovery fixtures
 bash scripts/test-audit.sh                    # audit.sh dispatch harness, fixture agents only
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness
 bash scripts/test-compile-heuristics.sh       # heuristics ledger fragments: compile order, stale check, lint
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
-bash scripts/test-grade-evals.sh              # grade-evals.sh plumbing harness, fake agent (10 cases)
+bash scripts/test-grade-evals.sh              # fake-agent grading integrity, errors and baseline gates
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness
 actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```
@@ -77,6 +99,10 @@ actionlint                                    # lint .github/workflows/*.yml (CI
 
 Run the complete local suite with **`make validate`** (lint + docs + `Makefile`'s bash harnesses); `make help`
 lists every target (`make update` refreshes your installed copy, `make test`, `make lint`, …).
+
+Try the opt-in [jj workspace swarm](docs/reference/cli-swarm.md#try-the-jj-backend) when exploring
+parallel development. It preserves Git commits and never converts a checkout automatically; see the
+[comparison record](docs/plans/2026-10-29_JJ_WORKSPACES_EVALUATION.md) before changing defaults.
 
 The devcontainer harness prefers Podman, falls back to Docker, and visibly skips real-engine cases
 only when neither is installed; its disposable test image is separate from the operator's base image.
@@ -97,6 +123,20 @@ behavior quality:
 ./scripts/grade-evals.sh                        # grade every case against the current SKILL.md
 ./scripts/grade-evals.sh --baseline main         # ...and gate on non-regression vs. main
 bash scripts/test-grade-evals.sh                 # its own fake-agent smoke test (CI-safe, free)
+```
+
+The grader requires one complete, ordered fixture checklist with boolean verdicts and nonblank
+evidence; it recomputes summaries locally. A malformed grade is `ungraded/error`, with raw output
+and a diagnostic `grading.json` retained, not a scored failure. Informational runs still exit 0
+but disclose incomplete coverage. With `--baseline`, **any invalid candidate or baseline grade
+blocks the comparison with `GATE: ERROR`, exit 2**; only fully valid comparisons can ACCEPT
+(exit 0) or REGRESSION (exit 1). The fake-agent harness reproduces these boundaries without
+provider calls; it does not calibrate grading quality.
+
+Focused reproduction of the [research-driven integrity repair](docs/plans/2026-10-29_MULTI_SOURCE_GROWTH.md):
+
+```bash
+bash scripts/test-grade-evals.sh && shellcheck scripts/grade-evals.sh scripts/test-grade-evals.sh && bash -n scripts/grade-evals.sh && bash -n scripts/test-grade-evals.sh && bash scripts/check-docs.sh && git diff --check
 ```
 
 ## Making a change

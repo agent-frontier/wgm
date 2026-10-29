@@ -14,10 +14,10 @@ self-optimize → promote → re-install**.
 ## Capture — four sources feed one funnel
 - `.wgm/memories.md` — gotchas, stall fixes, patterns, dead ends (token-budgeted, pruned).
 - `.wgm/scores.md` — the satisfaction trajectory that exposes stalls.
-- **Swarm-stream memories (new).** Each `scripts/swarm.sh` stream keeps its own isolated
-  `.wgm/memories.md` in its own worktree; a standing post-run step consolidates every stream's file
-  into the invoking worktree's `.wgm/memories.md`, tagged by origin branch, before any cleanup. See
-  **Swarm harvest** below.
+- **Swarm-stream memories.** Each `scripts/swarm.sh` stream keeps its own isolated
+  `.wgm/memories.md`. Afterward, successful identity-verified streams are consolidated into the
+  invoking worktree's `.wgm/memories.md`, tagged by origin branch, before cleanup. Failed or
+  unverified streams retain their memories locally for manual review. See **Swarm harvest** below.
 - **This project's own GitHub Issues (new).** A project's open issues are backlog/context for
   Triage's *discovery* step, not raw input `Harvest` scans the way it scans `.wgm/memories.md` — see
   [`issue-intake.md`](issue-intake.md) for the discovery and traceability discipline. wgm's own
@@ -32,20 +32,18 @@ on the later Record-step trim discipline; swarm consolidation itself appends the
 files first.
 
 ## Swarm harvest (consolidating parallel streams)
-`scripts/swarm.sh` fans work into parallel git worktrees so streams never collide — but that also
-means each stream's lessons stay stranded in its own worktree unless something brings them back.
-Terminology here is exact: **swarm** = the parallel-worktree mechanism in `scripts/swarm.sh`; a
-**stream** = one worktree/branch inside that swarm; the **hive** = the shared upstream
-`agent-frontier/wgm` that consented builds ultimately report to.
-The standing (unconditional, no flag) post-run step in `scripts/swarm.sh` does exactly that: after
-all streams finish and before any `--cleanup` removes their worktrees, it appends each stream's
-`.wgm/memories.md` into the invoking worktree's `.wgm/memories.md`, each block tagged with an HTML
-comment naming its origin branch (e.g. `<!-- from wgm/swarm/2 -->`). This always runs — every swarm
-run pays this small local cost, whether or not the project has consented to automatic upstream
-reporting (below). Harvest then reads the consolidated file exactly as it would a single-stream
-build's; a swarm-sourced lesson is just one more candidate, not a different kind of one.
-Important: `scripts/swarm.sh` does **not** trim after consolidation; it appends each per-stream file
-verbatim. The ~2000-token trim rule only re-enters later when an agent does the Record-step memory
+`scripts/swarm.sh` fans work into parallel Git worktrees or opt-in colocated jj workspaces. Each
+stream's lessons stay in its lane unless brought back. Terminology here is exact: **swarm** = the
+parallel-stream mechanism; a **stream** = one working directory and Git branch; the **hive** = the
+shared upstream `agent-frontier/wgm` that consented builds ultimately report to.
+After all streams finish and before `--cleanup`, the parent appends each successful,
+identity-verified stream's `.wgm/memories.md` to its own file, tagging each block with its origin
+branch (e.g. `<!-- from wgm/swarm/2 -->`). Failed/unverified lanes or parent drift prevent their
+memories from being consolidated or passed to harvest; those files remain in the retained lanes for
+manual review. When at least one memory is copied, the courier applies its normal consent and
+anonymization rules. A swarm-sourced lesson is a candidate, not an automatically trusted fact.
+Important: `scripts/swarm.sh` does **not** trim after consolidation; it appends each eligible
+per-stream file verbatim. The ~2000-token trim rule only re-enters later when an agent does the Record-step memory
 maintenance described in `references/ralph-loop.md` / `references/artifacts.md`, not during swarm
 consolidation itself.
 

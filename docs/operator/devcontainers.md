@@ -91,6 +91,13 @@ read-only at `/opt/wgm-skill` so the re-invoked `loop.sh` can find its sibling f
 `--dry-run` — you'll see `devcontainer=1 (would re-exec...)` in the preview instead of a container
 actually launching.
 
+**jj workspace swarms inside a sandbox:** the shared image does not bundle jj. A Debian bookworm
+fixture using the same Git package source reported Git 2.39.5 in the 2026-10-29 Linux bakeoff;
+package versions can change. Installing jj alone is not enough: the jj
+backend needs Git with `worktree add --orphan` (normally Git 2.42+, or a compatible backport). Use
+the Git backend or an explicitly customized environment with both tools; wgm does not silently
+change the image or fall back. See [jj setup](../reference/cli-swarm.md#try-the-jj-backend).
+
 ## Disk hygiene — why this doesn't inflate your disk
 
 - **One image, not N.** `devcontainer.json` always references `"image"` (the shared tag), never

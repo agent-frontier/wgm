@@ -72,6 +72,7 @@ Nothing here blocks normal use. Each unlocks one capability.
 | Software | Unlocks | Without it |
 |---|---|---|
 | Podman or Docker | Containerized scenario validation (`loop.sh --container`), and the local devcontainer sandbox | Scenarios needing a live service cannot be judged; run the app yourself |
+| [`jj` 0.46.0+](https://docs.jj-vcs.dev/latest/install-and-setup/) and Git with `worktree add --orphan` (normally 2.42+) | Opt-in colocated [jj workspace swarm](../reference/cli-swarm.md#try-the-jj-backend) | The default Git swarm and skill continue to work |
 | `jq` | `scripts/check-evals.sh`, `scripts/check-harnesses.sh` | Those two gates exit `2` and report the dependency |
 | `shellcheck` | `make lint` | You cannot run the shell lint locally; CI still does |
 | `gh`, authenticated | Filing an anonymized lesson upstream (`harvest-hive.sh`) | The courier stays local-only; nothing breaks |
@@ -98,6 +99,7 @@ Only needed if you are changing wgm itself:
 |---|---|
 | `bash`, `shellcheck` | `make lint` |
 | `jq` | `make docs` |
+| `jj` 0.46.0+ and Git with `worktree add --orphan` | `make validate`'s real workspace harness; missing/unsupported tools fail rather than skip. See the [capability check](../../CONTRIBUTING.md#check-git-for-jj). |
 | `actionlint` | Workflow linting (CI also runs it) |
 | `pwsh` | The PowerShell installer harness |
 | `python3` with `pip` | `skills-ref` skill validation |

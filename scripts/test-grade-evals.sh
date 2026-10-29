@@ -16,7 +16,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GRADE_SRC="$ROOT/scripts/grade-evals.sh"
 
 FAILED=0
-pass() { printf 'ok:   %s\n' "$*"; }
+ASSERTIONS=0
+pass() { ASSERTIONS=$((ASSERTIONS + 1)); printf 'ok:   %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; FAILED=1; }
 
 TMP="$(mktemp -d)"
@@ -57,6 +58,14 @@ cat > fake_agent.sh << 'EOF'
 #!/usr/bin/env bash
 prompt="$1"
 if [[ "$prompt" == *"You are grading a transcript"* ]]; then
+  # Optional response sequence exercises the shipped grader, including revision/case asymmetry.
+  if [[ -n "${FAKE_GRADES_DIR:-}" ]]; then
+    n="$(cat "$FAKE_GRADES_DIR/count" 2>/dev/null || echo 0)"
+    n=$((n + 1))
+    printf '%s\n' "$n" > "$FAKE_GRADES_DIR/count"
+    cat "$FAKE_GRADES_DIR/$n"
+    exit 0
+  fi
   if [[ "${FAKE_BREAK_GRADER:-0}" == "1" ]]; then
     echo "sorry, I can't produce JSON right now — here is prose instead."
     exit 0
@@ -203,8 +212,165 @@ else
   fail "candidate sandbox inside a parent git tree leaked git context: '$GIT_CHECK'"
 fi
 
+# Malformed instruments are not failed model answers. Every mutation below must retain raw
+# evidence, disclose incomplete informational coverage, and block a baseline gate, not shrink
+# the checklist to a convincing 1/1. No provider is involved.
+mkdir -p "$TMP/grades" "$TMP/payloads"
+python3 - "$TMP/payloads" <<'PY'
+import copy
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+valid = {"expectations": [
+    {"text": "has widget", "passed": True, "evidence": "WIDGET seen"},
+    {"text": "has gadget", "passed": False, "evidence": "GADGET missing"},
+]}
+payloads = {}
+for name, value in [
+    ("omitted", valid["expectations"][:1]),
+    ("extra", valid["expectations"] + [valid["expectations"][0]]),
+    ("duplicate", [valid["expectations"][0]] * 2),
+    ("wrong-order", list(reversed(valid["expectations"]))),
+    ("empty-array", []),
+    ("array-type", {}),
+]:
+    payloads[name] = json.dumps({"expectations": value})
+for name, key, value in [
+    ("wrong-text", "text", "invented"),
+    ("text-type", "text", 42),
+    ("passed-string", "passed", "true"),
+    ("passed-number", "passed", 1),
+    ("passed-null", "passed", None),
+    ("evidence-empty", "evidence", ""),
+    ("evidence-whitespace", "evidence", " \t\r\n"),
+    ("evidence-unicode-space", "evidence", "\u00a0\u2003"),
+    ("evidence-type", "evidence", []),
+]:
+    changed = copy.deepcopy(valid)
+    changed["expectations"][0][key] = value
+    payloads[name] = json.dumps(changed)
+for key in ("text", "passed", "evidence"):
+    changed = copy.deepcopy(valid)
+    del changed["expectations"][0][key]
+    payloads["missing-" + key] = json.dumps(changed)
+payloads.update({
+    "empty": "",
+    "prose": "not JSON",
+    "missing-expectations": "{}",
+    "null": "null",
+    "top-array": json.dumps([valid]),
+    "item-type": '{"expectations":[null,42]}',
+    "multiple-documents": json.dumps(valid) + "\n" + json.dumps(valid),
+    "fenced-multiple": "```json\n" + json.dumps(valid) + "\n{}\n```",
+})
+for name, raw in payloads.items():
+    (root / name).write_text(raw + "\n")
+(root / "valid").write_text(json.dumps(valid) + "\n")
+forged = copy.deepcopy(valid)
+forged["summary"] = {"passed": 900, "total": 900, "pass_rate": 1}
+(root / "forged").write_text(json.dumps(forged) + "\n")
+(root / "fenced").write_text("```json\n" + json.dumps(valid) + "\n```\n")
+(root / "invalid-names").write_text("\n".join(payloads) + "\n")
+PY
+
+export FAKE_GRADES_DIR="$TMP/grades"
+sequence() {
+  local n=0 payload
+  printf '0\n' > "$FAKE_GRADES_DIR/count"
+  for payload in "$@"; do
+    n=$((n + 1))
+    cp "$TMP/payloads/$payload" "$FAKE_GRADES_DIR/$n"
+  done
+}
+error_artifacts() {
+  local dir="$1" payload="$2"
+  [[ -f "$dir/grader_raw.txt" ]] &&
+    cmp -s "$TMP/payloads/$payload" "$dir/grader_raw.txt" &&
+    jq -e '.expectations == [] and (.error | type == "string" and length > 0)
+      and .summary == {passed:0, failed:0, total:0, pass_rate:0}' "$dir/grading.json" >/dev/null
+}
+while IFS= read -r mutation; do
+  sequence "$mutation"
+  run case-1 -- "$FAKE"
+  RD="$(run_dir_of)"
+  if [[ "$RC" -eq 0 ]] && grep -qi 'candidate:.*ungraded.*error' <<<"$OUT" &&
+     grep -qi 'incomplete' <<<"$OUT" &&
+     error_artifacts "$RD/case-1/candidate" "$mutation"; then
+    pass "$mutation: informational error preserves raw output and discloses incomplete coverage"
+  else
+    fail "$mutation: informational error/coverage/artifacts incorrect (rc=$RC)"
+  fi
+  sequence "$mutation" "$mutation"
+  run case-1 --baseline "$SHA_V1" -- "$FAKE"
+  RD="$(run_dir_of)"
+  if [[ "$RC" -eq 2 ]] && grep -q 'GATE: ERROR' <<<"$OUT" &&
+     ! grep -qE 'GATE: (ACCEPT|REGRESSION)' <<<"$OUT" &&
+     error_artifacts "$RD/case-1/candidate" "$mutation" &&
+     error_artifacts "$RD/case-1/baseline" "$mutation"; then
+    pass "$mutation: invalid grades on both revisions block baseline comparison"
+  else
+    fail "$mutation: expected baseline ERROR, retained artifacts (rc=$RC): $OUT"
+  fi
+done < "$TMP/payloads/invalid-names"
+
+for side in candidate baseline; do
+  if [[ "$side" == candidate ]]; then sequence omitted valid; else sequence valid omitted; fi
+  run case-1 --baseline "$SHA_V1" -- "$FAKE"
+  RD="$(run_dir_of)"
+  if [[ "$RC" -eq 2 ]] && grep -q 'GATE: ERROR' <<<"$OUT" &&
+     grep -qi "$side:.*ungraded.*error" <<<"$OUT" &&
+     ! grep -qE 'GATE: (ACCEPT|REGRESSION)' <<<"$OUT" &&
+     error_artifacts "$RD/case-1/$side" omitted; then
+    pass "$side-only invalid grade blocks comparison"
+  else
+    fail "$side-only invalid grade did not block comparison (rc=$RC)"
+  fi
+done
+
+# Valid payloads after invalid ones must recover; summary forgery cannot change arithmetic.
+for payload in valid forged fenced; do
+  sequence "$payload" valid
+  run case-1 --baseline "$SHA_V1" -- "$FAKE"
+  RD="$(run_dir_of)"
+  if [[ "$RC" -eq 0 ]] && grep -q 'GATE: ACCEPT' <<<"$OUT" &&
+     jq -e '.summary == {passed:1, failed:1, total:2, pass_rate:0.5}
+       and (.expectations | length == 2) and (has("error") | not)' \
+       "$RD/case-1/candidate/grading.json" >/dev/null; then
+    pass "$payload: valid equal comparison recovers with locally computed summary"
+  else
+    fail "$payload: valid comparison/summary incorrect (rc=$RC)"
+  fi
+done
+
+# Keep aggregate counts from valid cases, but never let them hide a missing measurement.
+jq '.evals += [.evals[0] | .id = "case-2"]' evals/evals.json > evals/two.json
+mv evals/two.json evals/evals.json
+for side in candidate baseline; do
+  if [[ "$side" == candidate ]]; then sequence valid valid omitted valid
+  else sequence valid valid valid omitted; fi
+  run --baseline "$SHA_V1" -- "$FAKE"
+  if [[ "$RC" -eq 2 ]] && grep -q 'GATE: ERROR' <<<"$OUT" &&
+     grep -q "grading 'case-2'" <<<"$OUT" && grep -qi incomplete <<<"$OUT" &&
+     ! grep -qE 'GATE: (ACCEPT|REGRESSION)' <<<"$OUT"; then
+    pass "mixed cases: valid first case cannot hide invalid $side second case"
+  else
+    fail "mixed cases hid invalid $side grade (rc=$RC)"
+  fi
+done
+sequence valid valid valid valid
+run --baseline "$SHA_V1" -- "$FAKE"
+if [[ "$RC" -eq 0 ]] && grep -q 'GATE: ACCEPT' <<<"$OUT" &&
+   grep -q 'Overall candidate pass_rate: 2/4' <<<"$OUT"; then
+  pass "multiple valid cases recover and aggregate without changing denominators"
+else
+  fail "multiple valid cases did not recover/aggregate (rc=$RC)"
+fi
+unset FAKE_GRADES_DIR
+
 if (( FAILED == 0 )); then
-  echo "grade-evals: GREEN"
+  echo "grade-evals: GREEN ($ASSERTIONS assertions)"
   exit 0
 else
   echo "grade-evals: RED" >&2

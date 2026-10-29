@@ -96,7 +96,14 @@ while IFS= read -r sha; do
   body="$(git show -s --format=%B "$sha")"
   missing=()
   for key in "${REQUIRED[@]}"; do
-    grep -qiE "^${key}:[[:space:]]*[^[:space:]]" <<<"$body" || missing+=("$key")
+    # Compare a literal prefix, not a regex. ENVIRON preserves backslashes that awk -v
+    # would interpret as escapes; the value must contain non-whitespace on this same line.
+    WGM_TRAILER_KEY="$key" awk '
+      BEGIN { prefix = tolower(ENVIRON["WGM_TRAILER_KEY"]) ":" }
+      tolower(substr($0, 1, length(prefix))) == prefix &&
+        substr($0, length(prefix) + 1) ~ /[^[:space:]]/ { found = 1 }
+      END { exit !found }
+    ' <<<"$body" || missing+=("$key")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
     subject="$(git show -s --format=%s "$sha")"

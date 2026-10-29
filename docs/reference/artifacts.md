@@ -43,7 +43,7 @@ The table below describes agent state, not a blanket ignore policy.
 | `.wgm/memories.md` | Loop (Record) | Durable lessons: gotchas, stall causes and fixes, dead ends. Token-budgeted to roughly 2000 tokens. Read at the start of each Analyze. |
 | `.wgm/metrics.tsv` | `loop.sh` | Per-iteration telemetry ledger. On by default; disable with `--metrics off`. |
 | `.wgm/metrics/PREFIX-N.tsv` | `swarm.sh` | Per-lane ledgers, written into the **parent** worktree so they survive `--cleanup`. |
-| `.wgm/worktrees/` | `swarm.sh` | Swarm lane worktrees. Removed by `--cleanup` or `make clean-worktrees`. |
+| `.wgm/worktrees/` | `swarm.sh` | Git worktrees or colocated jj workspaces. `--cleanup` removes only verified clean successes; failed/dirty lanes remain. `make clean-worktrees` is Git-only, keeps branches, and refuses jj checkouts. |
 | `.wgm/deferred-work.md` | Review | Credible issues that pre-date the current diff, recorded rather than silently dropped. |
 | `.wgm/learning/MAP.md` | `teach-me` | The cited repository map: entry points, structure, conventions, invariants. **wgm's Analyze step reads it when present** — it is the whole-repo model a per-task read never builds. |
 | `.wgm/learning/` | `teach-me`, `quiz-me` | Tour progress and the quiz log. |

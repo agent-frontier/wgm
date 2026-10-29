@@ -50,7 +50,7 @@
 #                        fail a build after N successful iterations leave the plan unchanged;
 #                        0 = disabled (default: 3)
 #   --checkpoint-interval N  commit every N build iterations; 0 = off (default: 0)
-#   --notify "CMD"       run CMD (shell) on lifecycle events with $WGM_EVENT (start|complete|error)
+#   --notify "CMD"       run CMD (shell) on lifecycle events with $WGM_EVENT (start|retry|error|complete)
 #                        and $WGM_ITER set; best-effort — its failure never fails the loop
 #   --gates FILE         project-wide backpressure: a YAML file with a `gates:` list of commands,
 #                        injected as mandatory checks into every build iteration (default:
@@ -83,8 +83,8 @@
 #   -h | --help          show this help
 #
 # Safety:
-#   * Non-destructive by default (no commits, no pushes) unless --commit is passed. The agent may
-#     still edit files during a non-dry run — run this only in a workspace you trust it in.
+#   * The host commits only with --commit or --checkpoint-interval and never pushes. The agent may
+#     still edit files or run commands — use a workspace you trust it in.
 #   * Every non-dry-run build or plan probes agent write capability before iteration 1.
 #   * build/review modes refuse to run without an IMPLEMENTATION_PLAN.md (root or .wgm/).
 #   * Stop anytime with Ctrl+C, or create a .wgm/STOP (or ./STOP) sentinel to end after the
@@ -94,6 +94,8 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/swarm-parent-guard.sh
+source "$HERE/swarm-parent-guard.sh"
 ORIGINAL_ARGV=("$@")
 
 # ----- defaults -------------------------------------------------------------
@@ -111,7 +113,7 @@ PROMPT_STDIN="${WGM_PROMPT_STDIN:-0}"
 THRESHOLD=95
 SCENARIOS_DIR=""
 STRATIFIED=0
-CONTAINER="podman"
+CONTAINER="auto"
 CONTAINER_EXPLICIT=0
 SOURCE_DIR=""
 ESCALATE_AFTER=2
@@ -584,9 +586,43 @@ probe_capability() {
   echo "Capability probe: passed."
 }
 
+# A swarm lane's prompt is guidance, not an enforcement boundary. Recheck the assignment around
+# every invocation and before committing so a detached or switched HEAD cannot be committed by the
+# host runner. This does not sandbox commands the agent itself chooses to run.
+assert_lane_identity() {
+  [[ "${WGM_SWARM_LANE:-0}" == 1 ]] || return 0
+  local top branch tip expected_top="${WGM_SWARM_ROOT:-}" expected_branch="${WGM_SWARM_BRANCH:-}"
+  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  branch="$(git branch --show-current 2>/dev/null || true)"
+  tip="$(git rev-parse --verify 'HEAD^{commit}' 2>/dev/null || true)"
+  if [[ -z "$expected_top" || -z "$expected_branch" || -z "$tip" || "$top" != "$expected_top" \
+        || "$branch" != "$expected_branch" || ( -n "${LANE_EXPECTED_TIP:-}" && "$tip" != "$LANE_EXPECTED_TIP" ) ]]; then
+    echo "✗ lane guard: expected worktree ${expected_top:-<unset>} on ${expected_branch:-<unset>} at ${LANE_EXPECTED_TIP:-<initial>}, got ${top:-<none>} on ${branch:-<none>} at ${tip:-<none>}" >&2
+    return 1
+  fi
+  local parent_hash
+  if [[ -z "${WGM_SWARM_PARENT_ROOT:-}" || -z "${WGM_SWARM_PARENT_HASH:-}" || -z "${WGM_SWARM_PREFIX:-}" \
+        || -z "${WGM_SWARM_WORKTREE_DIR:-}" || -z "${WGM_SWARM_RUNTIME_DIR:-}" \
+        || -z "${WGM_SWARM_SAFE_PREFIX:-}" || -z "${WGM_SWARM_COUNT:-}" ]]; then
+    echo "✗ parent guard: missing swarm parent identity." >&2
+    return 1
+  fi
+  parent_hash="$(wgm_swarm_parent_fingerprint "$WGM_SWARM_PARENT_ROOT" "$WGM_SWARM_PREFIX" \
+    "$WGM_SWARM_WORKTREE_DIR" "$WGM_SWARM_SAFE_PREFIX" "$WGM_SWARM_COUNT" "$WGM_SWARM_RUNTIME_DIR")" || {
+      echo "✗ parent guard: could not inspect the invoking checkout." >&2; return 1;
+    }
+  if [[ "$parent_hash" != "$WGM_SWARM_PARENT_HASH" ]]; then
+    echo "✗ parent guard: invoking checkout, index, or non-lane refs changed; stop and inspect before recovery." >&2
+    return 1
+  fi
+}
+
 git_status_paths() {
   git status --porcelain=v1 | while IFS= read -r status_line; do
     path="${status_line:3}"
+    # Only untracked .wgm runtime scratch is disposable. Tracked .wgm paths are project data and
+    # must pass the same clean-baseline and ownership checks as every other tracked file.
+    if [[ "${status_line:0:2}" == '??' && "$path" == .wgm/* ]]; then continue; fi
     if [[ "${status_line:0:2}" == *R* || "${status_line:0:2}" == *C* ]] && [[ "$path" == *" -> "* ]]; then
       printf '%s\n' "${path%% -> *}" "${path##* -> }"
     else
@@ -606,7 +642,10 @@ assert_clean_commit_baseline() {
     return 1
   fi
   local dirty
-  dirty="$(git_status_paths | grep -v '^\.wgm/' || true)"
+  if ! dirty="$(git_status_paths)"; then
+    echo "Refusing to commit: could not inspect the worktree status." >&2
+    return 1
+  fi
   if [[ -n "$dirty" ]]; then
     echo "Refusing to commit: --commit requires a clean worktree before iteration 1." >&2
     printf 'Unowned paths already present:\n%s\n' "$dirty" >&2
@@ -617,9 +656,10 @@ assert_clean_commit_baseline() {
 
 OWNERSHIP_MANIFESTS=()
 stage_owned_paths() {
-  local owned_tmp actual_tmp undeclared path manifest
+  local owned_tmp actual_tmp staged_tmp undeclared path manifest
   owned_tmp=".wgm/.loop-owned-${ITER}-$$"
   actual_tmp=".wgm/.loop-actual-${ITER}-$$"
+  staged_tmp=".wgm/.loop-staged-${ITER}-$$"
   if [[ "${#OWNERSHIP_MANIFESTS[@]}" -eq 0 ]]; then
     echo "Refusing to commit: no iteration ownership manifest was registered." >&2
     return 1
@@ -647,7 +687,11 @@ stage_owned_paths() {
     done < "$manifest"
   done
   sort -u "$owned_tmp" -o "$owned_tmp"
-  git_status_paths | grep -v '^\.wgm/' > "$actual_tmp" || true
+  if ! git_status_paths > "$actual_tmp"; then
+    echo "Refusing to commit: could not inspect iteration changes." >&2
+    rm -f "$owned_tmp" "$actual_tmp" "$staged_tmp"
+    return 1
+  fi
   undeclared="$(comm -23 "$actual_tmp" "$owned_tmp" || true)"
   if [[ -n "$undeclared" ]]; then
     echo "Refusing to commit: iteration changed paths absent from its ownership manifest." >&2
@@ -660,12 +704,17 @@ stage_owned_paths() {
     [[ -n "$path" ]] || continue
     git add -A -- "$path"
   done < "$owned_tmp"
-  if git diff --cached --name-only | grep -v '^\.wgm/' | comm -23 - "$owned_tmp" | grep -q .; then
-    echo "Refusing to commit: staged paths exceed the iteration ownership manifest." >&2
-    rm -f "$owned_tmp" "$actual_tmp"
+  if ! git diff --cached --name-only > "$staged_tmp"; then
+    echo "Refusing to commit: could not inspect staged paths." >&2
+    rm -f "$owned_tmp" "$actual_tmp" "$staged_tmp"
     return 1
   fi
-  rm -f "$owned_tmp" "$actual_tmp"
+  if comm -23 "$staged_tmp" "$owned_tmp" | grep -q .; then
+    echo "Refusing to commit: staged paths exceed the iteration ownership manifest." >&2
+    rm -f "$owned_tmp" "$actual_tmp" "$staged_tmp"
+    return 1
+  fi
+  rm -f "$owned_tmp" "$actual_tmp" "$staged_tmp"
   return 0
 }
 
@@ -735,8 +784,11 @@ verify_phase_artifact() {
 run_iteration() {
   local attempt=0 rc=0 exp ceil delay
   while :; do
-    run_current && return 0
-    rc=$?
+    assert_lane_identity || return 1
+    rc=0
+    run_current || rc=$?
+    assert_lane_identity || return 1
+    [[ "$rc" -eq 0 ]] && return 0
     [[ "$attempt" -ge "$MAX_RETRIES" ]] && return "$rc"
     attempt=$((attempt + 1))
     exp=$((attempt - 1)); [[ "$exp" -gt 30 ]] && exp=30
@@ -839,10 +891,16 @@ PROG=0
 START_TS=$(date +%s)
 LAST_PROG_TS=$START_TS
 notify start
+LANE_EXPECTED_TIP=""
+assert_lane_identity || exit 1
+if [[ "${WGM_SWARM_LANE:-0}" == 1 ]]; then
+  LANE_EXPECTED_TIP="$(git rev-parse --verify 'HEAD^{commit}')" || exit 1
+fi
 if [[ "$DRY_RUN" -eq 0 && "$COMMIT_MODE" -eq 1 ]]; then
   assert_clean_commit_baseline || exit 1
 fi
 probe_capability || exit 1
+assert_lane_identity || exit 1
 while :; do
   ITER=$((ITER + 1))
   if [[ "$MAX_ITERS" -ne 0 && "$ITER" -gt "$MAX_ITERS" ]]; then
@@ -896,10 +954,13 @@ Commit ownership: before you finish, write every repository-relative file path y
     COMPLETED=$((COMPLETED + 1))
   else
     discard_iteration_ownership
+    assert_lane_identity || { record_metrics fail; notify error; exit 1; }
     iteration_failure "Agent failed iteration ${ITER} after exhausting retries (consecutive: $((CONSEC_FAIL + 1)))."
     continue
   fi
 
+  # Project gates can also change the checkout. Never stage or commit after identity drift.
+  assert_lane_identity || { record_metrics fail; notify error; exit 1; }
   if [[ "$MODE" == "build" ]]; then
     DO_CP=0
     [[ "$DO_COMMIT" -eq 1 ]] && DO_CP=1
@@ -910,12 +971,15 @@ Commit ownership: before you finish, write every repository-relative file path y
         notify error
         exit 1
       fi
+      assert_lane_identity || { record_metrics fail; notify error; exit 1; }
       if git diff --cached --quiet; then
         echo "(nothing to commit)"
       elif ! git commit -m "chore: wgm build iteration ${ITER}"; then
         record_metrics fail
         notify error
         exit 1
+      elif [[ "${WGM_SWARM_LANE:-0}" == 1 ]]; then
+        LANE_EXPECTED_TIP="$(git rev-parse --verify 'HEAD^{commit}')" || exit 1
       fi
       OWNERSHIP_MANIFESTS=()
     fi

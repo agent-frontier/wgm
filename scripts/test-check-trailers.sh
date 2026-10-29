@@ -126,6 +126,73 @@ else
   fail "config-file trailers were not honoured (rc=$RC): $OUT"
 fi
 
+# 7) Required keys are data, not regexes. Each isolated commit runs through the real checker
+# via flags and both config sources so no input path can silently weaken the governance rule.
+CASE=0
+literal_case() {
+  local expected="$1" key="$2" trailer="$3" description="$4" source marker
+  CASE=$((CASE + 1))
+  git checkout -q -b "literal-case-$CASE" "$BASE_SHA"
+  printf 'test: literal key case %s\n\n%s\n' "$CASE" "$trailer" > "$TMP/message"
+  # Verbatim keeps whitespace-only values in the commit, rather than testing Git's cleanup.
+  git -c commit.cleanup=verbatim commit -q --allow-empty -F "$TMP/message"
+  for source in flag local-config github-config; do
+    rm -f .wgm/required-trailers .github/required-trailers
+    case "$source" in
+      flag)
+        # Explicit flags must override even a conflicting local configuration.
+        printf 'Unrelated-Key\n' > .wgm/required-trailers
+        run --base "$BASE_SHA" --trailer "$key" ;;
+      local-config)
+        printf '%s\n' "$key" > .wgm/required-trailers
+        mkdir -p .github
+        printf 'Unrelated-Key\n' > .github/required-trailers
+        run --base "$BASE_SHA" ;;
+      github-config)
+        mkdir -p .github
+        printf '%s\n' "$key" > .github/required-trailers
+        run --base "$BASE_SHA" ;;
+    esac
+    if [[ "$expected" -eq 0 ]]; then marker='trailers: GREEN'; else marker="missing trailer(s): $key"; fi
+    if [[ "$RC" -eq "$expected" ]] && grep -qF "$marker" <<<"$OUT" \
+       && { [[ "$expected" -eq 0 ]] || ! grep -qF 'trailers: GREEN' <<<"$OUT"; }; then
+      pass "$description ($source)"
+    else
+      fail "$description ($source, expected=$expected, rc=$RC): $OUT"
+    fi
+  done
+}
+
+# Punctuation must not stand for another character, repetition, or an alternative spelling.
+literal_case 1 'X.Build' 'X-Build: value' 'dotted key rejects hyphenated lookalike'
+literal_case 1 'X.*' 'Xanything: value' 'regex-shaped key rejects wildcard lookalike'
+literal_case 0 'X.Build' 'x.build: value' 'literal key matches case-insensitively'
+literal_case 0 'X[Build]' 'x[build]: value' 'brackets are literal key text'
+literal_case 0 'X+Build' 'x+build: value' 'plus is literal key text'
+literal_case 0 'X(Ok)?{2}|Build^$*' 'x(ok)?{2}|build^$*: value' 'regex operators are literal key text'
+# Backslashes must survive text-tool argument handling as well as pattern matching.
+literal_case 0 'X\Build' 'x\build: value' 'backslash is literal key text'
+literal_case 0 '-X.Build' '-x.build: value' 'leading hyphen is literal key text'
+
+# Preserve exact column/separator and nonempty same-line value behavior, not full footer parsing.
+literal_case 1 'X.Build' 'x.build:' 'empty value is rejected'
+literal_case 1 'X.Build' $'x.build: \t\r' 'whitespace-only value is rejected'
+literal_case 1 'X.Build' $'x.build:\n  value' 'next-line text cannot supply an empty value'
+literal_case 1 'X.Build' ' x.build: value' 'indented key is rejected'
+literal_case 1 'X.Build' 'prefix-x.build: value' 'embedded key is rejected'
+literal_case 1 'X.Build' 'x.build.extra: value' 'longer key prefix is rejected'
+literal_case 1 'X.Build' 'x.build value' 'missing colon is rejected'
+literal_case 0 'X.Build' $'unrelated: value\nx.build: \tpassed' 'later matching line with a value is accepted'
+
+# Repeatable flags must each be satisfied literally, even if another requested key matches.
+rm -f .wgm/required-trailers .github/required-trailers
+run --base "$BASE_SHA" --trailer X.Build --trailer X.Other
+if [[ "$RC" -eq 1 ]] && grep -qF 'missing trailer(s): X.Other' <<<"$OUT"; then
+  pass 'repeatable required keys cannot be satisfied by one matching key'
+else
+  fail "a matching key hid another missing required key (rc=$RC): $OUT"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-trailers harness: GREEN"
   exit 0

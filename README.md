@@ -326,16 +326,17 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
 ./scripts/loop.sh build -- claude -p
 ```
 
-**Worktree swarm (parallel `git worktree`s):** `scripts/swarm.sh` fans the loop out across several
-branches at once — one stream per task (`--tasks FILE`) or N identical streams (`-n N`), each on its
-own `wgm/swarm/N` branch to merge back. (Parallelism across *tasks* — distinct from the **role swarm**
-of subagents in *Capabilities* above.) See [docs/operator/running-the-loop.md](docs/operator/running-the-loop.md).
+**Parallel swarm:** `scripts/swarm.sh` defaults to Git worktrees and one reviewable branch per stream.
+We encourage exploring `--backend jj` for colocated Jujutsu workspaces; Git still owns the commits,
+and wgm never converts a checkout automatically. No speedup is claimed without measurement. This
+is parallelism across *tasks*, distinct from the **role swarm** of subagents. See the [jj setup and
+recovery guide](docs/reference/cli-swarm.md#try-the-jj-backend) and [Git vs jj decision record](docs/plans/2026-10-29_JJ_WORKSPACES_EVALUATION.md).
 
 - Modes match the skill: `grill | analyze | plan | preflight | build | review | extract` (plus
   `only` for a single pass).
 - `build`/`review` refuse to run without an `IMPLEMENTATION_PLAN.md`.
-- No automatic commits or pushes unless you pass `--commit` — but the agent **does** edit files
-  during a normal (non-dry) run.
+- The loop commits only with `--commit` or `--checkpoint-interval`; swarm lanes always use
+  `--commit`. The runner does not push, but the agent **does** edit files during a normal run.
 - In `build` mode the agent is told to drop a `STOP` sentinel when no must-have task remains, so the
   loop self-terminates. Stop anytime with `Ctrl+C` or by creating `STOP` / `.wgm/STOP`. See
   `./scripts/loop.sh --help`.
@@ -369,7 +370,7 @@ wgm/
 ├── compatibility/    # harnesses.json — the per-harness capability/evidence record (gated by scripts/check-harnesses.sh) · agent-adapters.json — the canonical-role -> host-agent-format mapping
 ├── adapters/         # host translations of the role subagents, derived from .github/agents/ by scripts/sync-agent-adapters.sh (claude/agents/ today)
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
-├── scripts/          # loop.sh (Ralph loop) · swarm.sh (parallel worktrees) · audit.sh (portable docs-audit dispatcher) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · check-harnesses.sh (harness contract) · sync-agent-adapters.sh (role adapters) · install.sh · install.ps1
+├── scripts/          # loop.sh (Ralph loop) · swarm.sh (Git worktrees / opt-in jj workspaces) · audit.sh (portable docs-audit dispatcher) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · check-harnesses.sh (harness contract) · sync-agent-adapters.sh (role adapters) · install.sh · install.ps1
 ├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) · rugged (stress-test a design) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes — canonical source for every host adapter
 └── docs/             # get-started/ · operator/ · companions/ · agent/ · reference/ · style-guide · plans/ · audit/

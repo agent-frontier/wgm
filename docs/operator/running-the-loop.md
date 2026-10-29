@@ -10,7 +10,7 @@
 - **Key knobs:** `--threshold` (satisfaction target), `--stratified` (converge tier 1 → 2 → 3),
   `--container`, `--devcontainer` (sandbox the loop itself, disk-conscious), plus frugal ↔ powerful
   model escalation.
-- **Safety:** non-destructive by default — no commits or pushes without `--commit`; stop anytime
+- **Safety:** no host commits by default; `--commit` or `--checkpoint-interval` enables them, and the runner never pushes; stop anytime
   with `Ctrl+C` or a `STOP` sentinel.
 - **Preflight:** a non-dry-run build probes the selected agent's write capability before iteration 1;
   repeated exit-0 iterations with no plan progress are a first-class stall; and a monotonic
@@ -139,7 +139,7 @@ capability probing and the no-progress safety guard are on by default:
 | `--max-no-progress-iterations N` | 3 | Fail after N successful build iterations leave the plan unchanged; `0` disables it. With frugal/main escalation, the default leaves one iteration for escalation before the circuit breaker. |
 | `--checkpoint-interval N` | 0 (off) | Commit every N build iterations, so a crash never loses work; ownership manifests still apply. |
 | `--max-cost N` | 0 (off) | Stop once cumulative cost from `--cost-cmd` reaches N — the spend equivalent of `--max-runtime-seconds`. See [Cost ceiling](#cost-ceiling) below. |
-| `--notify "CMD"` | — | Run `CMD` on lifecycle events with `$WGM_EVENT` (`start`/`complete`/`error`) and `$WGM_ITER` set. |
+| `--notify "CMD"` | — | Run `CMD` on lifecycle events with `$WGM_EVENT` (`start`/`retry`/`error`/`complete`) and `$WGM_ITER` set. |
 
 `--notify` is shell-evaluated like `--agent`, so set it only to a command you trust; its own failure
 never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`.
@@ -174,9 +174,9 @@ successful agent exit is not enough. `--dry-run` explicitly does **not** run thi
 
 | Columns | Meaning |
 |---|---|
-| `timestamp` · `iter` · `mode` · `agent` | when, which iteration, the mode, and frugal/main |
+| `start_timestamp` · `end_timestamp` · `iter` · `mode` · `agent` | when the turn started/ended, which iteration, the mode, and frugal/main |
 | `duration_s` · `plan_changed` · `result` | wall-clock seconds, whether the plan advanced (1/0), `ok`/`fail`/`stall` |
-| `cost` | token/cost figure from `--cost-cmd` (empty if unset) |
+| `cost` · `parent` | token/cost figure from `--cost-cmd`, and parent task when set |
 
 A host-agnostic loop can't read a black-box agent's token usage, so plug your own: `--cost-cmd "CMD"`
 runs after each iteration (with `$WGM_ITER` set) and its stdout fills the `cost` column — best-effort,
@@ -214,8 +214,9 @@ In the `wgm vs representative projects` table, `ralph-orchestrator` is the refer
 dashboard/TUI. The equivalent wgm pattern is: **leave `loop.sh` alone, and point an external reader
 at its existing artifacts**.
 
-- **Primary data source:** the `--metrics FILE` TSV ledger (`timestamp`, `iter`, `mode`, `agent`,
-  `duration_s`, `plan_changed`, `result`, `cost`).
+- **Primary data source:** the `--metrics FILE` TSV ledger. Its canonical columns are listed in the
+  [loop reference](../reference/cli-loop.md#telemetry-and-cost), including `start_timestamp`,
+  `end_timestamp`, and `parent`.
 - **Event stream:** `--notify "CMD"` lifecycle events (`start`, `retry`, `error`, `complete`) plus
   any checkpoint commits you asked `--checkpoint-interval` to create.
 - **Optional score input:** if you want a satisfaction trend line as well as iteration timing, read
@@ -279,8 +280,8 @@ context, but the host runner is the source of truth for the exit status.
 ## Swarm — parallel worktrees
 
 For independent slices, fan the loop out with `scripts/swarm.sh`: it runs several `loop.sh` build
-streams **in parallel**, each isolated in its own `git worktree` on its own branch, then you merge
-the branches — one thought per branch.
+streams **in parallel**, each in a separate directory and Git branch, then you review and merge the
+branches. Git worktrees are the default; try `--backend jj` for colocated Jujutsu workspaces.
 
 ```bash
 # one stream per line; each line is that stream's scope
@@ -297,7 +298,9 @@ printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
 | `-n, --count N` | N identical streams |
 | `--max-iterations N` | per-stream build cap (0 = until each self-stops) |
 | `--prefix NAME` | branch/worktree name prefix (default `wgm/swarm`) |
-| `--cleanup` | remove the worktree dirs when done — branches are kept for merging |
+| `--backend git\|jj` | Git worktrees (default), or opt-in colocated jj workspaces |
+| `--gates FILE` | forward the selected project-gate file to every lane |
+| `--cleanup` | remove only verified successful, clean lanes; retain failed/dirty lanes and all branches |
 | `--dry-run` | print the plan; create nothing |
 
 ### Planning a swarm well
@@ -323,16 +326,24 @@ printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
 **Provenance:** `[learn]` issues #29 (file-ownership partitioning) and #30 (feasibility spikes as a
 parallel stream).
 
-Each stream runs with `--commit`, so its branch carries the work. Worktrees live under
-`.wgm/worktrees/` (gitignored). Merge a finished stream with `git merge wgm/swarm/N`; an existing
-branch is skipped rather than clobbered. Partition the work yourself — the swarm is the sheepdog
-spawning the dogs, not an auto-splitter.
+Each stream runs with `--commit`, so its branch carries the work. Lanes default to
+`.wgm/worktrees/`; merge a finished stream with `git merge wgm/swarm/N`. Existing branches and jj
+workspace names are skipped rather than clobbered. All ready lanes launch concurrently: there is no
+built-in cap or queue, so choose a safe task count and run remaining tasks in later batches. The
+optional `--gates FILE` is passed to every lane. Partition the work yourself — this is not an
+auto-splitter.
 
-**Every run also feeds the Hive Growth Loop.** After all streams finish, `swarm.sh` unconditionally
-folds each stream's `.wgm/memories.md` into the invoking worktree's own `.wgm/memories.md` (tagged
-by origin branch), then hands it to `scripts/harvest-hive.sh` — safe to run every time: with no
-`.github/wgm-hive.yml` yet it just previews and skips, never blocking the swarm or asking on your
-behalf unattended (`references/self-improvement.md`).
+For `--backend jj`, install jj 0.46.0+, explicitly colocate it with the Git checkout, keep the parent
+clean, and ignore `.wgm` runtime paths and any in-project lane directory. The loop still commits
+with Git; `jj new` can detach the lane's Git HEAD and must not run while the loop owns it. This is an
+opt-in exploration, not a measured speedup or a native-jj commit runner. See the [jj setup, safety,
+and recovery steps](../reference/cli-swarm.md#try-the-jj-backend).
+
+**Successful, verified streams can feed the Hive Growth Loop.** After all streams finish,
+`swarm.sh` folds their `.wgm/memories.md` into the invoking worktree, tagged by origin branch, then
+hands the result to `scripts/harvest-hive.sh`. Failed or unverified stream memories stay in their
+retained lanes for manual review. With no `.github/wgm-hive.yml`, the courier previews and skips
+without persisting a consent decision (`references/self-improvement.md`).
 
 ## Stopping the loop
 
@@ -345,8 +356,9 @@ behalf unattended (`references/self-improvement.md`).
 
 ## Commits
 
-`loop.sh` is non-destructive by default (no commits, no pushes). Pass `--commit` to commit after
-each build iteration. Commit mode requires a clean baseline, takes exclusive ownership of the
+`loop.sh` makes no host commits by default and never pushes. Pass `--commit` to commit after
+each build iteration, or `--checkpoint-interval N` to commit every N iterations; swarm lanes use
+`--commit`. Commit mode requires a clean baseline, takes exclusive ownership of the
 worktree, and stages only repository-relative paths declared in the iteration ownership manifest.
 Do not edit the worktree while the loop runs; use another worktree for concurrent human changes.
 
