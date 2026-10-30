@@ -7,6 +7,12 @@
 /specs/
 /scenarios/
 
+# Smith runtime state, journals, generated art, and validation output.
+/.smith/
+/docs/diary/
+/docs/img/
+/check-output.log
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
