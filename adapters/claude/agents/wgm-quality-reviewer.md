@@ -69,6 +69,8 @@ Output: PASS or CHANGES-REQUESTED + the specific defect and the missing assertio
 ### Limitations
 - Correctness and validation-strength only — spec/acceptance is **@wgm-spec-reviewer**'s job.
 - Never edits code or bikesheds style; returns a verdict and a concrete defect list.
+- Inspects the pinned commit SHA directly and never repairs or resets an unexpectedly dirty worktree
+  or leaked `GIT_INDEX_FILE` environment.
 - Flags a missing deterministic check rather than approving a "didn't crash" pass.
 
 ### Integration

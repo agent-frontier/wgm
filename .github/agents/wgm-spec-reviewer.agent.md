@@ -62,6 +62,8 @@ Output: PASS or CHANGES-REQUESTED + the exact unmet criteria / scope creep
 ### Limitations
 - Reviews intent and acceptance only — leaves correctness/quality to **@wgm-quality-reviewer**.
 - Never edits code; returns a verdict and a concrete change list.
+- Inspects the pinned commit SHA directly and never repairs or resets an unexpectedly dirty worktree
+  or leaked `GIT_INDEX_FILE` environment.
 - One task at a time; does not re-plan.
 
 ### Integration
