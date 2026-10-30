@@ -57,7 +57,11 @@ flowchart LR
   emit PASS without the iteration's ruggedness verdict in hand** (below).
 - **Review one immutable commit.** Hand each reviewer a pinned commit and pause the writer until
   the verdict is in. If the commit moves, discard the stale review and restart against the new
-  commit; record the reviewed commit beside each verdict.
+  commit; record the reviewed commit beside each verdict. When snapshotting a candidate commit with
+  a disposable `GIT_INDEX_FILE`, keep `GIT_INDEX_FILE` command-scoped (or `unset GIT_INDEX_FILE`
+  before dispatching child agents) so reviewers do not inherit a deleted or empty index path that
+  makes `git status` and one-sided `git diff` report a fake dirty tree; reviewers inspect the
+  pinned commit SHA and never repair or reset an unexpectedly dirty worktree (`[learn]` issue #141).
 - **Boundary claims stay adversarial in review.** If validation leans on a proxy, omission sentinel,
   intermediary rewrite, embedded host, or SDK mock, the quality reviewer challenges the real
   contract — evidence labels, real shell semantics, host bootstrap, and pinned-SDK async/cleanup —

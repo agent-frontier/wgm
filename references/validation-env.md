@@ -64,6 +64,16 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
   When a clean rerun in the gate-owned environment then passes, record that outcome **separately
   from product failures** — folding an environment fault into the product's failure count corrupts
   the signal the loop steers by (`[learn]` issue #83).
+- **Make the container own its lifetime.** Container validation wrappers should not rely on shell
+  `trap` cleanup alone — a signal before the job or container ID is recorded, a second signal during
+  finalization, `--rm` deleting the cidfile before it is read, or `SIGKILL` can all leak a container.
+  Run the container with `--rm` under an inner or engine timeout (`--timeout`) so it terminates and
+  removes itself even if the wrapper dies; have the container write its own log and exit status into
+  the mounted results directory; capture the container ID from both `--cidfile` and `run` stdout;
+  ignore catchable terminating signals and join every background job first in the `EXIT` finalizer;
+  and still prove container absence afterward, treating a runtime probe error as unproven rather
+  than absent (residual: a container created but never started is not covered by `--rm`). Field-test
+  by `SIGKILL`ing the wrapper mid-run and polling until the container is gone (`[learn]` issue #142).
 
 ## Cross-links
 `references/scenarios.md` · `references/scoring.md` · `scripts/loop.sh`

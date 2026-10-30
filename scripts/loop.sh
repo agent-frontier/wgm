@@ -475,11 +475,12 @@ plan_hash() {
 }
 
 plan_done_count() {
+  local count=0
   if [[ -n "$PLAN" && -f "$PLAN" ]]; then
-    grep -ciE '(status\*\*:[[:space:]]*done|status:[[:space:]]*done|\[x\])' "$PLAN" 2>/dev/null || echo 0
-  else
-    echo 0
+    count="$(grep -ciE '(status\*\*:[[:space:]]*done|status:[[:space:]]*done|\[x\])' "$PLAN" 2>/dev/null || true)"
+    [[ "$count" =~ ^[0-9]+$ ]] || count=0
   fi
+  printf '%s\n' "$count"
 }
 
 file_hash() {

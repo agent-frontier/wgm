@@ -614,7 +614,40 @@ else
   fail "unexpected early halt with default max-cost (rc=$RC, iters=$iters)"
 fi
 
-# 21) monotonic plan-progress guard rejects an iteration that drops completed tasks (status: done / [x])
+# 21) monotonic plan-progress guard handles 0, 1, and multiple completed tasks without grep -c
+# no-match exit status duplicating "0\n0", and rejects an iteration that drops completed tasks.
+# 21a) 0 -> 0: zero completed tasks must not emit "0\n0" or a bash arithmetic syntax error.
+printf '# plan\n\n- **status**: pending\n- **status**: pending\n' > IMPLEMENTATION_PLAN.md
+git add IMPLEMENTATION_PLAN.md && git commit -qm "seed with 0 done tasks"
+run build 1 --max-retries 0 --max-consecutive-failures 1 -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 ]] && ! grep -qE "syntax error in expression|integer expression expected" <<<"$OUT"; then
+  pass "monotonic plan-progress guard handles 0 -> 0 completed tasks without arithmetic errors"
+else
+  fail "monotonic plan-progress guard failed on 0 -> 0 completed tasks (rc=$RC): $OUT"
+fi
+
+# 21b) 0 -> 1: advancing from zero to one completed task succeeds cleanly.
+git checkout -q -- IMPLEMENTATION_PLAN.md
+# shellcheck disable=SC2016
+AGENT_MARK_ONE_DONE=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf "# plan\n\n- **status**: done\n- **status**: pending\n" > IMPLEMENTATION_PLAN.md' _)
+run build 1 --max-retries 0 --max-consecutive-failures 1 -- "${AGENT_MARK_ONE_DONE[@]}"
+if [[ "$RC" -eq 0 ]] && ! grep -qE "syntax error in expression|integer expression expected" <<<"$OUT"; then
+  pass "monotonic plan-progress guard allows 0 -> 1 completed task transition"
+else
+  fail "monotonic plan-progress guard failed on 0 -> 1 completed tasks (rc=$RC): $OUT"
+fi
+
+# 21c) 1 -> 2: advancing from one to several completed tasks succeeds cleanly.
+# shellcheck disable=SC2016
+AGENT_MARK_TWO_DONE=(bash -c 'if [[ -n "${WGM_CAPABILITY_PROBE_FILE:-}" ]]; then printf "%s" "$WGM_CAPABILITY_PROBE_CONTENT" > "$WGM_CAPABILITY_PROBE_FILE"; exit 0; fi; printf "# plan\n\n- **status**: done\n- **status**: done\n" > IMPLEMENTATION_PLAN.md' _)
+run build 1 --max-retries 0 --max-consecutive-failures 1 -- "${AGENT_MARK_TWO_DONE[@]}"
+if [[ "$RC" -eq 0 ]] && ! grep -qE "syntax error in expression|integer expression expected" <<<"$OUT"; then
+  pass "monotonic plan-progress guard allows 1 -> 2 completed task transition"
+else
+  fail "monotonic plan-progress guard failed on 1 -> 2 completed tasks (rc=$RC): $OUT"
+fi
+
+# 21d) 2 -> 1: decreasing completed tasks is rejected.
 printf '# plan\n\n- **status**: done\n- **status**: done\n- **status**: pending\n' > IMPLEMENTATION_PLAN.md
 git add IMPLEMENTATION_PLAN.md && git commit -qm "seed with 2 done tasks"
 # shellcheck disable=SC2016
