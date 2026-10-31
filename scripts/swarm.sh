@@ -317,7 +317,7 @@ PARENT_STABLE=1
 # process groups and leaves any remaining workspaces in place; SIGKILL or an agent deliberately
 # escaping its group cannot be handled by the shell. Print names before creation/removal so even an
 # interrupted command that already took effect can be reconciled with `jj workspace list`.
-# shellcheck disable=SC2329  # invoked indirectly by the signal trap below
+# shellcheck disable=SC2317,SC2329  # invoked indirectly by the signal trap below
 interrupt_swarm() {
   trap - INT TERM
   echo "Interrupted: stopping active lane groups; remaining workspaces and branches are retained for inspection." >&2
@@ -640,7 +640,9 @@ if [[ "$CLEANUP" -eq 1 ]]; then
     fi
     top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null || true)"
     branch="$(git -C "$d" branch --show-current 2>/dev/null || true)"
-    abs_dir="$(cd "$d" 2>/dev/null && pwd || true)"
+    if ! abs_dir="$(cd "$d" 2>/dev/null && pwd)"; then
+      abs_dir=""
+    fi
     dirty="$(git -C "$d" status --porcelain=v1 --untracked-files=all -- . ':(exclude).wgm' ':(exclude).wgm/**' 2>/dev/null)" || dirty="<status failed>"
     # Tracked .wgm paths are project data even when the directory is otherwise ignored scratch.
     tracked_dirty="$(git -C "$d" status --porcelain=v1 --untracked-files=no 2>/dev/null)" || tracked_dirty="<tracked-status failed>"
