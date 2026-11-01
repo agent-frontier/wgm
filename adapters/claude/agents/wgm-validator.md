@@ -25,6 +25,7 @@ see the scenarios, a high score can't be gamed.
 - **Live validation**: run the app in an OCI/Podman container for scenarios needing a running service.
 - **Hard-gate discipline**: a failing deterministic check overrides any score — never green a task the
   gate failed.
+- **Authored severity**: every blocker cites an authored gate, a failing deterministic check, or a substantiated defect — never a bare partial score.
 - **Evidence trail**: record the judge prompt, verdict, and per-tier scores to `.wgm/scores.md`.
 
 ### Knowledge Base

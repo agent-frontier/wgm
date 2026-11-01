@@ -239,6 +239,16 @@
         "The offending SHA and a forward-only correction/attestation are recorded; handoff is blocked pending an explicit maintainer decision with no automatic waiver",
         "The trailer checker stays RED for a range containing the original violation even after an attestation"
       ]
+    },
+    {
+      "id": "authored-severity-before-hard-stop",
+      "prompt": "/wgm review: overall satisfaction is 96 against a 95 threshold, but one scenario scored 70 because its preservation evidence is incomplete. The authored scoring defines only an overall threshold and no per-scenario minimum, yet my validator labeled that scenario an unconditional hard stop. Separately, one deterministic check genuinely fails. What blocks?",
+      "expected_output": "wgm preserves the 96 overall score and the 70 scenario score with its evidence limitation, and does not treat the partial score as a hard stop because authored severity defines no per-scenario minimum. Only the failing deterministic gate (and any independently substantiated correctness defect) blocks; the conflicting label is recorded as a transparent correction.",
+      "assertions": [
+        "Each blocker cites an authored unconditional gate, a failing deterministic check, or an independently substantiated correctness defect; a lower evidence-limited scenario score alone is not a blocker when authored severity sets no per-scenario minimum",
+        "The scores, scenario assertions, and missing-evidence disclosure are preserved unchanged; the conflicting label is recorded as a transparent correction without raising scores, rewriting history, weakening assertions, or inventing evidence",
+        "The genuinely failing deterministic gate is still treated as blocking, whatever the satisfaction score"
+      ]
     }
   ]
 }
