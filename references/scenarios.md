@@ -76,6 +76,10 @@ easy tier-1 passes can't mask a broken tier-3. Mechanics live in `references/sco
 - **Don't** open scenario files during Analyze/Implement, or copy their assertions into code or
   tests. If you need a check while implementing, write a separate deterministic backpressure test.
 - **Don't** tailor code to a scenario's literal strings; build the capability, not the answer.
+- **Exclude holdouts from review artifacts, not just prompts.** A broad baseline diff can embed
+  hidden scenarios in an otherwise read-only review. Build role inputs from explicit path
+  allow-lists before materializing diffs, and test that excluded paths never appear. If exposure
+  occurred, preserve the incident and withhold blind satisfaction claims (`[learn]` issue #149).
 
 ## Cross-links
 - Grading & thresholds → `references/scoring.md`
