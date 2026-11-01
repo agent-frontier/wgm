@@ -89,6 +89,11 @@ loop, with progress living on disk (not the model's context) between passes
   disposable proxy, or pre-merge smoke can prove only the path it actually exercised. Do not relabel
   that as live third-party service evidence or public-release evidence; require those exact checks or
   leave the missing tier blocked/unverified (`[learn]` issue #104).
+- **Prove integration tests dispatch for real.** Empty inputs and hand-incremented counters can go
+  green without crossing the production boundary. Send a nonempty fixture request through the
+  actual entry point, observe the underlying transport or action, and add an omitted-dispatch
+  counterfactual that fails when the dispatch is skipped. Never label a stub, empty-input, or
+  hand-counted test end-to-end (`[learn]` issue #146).
 - Map every acceptance criterion to a runnable check. If the project has none, the first task is to
   build one (a failing test, a curl probe, a type-check command).
 - **Guard against test tampering, and prove bug-fix repro on the base.** Before review, inspect the
