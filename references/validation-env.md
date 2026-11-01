@@ -64,6 +64,24 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
   When a clean rerun in the gate-owned environment then passes, record that outcome **separately
   from product failures** — folding an environment fault into the product's failure count corrupts
   the signal the loop steers by (`[learn]` issue #83).
+- **Isolating HOME must keep path-sandbox prerequisites.** A credential-isolated `HOME` can drop
+  legitimate HOME-relative companion checkouts that directory-sandbox integration checks expect, so
+  status and authorization cases fail before reaching their logic. During preflight, **inventory
+  HOME-relative companion repositories as validation prerequisites**; inside the isolation, restore
+  verified **read-only copies** of the ones that already exist. Never weaken the sandbox or its
+  assertions, and **never copy credentials or user runtime state** into the isolated HOME (hermetic
+  unit cases should own their fixtures instead). After a fix, re-run the affected cases first, then
+  the original full gate; keep the failure trace and distinguish cached from newly executed
+  evidence (`[learn]` issue #145).
+- **A whole-repo gate must not mutate the tree or the real HOME.** Formatters and vetters in the gate
+  (e.g. `go fmt`/`go vet`) can rewrite tracked dependency manifests such as `go.mod` when a module
+  is only an *indirect* dependency and the code newly uses it directly. Prefer the standard library
+  (stdlib) over a direct use of an indirect-only dependency so the gate leaves manifests untouched.
+  Run the gate with an isolated `HOME` so tool tests cannot read operator credentials or leave
+  untracked artifacts. When a HOME-relative sandbox needs a prerequisite, point the expected path
+  (a **symlink** is fine) only at the verified, credential-free, read-only copy the rule above
+  restores inside the isolation — never at the operator's own checkout or real HOME, which a test
+  could read or mutate (`[learn]` issue #150).
 - **Make the container own its lifetime.** Container validation wrappers should not rely on shell
   `trap` cleanup alone — a signal before the job or container ID is recorded, a second signal during
   finalization, `--rm` deleting the cidfile before it is read, or `SIGKILL` can all leak a container.
