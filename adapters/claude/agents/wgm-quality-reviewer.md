@@ -37,6 +37,9 @@ report process, scope, cost, or missing measurements, but it cannot satisfy this
 - **Boundary-fidelity audit**: challenge omission sentinels, intermediary rewrites, embedded-host
   bootstrap, and SDK mocks at the real contract — actual model/CLI payloads, real shells, the
   shipped host runtime, and pinned-SDK async/error/cleanup paths.
+- **Dispatch-evidence audit**: an integration test must send a nonempty fixture request through the
+  actual entry point, observe the underlying transport or action, and include an omitted-dispatch
+  counterfactual; otherwise it is not end-to-end (`[learn]` issue #146).
 - **Ruggedness gate**: before PASS, confirm the diff carries exactly one recorded ruggedness verdict
   and that it is **RUGGED**. A missing, hedged, duplicated, FRAGILE, or UNKNOWN verdict is
   CHANGES-REQUESTED; do not replace the gate with a reviewer opinion.

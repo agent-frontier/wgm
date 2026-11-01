@@ -53,6 +53,15 @@ on a sub-100 score, read the scenario: its authored scoring and tier text govern
 and a conflicting label becomes a tracked follow-up, not a silent PASS or a stop. This never
 overrides a failing deterministic gate or a blocking correctness finding.
 
+**Cite authored severity before a score becomes a hard stop.** Each blocker must cite an authored
+unconditional gate, a failing deterministic check, or an independently substantiated correctness
+defect; a lower evidence-limited scenario score with no authored per-scenario minimum is not one.
+Classify weighted, capped, and partial scores separately from blockers. Where a label conflicts
+with authored severity, record a transparent correction without raising scores, rewriting history,
+weakening assertions, or inventing missing evidence; separate correctness defects still block
+(`[learn]` issue #151). For harness-induced failures in agent benchmarks, see
+[`evals.md`](evals.md) (`[learn]` issue #147).
+
 ## Relative-to-incumbent scoring (clone/replacement builds)
 When the job is to **beat or replace an existing artifact** (a redesign, a port, a faster library, a
 leaner CLI), an absolute threshold is necessary but not sufficient — it is blind to "worse than the

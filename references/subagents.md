@@ -62,6 +62,10 @@ flowchart LR
   before dispatching child agents) so reviewers do not inherit a deleted or empty index path that
   makes `git status` and one-sided `git diff` report a fake dirty tree; reviewers inspect the
   pinned commit SHA and never repair or reset an unexpectedly dirty worktree (`[learn]` issue #141).
+- **Build reviewer inputs from path allow-lists.** Select the paths a role may see first, then
+  materialize diffs or snapshots from only those paths; never filter a broad baseline diff
+  afterward, and exclude holdouts (as `scripts/audit.sh` does) so they never enter review
+  artifacts (`[learn]` issue #149).
 - **Boundary claims stay adversarial in review.** If validation leans on a proxy, omission sentinel,
   intermediary rewrite, embedded host, or SDK mock, the quality reviewer challenges the real
   contract — evidence labels, real shell semantics, host bootstrap, and pinned-SDK async/cleanup —
@@ -305,7 +309,7 @@ swarm's context lean.
 
 ## Worktree swarm dispatch (lane hygiene)
 Parallel *lanes* (`scripts/swarm.sh`) have their own failure modes, distinct from role dispatch
-above. Four rules, each earned from a run that got it wrong:
+above. Each rule below was earned from a run that got it wrong:
 
 - **Give lanes a full-shell agent, not a constrained file-writer.** A file-creation tool that cannot
   create intermediate directories does not fail loudly — the agent works around it, flattening
@@ -340,6 +344,11 @@ above. Four rules, each earned from a run that got it wrong:
   the loop still owns Git commits on per-lane branches. Do not run `jj new` or other operations
   that move a lane's Git HEAD during the loop; a failed/dirty/unverified lane is retained for review.
   See [`docs/reference/cli-swarm.md`](../docs/reference/cli-swarm.md).
+- **Keep long-wave evidence on a persistent path.** Create the wave's working directory (logs,
+  prompts, review outputs) on a persistent path from the start, never `/tmp` or another host temp
+  dir a cleaner may purge mid-wave. Copy each piece of evidence into the repository when it is
+  produced, and re-execute rather than reconstruct anything lost, since summaries alone earn no
+  credit for missing raw logs (`[learn]` issue #148).
 - **Only the orchestrator integrates.** The host loop commits each lane's declared changes on its
   branch; lanes return diffs, findings, and validation output; reviewers stay read-only. Pushing, opening or merging PRs, deleting or
   recreating refs, and removing worktrees belong to the orchestrator (the parent session that

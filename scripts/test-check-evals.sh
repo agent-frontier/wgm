@@ -252,6 +252,20 @@ pin_case_assertions \
   published-trailer-forward-only "The offending SHA and a forward-only correction/attestation are recorded; handoff is blocked pending an explicit maintainer decision with no automatic waiver" \
   published-trailer-forward-only "The trailer checker stays RED for a range containing the original violation even after an attestation"
 
+# [learn] #151: a high overall score with a lower evidence-limited scenario score must not become a
+# hard stop without authored severity. Pins the case so the judge behavior (preserve score and
+# limitation; block only on an authored gate, failing deterministic check, or substantiated defect)
+# cannot be silently dropped or hollowed out.
+pin_case_ids "the authored-severity blocker case is present" "authored-severity case(s)" \
+  authored-severity-before-hard-stop
+pin_case_assertions \
+  "the authored-severity case retains its blocker-citation and correction safeguards" "authored-severity case(s)" \
+  authored-severity-before-hard-stop "Each blocker cites an authored unconditional gate, a failing deterministic check, or an independently substantiated correctness defect" \
+  authored-severity-before-hard-stop "a lower evidence-limited scenario score alone is not a blocker when authored severity sets no per-scenario minimum" \
+  authored-severity-before-hard-stop "The scores, scenario assertions, and missing-evidence disclosure are preserved unchanged" \
+  authored-severity-before-hard-stop "transparent correction without raising scores, rewriting history, weakening assertions, or inventing evidence" \
+  authored-severity-before-hard-stop "The genuinely failing deterministic gate is still treated as blocking"
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-evals harness: GREEN"
   exit 0

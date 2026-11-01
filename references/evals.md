@@ -140,6 +140,14 @@ including why it deliberately does **not** depend on the `microsoft/SkillOpt` pa
   across repeated trials) is `skill-creator`'s `python -m scripts.aggregate_benchmark` — still a
   manual step if you want it; `scripts/grade-evals.sh` covers one paired run per invocation, which
   is enough to gate a single change.
+- **Attribute harness-induced failures before reading a score.** Count harness notices (for example
+  a "saved to a temp file; use view or grep" substitute for a large tool result) and refused tool
+  attempts per run, and attribute each voided or failed run to the model or the harness first. Keep
+  the scored result strict; report checker-accepted voided answers only as a labeled diagnostic,
+  never folded into the score. Fix oversized tool output at its source (paginate or summarize)
+  instead of relaxing the foreign-tool rule, and point the agent CLI's temp dir at the private run
+  directory so spill files cannot leak task material to the host temp dir. See also the
+  partial-score severity rule in [`scoring.md`](scoring.md) (`[learn]` issue #147).
 
 ## Adding a case
 - Start small (2-3), vary phrasing and formality, include at least one edge case.
