@@ -89,6 +89,8 @@ loop, with progress living on disk (not the model's context) between passes
   disposable proxy, or pre-merge smoke can prove only the path it actually exercised. Do not relabel
   that as live third-party service evidence or public-release evidence; require those exact checks or
   leave the missing tier blocked/unverified (`[learn]` issue #104).
+- **Gate environment applies to every Validate.** With or without a container, every gate run follows the
+  HOME-isolation and non-mutation rules (`[learn]` issues #145, #150) in `references/validation-env.md` (Safety & footguns).
 - **Prove integration tests dispatch for real.** Empty inputs and hand-incremented counters can go
   green without crossing the production boundary. Send a nonempty fixture request through the
   actual entry point, observe the underlying transport or action, and add an omitted-dispatch

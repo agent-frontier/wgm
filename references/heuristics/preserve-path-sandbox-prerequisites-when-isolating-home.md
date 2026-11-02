@@ -2,6 +2,7 @@
 section: Backpressure
 order: 145
 pin: references/validation-env.md :: **Isolating HOME must keep path-sandbox prerequisites.**
+pin: references/validation-env.md :: **Restore read-only prerequisites (procedure).**
 ---
 - **Heuristic:** when isolating `HOME`, inventory HOME-relative companion repositories during
   preflight and restore verified read-only copies inside the isolation; never copy credentials or
