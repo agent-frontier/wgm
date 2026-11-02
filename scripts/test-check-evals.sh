@@ -266,6 +266,17 @@ pin_case_assertions \
   authored-severity-before-hard-stop "transparent correction without raising scores, rewriting history, weakening assertions, or inventing evidence" \
   authored-severity-before-hard-stop "The genuinely failing deterministic gate is still treated as blocking"
 
+# Docs audit A1 / [learn] #151: pins the worked-example case so a sub-threshold scenario that was
+# previously above threshold is named as a regression and paused for diagnosis, never converted into
+# a blocker or a score change, while deterministic/correctness blocks stay intact.
+pin_case_ids "the authored-severity regression-pause case is present" "regression-pause case(s)" \
+  authored-severity-regression-pause
+pin_case_assertions \
+  "the regression-pause case retains its naming, no-blocker, and still-blocks safeguards" "regression-pause case(s)" \
+  authored-severity-regression-pause "The regression is named with its scores and iterations (S4 96→70, iteration 6→7)" \
+  authored-severity-regression-pause "the regression is not converted into a blocker" \
+  authored-severity-regression-pause "A failing deterministic gate or an independently substantiated correctness defect would still block"
+
 if [[ "$FAILED" -eq 0 ]]; then
   echo "check-evals harness: GREEN"
   exit 0

@@ -4,6 +4,7 @@ order: 151
 pin: references/scoring.md :: **Cite authored severity before a score becomes a hard stop.**
 pin: .github/agents/wgm-validator.agent.md :: every blocker cites an authored gate
 pin: evals/evals.json :: authored-severity-before-hard-stop
+pin: references/scoring.md :: **Worked example — blockers, regression, convergence.**
 ---
 - **Heuristic:** require each validator blocker to cite an authored unconditional gate, a failing
   deterministic check, or an independently substantiated correctness defect; classify weighted or
