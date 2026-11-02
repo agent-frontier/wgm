@@ -74,6 +74,17 @@ Treat the harness as the product's first feature, not an afterthought.
   unaffected; a corruption-driven over-read becomes a survivable miss.
 - **Native workflow control flow.** When CI/release workflow correctness depends on a native command's nonzero exit (e.g., an expected "not found" before publishing), **require a runtime probe under the target shell version** in addition to static structure checks. Static evidence should never override observed runtime semantics — the target shell may escalate that expected exit code into a terminating error, aborting the workflow. Add this to your workflow review guidance and include it as a tier-3 holdout for native CI/release automation.
 
+- **Reset SIGINT before testing interrupt handling.** A background job of a non-interactive shell
+  starts with SIGINT and SIGQUIT ignored, and bash cannot trap or reset a signal ignored on entry,
+  so a test that passes in the foreground hangs inside a backgrounded gate. Launch the process under
+  test with SIGINT at default (`env --default-signal=INT`), assert the disposition from
+  `/proc/<pid>/status` before signalling, and use SIGTERM where it cannot be controlled
+  (`[learn]` issue #167).
+- **Test polling stale-response guards under sustained latency.** Discarding every response whenever
+  a newer request has started starves progress forever when latency exceeds the poll interval. Use
+  monotonic last-applied ordering and a bounded in-flight window; test both liveness under sustained
+  latency and out-of-order late-reply safety, preserving current edits (`[learn]` issue #162).
+
 ## Vendored-engine / submodule workflow
 - Commit the engine/library change **in the submodule first**, push it, **then** bump the parent's
   submodule pointer in a separate commit. Re-stage / rebuild the shipped artifact so the binary the
