@@ -87,8 +87,10 @@ a different trade-off than one that's both better and cheaper.
 `bash scripts/test-check-evals.sh` proves that gate fails closed while pinning fixture content the
 schema cannot see. Today that means six ruggedness-case presence checks, three ruggedness
 verdict-content checks, and separate issue-specific id/assertion pins for the evidence-boundary plus
-numerical/API/performance and cleanup lessons above. None of those checks executes wgm; behavioral grading still
-belongs to `scripts/grade-evals.sh`.
+numerical/API/performance and cleanup lessons above, plus the authored-severity governance cases:
+`authored-severity-before-hard-stop` (5 content pins today) and `authored-severity-regression-pause`
+(its own content pins). Pins preserve fixture content; they do not grade behavior. None of those
+checks executes wgm; behavioral grading still belongs to `scripts/grade-evals.sh` (docs audit A7).
 **`scripts/grade-evals.sh`** is the real, opt-in mechanization of the protocol below — it costs real
 agent/API calls, so it is never wired into CI; run it by hand before landing a `SKILL.md`/
 `references/*` change that might affect behavior quality. Design note: it grades a candidate
@@ -148,6 +150,50 @@ including why it deliberately does **not** depend on the `microsoft/SkillOpt` pa
   instead of relaxing the foreign-tool rule, and point the agent CLI's temp dir at the private run
   directory so spill files cannot leak task material to the host temp dir. See also the
   partial-score severity rule in [`scoring.md`](scoring.md) (`[learn]` issue #147).
+- **Benchmark attribution terms.** The terms in the bullet above come from an external agent
+  benchmark reported in `[learn]` #147 (anonymized); they are not wgm vocabulary.
+  1. A *harness notice* is a host message substituted for a tool result (for example "saved to a
+     temp file; use view or grep").
+  2. A *refused tool attempt* is a call to a tool the run did not expose.
+  3. The *foreign-tool rule* is that benchmark's integrity rule: any run that calls an unexposed
+     tool is void. A *voided answer* is such a run's answer; it is *checker-accepted* when the
+     benchmark's own answer checker would accept it anyway.
+  4. `grade-evals.sh` has no foreign-tool rule. It grades assertion expectations with a second
+     agent call; its equivalent attribution evidence is the `attribution.json` record described
+     next (`[learn]` issue #147; docs audit A5).
+- **Attribution recording in `grade-evals.sh`.** Runner or script responsibilities: every agent
+  call gets a private, neutrally named `TMPDIR` inside its sandbox; for each task call the script
+  writes `attribution.json` beside `grading.json` with `spill_files`, `harness_notices`, and
+  `refused_tool_attempts` (counts are `null` unless the regexes below are set, and
+  `"classifier-error"` if a regex is invalid), plus `retained_path` if the sandbox could not be
+  removed. Strict scoring is untouched: `pass_rate`, verdicts, and exit codes never read it. A
+  `sandboxes.tsv` ledger in the run directory records created/removed/retained sandboxes, and
+  SIGINT/SIGTERM stop the agent tree and exit 130/143
+  (a runner started with SIGINT already ignored, e.g. a background job of a non-interactive shell,
+  cannot handle it; use SIGTERM there). Caller or host adapter responsibilities:
+  1. Set `WGM_HARNESS_NOTICE_REGEX` and `WGM_REFUSED_TOOL_REGEX` to your harness's notice and
+     refusal text.
+  2. Make the agent CLI honor `TMPDIR`, or point its spill directory there.
+  3. Keep tool exposure identical across candidate and baseline.
+  Process ownership: every agent call runs in its own process group (bash job control, no `setsid`
+  needed); once the leader exits, any remaining group member is terminated (TERM, KILL after about
+  2 s) and counted as `descendants_terminated` in `attribution.json`, and a signal stops the whole
+  group. The task call's stderr goes straight to `agent.stderr` (a regular file, replayed to the
+  terminal afterwards), so nothing waits on a pipe reader. During the call, stdout/stderr go to
+  neutrally named files in a separate `workspace.*` capture directory and reach the labeled run
+  directory only afterwards, so `/proc/self/fd/1` and `/2` carry no evaluation or arm label.
+  Observation boundary: counts cover only the recorded channels (`observed_channels`: the task
+  call's stdout and stderr; stderr is also kept in `agent.stderr` and never mixed into the graded
+  response). Notices a host keeps in its own tool-event logs are NOT observed; record them
+  separately if the caller can. `"unavailable"` (spill enumeration failed, with an
+  `attribution: spill enumeration failed` warning), `"classifier-error"`, and `null` (regex not
+  set) are distinct from a measured `0`; report them as such, never as zero. A channel the
+  script cannot read is left out of `observed_channels`, warns `attribution: channel unreadable`, and
+  makes a set classifier `"unavailable"`; this holds for stdout and stderr alike, and an
+  unreadable stdout capture leaves the case ungraded/error (never a pass).
+  Verify and report: inspect `attribution.json` for each case and revision, report the counts next
+  to `pass_rate` as a labeled diagnostic, and never fold them into the score (`[learn]` issue
+  #147; docs audit A6).
 
 ## Adding a case
 - Start small (2-3), vary phrasing and formality, include at least one edge case.
