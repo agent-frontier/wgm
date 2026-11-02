@@ -143,6 +143,9 @@ jobs:
       - name: Grade-evals harness (bash, fake agent)
         run: bash scripts/test-grade-evals.sh
 
+      - name: Telemetry report harness (bash)
+        run: bash scripts/test-telemetry.sh
+
       - name: Check-evals harness (bash)
         run: bash scripts/test-check-evals.sh
 
