@@ -249,6 +249,16 @@
         "The scores, scenario assertions, and missing-evidence disclosure are preserved unchanged; the conflicting label is recorded as a transparent correction without raising scores, rewriting history, weakening assertions, or inventing evidence",
         "The genuinely failing deterministic gate is still treated as blocking, whatever the satisfaction score"
       ]
+    },
+    {
+      "id": "authored-severity-regression-pause",
+      "prompt": "/wgm review: overall satisfaction is 96 against a 95 threshold and the deterministic gate is green. Scenario S4 scored 96 in validated iteration 6 (clearing the 95 threshold) and scores 70 in iteration 7, and the authored scoring sets no per-scenario minimum. What do I do?",
+      "expected_output": "wgm names the regression (S4 96→70, iteration 6→7) and pauses to diagnose before adding more code, leaves every score unchanged, and does not convert the regression into a blocker; a failing deterministic gate or substantiated correctness defect would still block.",
+      "assertions": [
+        "The regression is named with its scores and iterations (S4 96→70, iteration 6→7) and wgm pauses to diagnose it before adding more code",
+        "Every score is left unchanged and the regression is not converted into a blocker, since no authored per-scenario minimum exists and overall 96 meets the 95 threshold",
+        "A failing deterministic gate or an independently substantiated correctness defect would still block, whatever the score"
+      ]
     }
   ]
 }

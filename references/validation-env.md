@@ -82,6 +82,121 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
   (a **symlink** is fine) only at the verified, credential-free, read-only copy the rule above
   restores inside the isolation — never at the operator's own checkout or real HOME, which a test
   could read or mutate (`[learn]` issue #150).
+- **Restore read-only prerequisites (procedure).**
+  1. Inventory the HOME-relative paths the gate and tests expect (grep gate and test configs for
+     `$HOME/` and `~/`), recording which exist.
+  2. Copy only the existing checkouts into the isolated HOME at the same relative paths, without
+     credential material: never copy dotfiles or credential stores (git/gh/ssh/netrc config,
+     credential helpers, shell history, runtime state). The copy carries only the tip commit's tree
+     (no history, no unreachable objects, no uncommitted or untracked files, no hooks, no
+     submodules); copy those deliberately if a gate needs them.
+     Before copying, the function scans the tip's tracked paths and contents and refuses (exit 2,
+     nothing created) on credential-looking material. This pattern-based boundary is not a
+     guarantee: if a source legitimately needs such files, the operator must prepare a sanitized
+     copy explicitly; review the manifest.
+  3. Verify while copying: the function below drops the remote/URL, refuses symlinks that escape
+     the copy, checks that no credential config survives, applies `chmod -R a-w`, proves nothing
+     is writable, and prints a manifest line (path, source commit, read-only result).
+     ```bash
+     copy_prereq() (
+       set -o pipefail
+       src=$1 dst=$2
+       [ -d "$src/.git" ] || [ -f "$src/.git" ] || { echo "not a git checkout: $src" >&2; exit 2; }
+       commit=$(git -C "$src" rev-parse HEAD) || exit 2
+       path_re='(^|/)(\.netrc|_netrc|\.git-credentials|\.npmrc|\.pypirc|\.env(\..+)?|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?)$|\.(pem|key|p12|pfx)$|(^|/)\.(ssh|aws|gnupg)/|(^|/)\.config/gh/'
+       paths=$(git -C "$src" ls-tree -r --name-only "$commit") || exit 2
+       bad=$(printf '%s\n' "$paths" | grep -E "$path_re"); rc=$?
+       [ "$rc" -le 1 ] || exit 2
+       [ -z "$bad" ] || { echo "credential-looking paths:" >&2; echo "$bad" >&2; exit 2; }
+       bad=$(git -C "$src" grep -I -i -l -E -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' \
+         -e '(password|passwd|secret|token|api[_-]?key)[[:space:]]*[:=]' \
+         -e 'Authorization:[[:space:]]*(Bearer|Basic)' -e 'aws_secret_access_key' \
+         -e 'machine [^ ]+ .*password' "$commit" --); rc=$?
+       [ "$rc" -le 1 ] || exit 2
+       [ -z "$bad" ] || { echo "credential-looking content in:" >&2; echo "$bad" >&2; exit 2; }
+       src_abs=$(cd "$src" && pwd -P) || exit 2
+       bail() { chmod -R u+w "$dst" 2>/dev/null; rm -rf "$dst"; exit 2; }
+       git clone --quiet --no-local --depth 1 --single-branch --no-checkout "file://$src_abs" "$dst" || exit 2
+       git -C "$dst" remote remove origin || bail
+       git -C "$dst" checkout --quiet "$commit" || bail
+       head=$(git -C "$dst" rev-parse HEAD) || bail
+       [ "$head" = "$commit" ] || { echo "copy HEAD differs from source HEAD $commit" >&2; bail; }
+       n_all=$(git -C "$dst" cat-file --batch-all-objects --batch-check | wc -l) || bail
+       n_reach=$(git -C "$dst" rev-list --objects --all | wc -l) || bail
+       [ "$n_all" = "$n_reach" ] || { echo "copy holds unreachable objects" >&2; bail; }
+       root=$(cd "$dst" && pwd -P) || bail
+       list=$(mktemp) || bail
+       find "$dst" -path "$dst/.git" -prune -o -type l -print0 > "$list" || { rm -f "$list"; bail; }
+       while IFS= read -r -d '' l; do
+         lt=$(readlink "$l") || bail
+         ld=$(dirname "$l") || bail
+         t=$(cd "$ld" && realpath -m -- "$lt") || bail
+         case "$t/" in "$root"/*) ;; *) echo "escaping symlink: $l -> $lt" >&2; rm -f "$list"; bail;; esac
+       done < "$list"
+       rm -f "$list"
+       cfg=$(git -C "$dst" config --local --get-regexp '^(remote\.|credential|url\.|http\.)'); rc=$?
+       [ "$rc" -le 1 ] || bail
+       [ -z "$cfg" ] || { echo "credential/remote config survived in copy" >&2; bail; }
+       chmod -R a-w "$dst" || bail
+       w=$(find "$dst" ! -type l -perm -u+w -print -quit) || bail
+       [ -z "$w" ] || { echo "writable path in copy: $w" >&2; bail; }
+       printf 'prereq\t%s\t%s\tread-only\n' "$dst" "$commit"
+     )
+     copy_prereq "<src>" "<dst>"
+     ```
+  4. Re-run the affected cases first, keeping the failure trace, then the original full gate,
+     labeling cached vs fresh evidence (`[learn]` issue #145; docs audit A2).
+- **Prove the gate did not mutate the repository (procedure).**
+  1. Prefer a check mode over a write mode (`gofmt -l`, `--check` flags, `go mod tidy -diff` where
+     supported, `git diff --exit-code`).
+  2. Take a baseline before the gate and compare after. Status and diff alone miss overwrites of
+     files that already existed untracked or ignored, so also hash their contents:
+     ```bash
+     repo_snapshot() (
+       set -o pipefail
+       git rev-parse HEAD || exit 2
+       b=$(git symbolic-ref -q HEAD); rc=$?
+       [ "$rc" -le 1 ] || exit 2
+       echo "branch ${b:-detached}"
+       git for-each-ref --format='%(refname) %(objectname)' || exit 2
+       git status --porcelain=v1 --ignored || exit 2
+       h=$(git ls-files -s -z | sha256sum) || exit 2; echo "index ${h%% *}"
+       h=$(git diff --cached --binary | sha256sum) || exit 2; echo "staged ${h%% *}"
+       h=$(git diff HEAD --binary | sha256sum) || exit 2; echo "diff ${h%% *}"
+       h=$(git config --local --list | sha256sum) || exit 2; echo "config ${h%% *}"
+       { git ls-files -z --others --exclude-standard || exit 2
+         git ls-files -z --others --ignored --exclude-standard || exit 2; } | sort -zu |
+       while IFS= read -r -d '' f; do
+         if [ -L "$f" ]; then t=$(readlink "$f") || exit 2; echo "link $f -> $t"
+         elif [ -f "$f" ]; then h=$(sha256sum < "$f") || exit 2
+           if [ -x "$f" ]; then x=x; else x=-; fi; echo "file $x ${h%% *}  $f"
+         else echo "skip $f"; fi
+       done || exit 2
+     )
+     top=$(git rev-parse --show-toplevel) || exit 2
+     snap=$(mktemp -d) || exit 2
+     snap_real=$(cd "$snap" && pwd -P) || { rm -rf "$snap"; exit 2; }
+     top_real=$(cd "$top" && pwd -P) || { rm -rf "$snap"; exit 2; }
+     case "$snap_real/" in "$top_real"/*)
+       rm -rf "$snap"; echo "evidence dir is inside the checkout; set TMPDIR outside it" >&2; exit 2;; esac
+     repo_snapshot > "$snap/before" || { rm -rf "$snap"; exit 2; }
+     <gate>; gate_rc=$?
+     repo_snapshot > "$snap/after" || { rm -rf "$snap"; exit 2; }
+     diff "$snap/before" "$snap/after"; diff_rc=$?
+     rm -rf "$snap"
+     [ "$gate_rc" -ne 0 ] && exit "$gate_rc"; exit "$diff_rc"
+     ```
+     Evidence lives outside the checkout (the block refuses to run otherwise). A gate failure wins
+     over the diff; exit 2 means the repository could not be inspected, never a pass. Report diff
+     lines as "changed during the gate run, origin unknown" (a concurrent editor looks identical),
+     and never revert or attribute them; a pre-existing or concurrent change made
+     before the baseline is not reported. Tracked manifest edits show up in the diff hash.
+     "Repository state" here covers HEAD/branch, all refs (including stash and tags), the index,
+     working-tree tracked/untracked/ignored content with exec bit and symlink targets, and local
+     config. It does not cover other `.git/` internals such as hooks and reflogs.
+  3. Keep three properties distinct: HOME isolation (credentials/user state), manifest protection
+     (tracked dependency manifests), and untracked/artifact files left behind in the worktree
+     (`[learn]` issue #150; docs audit A3).
 - **Make the container own its lifetime.** Container validation wrappers should not rely on shell
   `trap` cleanup alone — a signal before the job or container ID is recorded, a second signal during
   finalization, `--rm` deleting the cidfile before it is read, or `SIGKILL` can all leak a container.

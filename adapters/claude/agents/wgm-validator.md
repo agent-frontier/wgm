@@ -58,5 +58,7 @@ Output: per-tier scores + overall 0–100, gaps, and the recorded judge verdict 
 
 ### Integration
 Runs in **Validate**, after the deterministic gate is green and the reviewers PASS. Its overall score
-feeds the stop condition (satisfaction ≥ threshold). Low scores return to **@wgm-implementer**; a flat
+feeds the stop condition (satisfaction ≥ threshold). Sub-threshold scores return to **@wgm-implementer** as gaps; only an authored unconditional gate, a
+failing deterministic check, or a substantiated correctness defect blocks. A regression is named and
+paused for diagnosis, not converted into a blocker (see the `references/scoring.md` worked example). A flat
 score across iterations escalates to **@wgm-diagnostician**. See `references/subagents.md`.

@@ -62,6 +62,21 @@ weakening assertions, or inventing missing evidence; separate correctness defect
 (`[learn]` issue #151). For harness-induced failures in agent benchmarks, see
 [`evals.md`](evals.md) (`[learn]` issue #147).
 
+**Worked example — blockers, regression, convergence.** Threshold 95, overall 96, scenario S4 = 70
+and evidence-limited, with no authored per-scenario minimum. Ask three questions in this precedence:
+  1. Blockers first: a failing deterministic check, an authored unconditional gate, or an
+     independently substantiated correctness defect blocks `done` whatever the score.
+  2. Regression next: if S4 cleared the threshold in the previous validated iteration and now falls
+     below it, name it (`S4 96→70, iteration N→N+1`) and pause to diagnose before adding more code;
+     it is not a blocker by itself and never changes a score.
+  3. Convergence last: overall ≥ threshold with every deterministic check green is the stop
+     condition (tier order per Stratified convergence); S4's 70 without an authored minimum is a
+     recorded gap, not a blocker.
+Authored policy lives in the scenario's own scoring/tier text and the spec's acceptance criteria; the
+validator records the cited source next to the score in `.wgm/scores.md` / the plan (see
+"## Recording"). Scores are never changed (not raised, lowered, or rewritten) and deterministic or
+correctness blocks are never weakened (`[learn]` issue #151; docs audit A1).
+
 ## Relative-to-incumbent scoring (clone/replacement builds)
 When the job is to **beat or replace an existing artifact** (a redesign, a port, a faster library, a
 leaner CLI), an absolute threshold is necessary but not sufficient — it is blind to "worse than the
