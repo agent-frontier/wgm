@@ -68,7 +68,11 @@ and evidence-limited, with no authored per-scenario minimum. Ask three questions
      independently substantiated correctness defect blocks `done` whatever the score.
   2. Regression next: if S4 cleared the threshold in the previous validated iteration and now falls
      below it, name it (`S4 96→70, iteration N→N+1`) and pause to diagnose before adding more code;
-     it is not a blocker by itself and never changes a score.
+     it is not a blocker by itself and never changes a score. After diagnosis, record the disposition
+     with its evidence (cause found, why the drop is understood, who accepted it): if the diagnosis
+     shows the drop is understood and acceptable, the recorded disposition permits convergence with
+     the gap unchanged and still listed; if it uncovers a defect needing remediation or substantiates
+     a blocker (question 1), remediate or block as that question says, not as a regression.
   3. Convergence last: overall ≥ threshold with every deterministic check green is the stop
      condition (tier order per Stratified convergence); S4's 70 without an authored minimum is a
      recorded gap, not a blocker.
