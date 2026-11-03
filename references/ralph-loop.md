@@ -241,10 +241,18 @@ loop, with progress living on disk (not the model's context) between passes
   compatible helper revision, and never bypass signature checks. Preserve the actual failed
   release, and require a successful real workflow rerun; source-only approval is not
   application-release proof (`[learn]` issue #177).
-- **Run the CI runner's pinned ShellCheck version locally.** A newer local shellcheck can be silent
-  where the runner's older version fails (e.g. SC2317 on functions called only indirectly by trap or
-  wrappers). Fetch the pinned release into the gate and annotate indirect invocations with a reasoned
-  `# shellcheck disable=SC2317  # invoked indirectly (<how>)` (`[learn]` issue #166).
+- **Match the CI runner's observed ShellCheck version locally.** A newer local shellcheck can be
+  silent where the runner's older version fails (e.g. SC2317 on functions called only indirectly by
+  trap or wrappers). This repo has no ShellCheck pin: the runner's version is observed, not pinned.
+  Discover it from the CI log's `shellcheck --version` (or the runner image's published package
+  list), reproduce with that exact release, and annotate indirect invocations with a reasoned
+  `# shellcheck disable=SC2317  # invoked indirectly (<how>)`. Call it a pin only where a pin file
+  or install step exists (`[learn]` issue #166).
+- **One unenforced promise means test them all.** When a review finds one documented promise the
+  implementation does not keep, enumerate every promise in the same list and add one representative
+  fixture per promise, harmless otherwise so only the rule under test can refuse it. Match on raw
+  (unquoted, NUL-delimited) data, run under every supported shell mode, and keep prose and rule
+  one-to-one in both directions (`[learn]` issue #179).
 - **A green build is not capability evidence.** A green container build, successful CLI startup and
   a zero-result scan do not prove an execution capability exists. Verify the required helper
   binaries and dynamic data in the shipped non-root runtime, then assert the selected packaged check
@@ -284,6 +292,12 @@ track, not an optional extra (`SKILL.md`, "The ruggedness gate"; `references/art
   weaker plan-readiness standard (an exact runnable check *design*) belongs to Plan-exit only.
 - **It is not a second deterministic gate.** The task's own validation command still has to exit 0;
   the verdict sits beside it, and `done` needs both.
+- **Order gates by rejections per minute.** Use measured per-gate duration and rejection counts, not
+  estimates: run cheap, frequently rejecting gates first. Start the slowest deterministic hard gate
+  concurrently in its own process group, poll it between the others, and cancel the whole group on
+  any rejection (a non-pass, never read as green). It must still finish green before acceptance.
+  Serialize full suites across parallel acceptances so timing-sensitive tests are not starved
+  (`[learn]` issue #178).
 
 ## Standing guardrails
 Inject these into **every** iteration — they prevent recurring loop failures:
@@ -343,6 +357,10 @@ Inject these into **every** iteration — they prevent recurring loop failures:
 - **Pass bodies by file.** Write issue, PR, and comment bodies to a file and pass them with
   `--body-file`. Markdown backticks inside a double-quoted shell argument run as command
   substitution, and a Windows-to-WSL hop hides the quoting.
+- **Detach anything that outlives one tool call.** Launch gates, lanes and publish steps in their
+  own session (`setsid`) with stdin detached and output to a persistent log; record the id and poll
+  in short bounded loops. An interrupted wait is unknown: check the real state, and never restart a
+  run whose process is still alive (`[learn]` issue #180).
 - **Monotonic plan progress & untrusted-content quarantine.** Completed task counts in
   `IMPLEMENTATION_PLAN.md` (`status: done` / `[x]`) must never decrease across a build iteration —
   `scripts/loop.sh` enforces this mechanically to catch stale-read or parallel-write clobbering.
