@@ -86,8 +86,17 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
   1. Inventory the HOME-relative paths the gate and tests expect (grep gate and test configs for
      `$HOME/` and `~/`), recording which exist.
   2. Copy only the existing checkouts into the isolated HOME at the same relative paths, without
-     credential material: never copy dotfiles or credential stores (git/gh/ssh/netrc config,
-     credential helpers, shell history, runtime state). The copy carries only the tip commit's tree
+     credential material. One contract, enforced by the helper: refuse (exit 2, nothing created) a
+     tracked `.gitconfig`, shell history (`.bash_history`, `.zsh_history`, any file whose name starts with `.` and ends `_history`, in any directory), and
+     credential paths and contents. The path denylist is exactly: file names `.netrc`, `_netrc`,
+     `.git-credentials`, `.npmrc`, `.pypirc`, `credentials`, `credentials.json`, `id_rsa`, `id_dsa`,
+     `id_ecdsa`, `id_ed25519`, any name starting `.env`, any name ending `.pem`, `.key`, `.p12` or
+     `.pfx`, and anything under a `.ssh/`, `.aws/`, `.gnupg/` or `.config/gh/` directory, all in any
+     directory; contents are scanned for private-key blocks, password/token/secret/api-key
+     assignments, Authorization headers and netrc passwords. Path matching uses raw NUL-delimited names, so quoted or
+     non-ASCII directories cannot hide a match; offending names print with control bytes as `?`.
+     A detached-HEAD source copies normally (its HEAD commit
+     is recorded in the manifest). The copy carries only the tip commit's tree
      (no history, no unreachable objects, no uncommitted or untracked files, no hooks, no
      submodules); copy those deliberately if a gate needs them.
      Before copying, the function scans the tip's tracked paths and contents and refuses (exit 2,
@@ -103,15 +112,17 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
        src=$1 dst=$2
        [ -d "$src/.git" ] || [ -f "$src/.git" ] || { echo "not a git checkout: $src" >&2; exit 2; }
        commit=$(git -C "$src" rev-parse HEAD) || exit 2
-       path_re='(^|/)(\.netrc|_netrc|\.git-credentials|\.npmrc|\.pypirc|\.env(\..+)?|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?)$|\.(pem|key|p12|pfx)$|(^|/)\.(ssh|aws|gnupg)/|(^|/)\.config/gh/'
-       paths=$(git -C "$src" ls-tree -r --name-only "$commit") || exit 2
-       bad=$(printf '%s\n' "$paths" | grep -E "$path_re"); rc=$?
+       path_re='(^|/)(\.gitconfig|\.[^/]*_history|\.netrc|_netrc|\.git-credentials|\.npmrc|\.pypirc|\.env[^/]*|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?)$|\.(pem|key|p12|pfx)$|(^|/)\.(ssh|aws|gnupg)/|(^|/)\.config/gh/'
+       names=$(mktemp) || exit 2
+       trap 'rm -f "$names"' EXIT
+       git -C "$src" ls-tree -r -z --name-only "$commit" > "$names" || exit 2
+       rc=0; bad=$(LC_ALL=C grep -z -E "$path_re" "$names" | LC_ALL=C tr '\0' '\n' | LC_ALL=C sed 's/[^[:print:]]/?/g') || rc=$?
        [ "$rc" -le 1 ] || exit 2
        [ -z "$bad" ] || { echo "credential-looking paths:" >&2; echo "$bad" >&2; exit 2; }
-       bad=$(git -C "$src" grep -I -i -l -E -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' \
+       rc=0; bad=$(git -C "$src" grep -I -i -l -E -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' \
          -e '(password|passwd|secret|token|api[_-]?key)[[:space:]]*[:=]' \
          -e 'Authorization:[[:space:]]*(Bearer|Basic)' -e 'aws_secret_access_key' \
-         -e 'machine [^ ]+ .*password' "$commit" --); rc=$?
+         -e 'machine [^ ]+ .*password' "$commit" --) || rc=$?
        [ "$rc" -le 1 ] || exit 2
        [ -z "$bad" ] || { echo "credential-looking content in:" >&2; echo "$bad" >&2; exit 2; }
        src_abs=$(cd "$src" && pwd -P) || exit 2
@@ -134,7 +145,7 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
          case "$t/" in "$root"/*) ;; *) echo "escaping symlink: $l -> $lt" >&2; rm -f "$list"; bail;; esac
        done < "$list"
        rm -f "$list"
-       cfg=$(git -C "$dst" config --local --get-regexp '^(remote\.|credential|url\.|http\.)'); rc=$?
+       rc=0; cfg=$(git -C "$dst" config --local --get-regexp '^(remote\.|credential|url\.|http\.)') || rc=$?
        [ "$rc" -le 1 ] || bail
        [ -z "$cfg" ] || { echo "credential/remote config survived in copy" >&2; bail; }
        chmod -R a-w "$dst" || bail
@@ -154,18 +165,32 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
      ```bash
      repo_snapshot() (
        set -o pipefail
+       idx=${GIT_INDEX_FILE:-$(git rev-parse --git-path index)} || exit 2
+       case "$idx" in /*) ;; *) idx=$PWD/$idx;; esac
+       cd "$(git rev-parse --show-toplevel)" || exit 2
+       # Non-validator: never read holdout contents. A validator may drop the excludes and the
+       # private index below. Pathspecs alone are not a no-read boundary (index refresh can open
+       # excluded racily-clean entries), so inspect a private copy of the index with the holdout
+       # entries removed by metadata-only plumbing before any worktree inspection.
+       ex=(':(top,exclude)scenarios' ':(top,exclude).wgm/scenarios')
+       pidx=$(mktemp) || exit 2
+       trap 'rm -f "$pidx"' EXIT
+       if [ -e "$idx" ]; then cp "$idx" "$pidx" || exit 2; else GIT_INDEX_FILE=$pidx git read-tree --empty || exit 2; fi
+       export GIT_INDEX_FILE=$pidx
+       git ls-files -z --cached -- ':(top)scenarios' ':(top).wgm/scenarios' |
+         xargs -0 -r git update-index --force-remove -- || exit 2
        git rev-parse HEAD || exit 2
-       b=$(git symbolic-ref -q HEAD); rc=$?
+       rc=0; b=$(git symbolic-ref -q HEAD) || rc=$?
        [ "$rc" -le 1 ] || exit 2
        echo "branch ${b:-detached}"
        git for-each-ref --format='%(refname) %(objectname)' || exit 2
-       git status --porcelain=v1 --ignored || exit 2
-       h=$(git ls-files -s -z | sha256sum) || exit 2; echo "index ${h%% *}"
-       h=$(git diff --cached --binary | sha256sum) || exit 2; echo "staged ${h%% *}"
-       h=$(git diff HEAD --binary | sha256sum) || exit 2; echo "diff ${h%% *}"
-       h=$(git config --local --list | sha256sum) || exit 2; echo "config ${h%% *}"
-       { git ls-files -z --others --exclude-standard || exit 2
-         git ls-files -z --others --ignored --exclude-standard || exit 2; } | sort -zu |
+       git status --porcelain=v1 --ignored -- "${ex[@]}" || exit 2
+       h=$(git ls-files -s -z -- "${ex[@]}" | sha256sum) || exit 2; echo "index ${h%% *}"
+       h=$(git diff --cached --binary -- "${ex[@]}" | sha256sum) || exit 2; echo "staged ${h%% *}"
+       h=$(git diff HEAD --binary -- "${ex[@]}" | sha256sum) || exit 2; echo "diff ${h%% *}"
+       h=$( { git config --local --list || [ "$?" -eq 1 ]; } | sha256sum) || exit 2; echo "config ${h%% *}"
+       { git ls-files -z --others --exclude-standard -- "${ex[@]}" || exit 2
+         git ls-files -z --others --ignored --exclude-standard -- "${ex[@]}" || exit 2; } | sort -zu |
        while IFS= read -r -d '' f; do
          if [ -L "$f" ]; then t=$(readlink "$f") || exit 2; echo "link $f -> $t"
          elif [ -f "$f" ]; then h=$(sha256sum < "$f") || exit 2
@@ -180,12 +205,23 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
      case "$snap_real/" in "$top_real"/*)
        rm -rf "$snap"; echo "evidence dir is inside the checkout; set TMPDIR outside it" >&2; exit 2;; esac
      repo_snapshot > "$snap/before" || { rm -rf "$snap"; exit 2; }
-     <gate>; gate_rc=$?
+     gate_rc=0; <gate> || gate_rc=$?
      repo_snapshot > "$snap/after" || { rm -rf "$snap"; exit 2; }
-     diff "$snap/before" "$snap/after"; diff_rc=$?
+     diff_rc=0; diff "$snap/before" "$snap/after" || diff_rc=$?
      rm -rf "$snap"
-     [ "$gate_rc" -ne 0 ] && exit "$gate_rc"; exit "$diff_rc"
+     if [ "$gate_rc" -ne 0 ]; then exit "$gate_rc"; fi
+     exit "$diff_rc"
      ```
+     The snapshot works on a private copy of the index (`GIT_INDEX_FILE`, removed on exit) from
+     which the holdout entries are dropped with metadata-only `git update-index --force-remove`
+     before any worktree inspection, because a pathspec exclude alone does not stop `git status`
+     from opening excluded, racily-clean files while refreshing the real index; the caller's index
+     is never written. Inspection always runs from the repository root (`git rev-parse --show-toplevel`), whatever the
+     invocation directory; reported paths are root-relative. Expected non-zero statuses are captured
+     conditionally, so the blocks behave identically under an inherited `set -e`. Coverage exception:
+     a non-validator snapshot excludes both holdout roots (`scenarios/`, `.wgm/scenarios/`) from every
+     git inspection (`:(top,exclude)` pathspecs) so their contents are never read, and changes there
+     are not reported; a validator that may read holdouts can drop the excludes.
      Evidence lives outside the checkout (the block refuses to run otherwise). A gate failure wins
      over the diff; exit 2 means the repository could not be inspected, never a pass. Report diff
      lines as "changed during the gate run, origin unknown" (a concurrent editor looks identical),
@@ -197,6 +233,71 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
   3. Keep three properties distinct: HOME isolation (credentials/user state), manifest protection
      (tracked dependency manifests), and untracked/artifact files left behind in the worktree
      (`[learn]` issue #150; docs audit A3).
+- **Run the gate in an isolated HOME (recipe).** Define `copy_prereq` (above) and the function below
+  in the shell that runs the gate. Record the prerequisite source paths first, then run the affected
+  checks first and the original full gate second, each through `isolated_gate`. The temp HOME must lie
+  outside the current checkout (refused with exit 2 otherwise, gate not run); a refused copy exits 2
+  and never runs the gate. The gate's own status is preserved. The temp HOME is always removed
+  afterwards (bounded, a few seconds), or reported as `retained: <path>` on stderr. SIGINT/SIGTERM to
+  this shell terminate the gate's whole process group. The group is owned until it is empty: after the
+  gate's leader exits (normally or not) any remaining members get TERM, then KILL after a bounded 2 s,
+  and only then is the temp HOME removed. Then clean up or report `retained:` and
+  return 130/143. The gate may be a command or a shell function; it runs in a subshell with `HOME` set.
+  ```bash
+  isolated_gate() {
+    local src=$1 rel=$2 top home hr tr pid grp rc=0 sig=0 t stage mon=+m
+    shift 2
+    case $- in *m*) mon=-m;; esac
+    trap '[ "$sig" -ne 0 ] || sig=130; [ -z "$grp" ] || kill -TERM -- "$grp" 2>/dev/null || :' INT
+    trap '[ "$sig" -ne 0 ] || sig=143; [ -z "$grp" ] || kill -TERM -- "$grp" 2>/dev/null || :' TERM
+    if ! top=$(git rev-parse --show-toplevel); then trap - INT TERM; return 2; fi
+    if ! home=$(mktemp -d); then trap - INT TERM; return 2; fi
+    hr=$(cd "$home" && pwd -P) || hr=$home
+    tr=$(cd "$top" && pwd -P) || tr=$top
+    case "$rel" in ''|/*|..|../*|*/../*|*/..) echo "unsafe relative path: $rel" >&2; rc=2;; esac
+    case "$hr/" in "$tr"/*) echo "temp HOME is inside the checkout; set TMPDIR outside it" >&2; rc=2;; esac
+    if [ "$rc" -eq 0 ]; then
+      for stage in copy gate; do
+        set -m   # job control gives each stage its own process group
+        if [ "$stage" = copy ]; then
+          ( copy_prereq "$src" "$home/$rel" ) & pid=$!
+        else
+          ( HOME=$home; export HOME; "$@" ) & pid=$!
+        fi
+        set "$mon"; grp=-$pid
+        t=0
+        while kill -0 "$pid" 2>/dev/null; do
+          sleep 0.1
+          if [ "$sig" -ne 0 ]; then t=$((t + 1)); [ "$t" -lt 30 ] || kill -KILL -- "$grp" 2>/dev/null || :; fi
+        done
+        rc=0; wait "$pid" 2>/dev/null || rc=$?
+        # Keep owning the group until it is empty: leftover members get TERM, then KILL after 2 s.
+        if kill -0 -- "$grp" 2>/dev/null; then
+          kill -TERM -- "$grp" 2>/dev/null || :
+          t=0
+          while kill -0 -- "$grp" 2>/dev/null && [ "$t" -lt 20 ]; do sleep 0.1; t=$((t + 1)); done
+          kill -KILL -- "$grp" 2>/dev/null || :
+        fi
+        if [ "$sig" -ne 0 ]; then break; fi
+        grp=
+        if [ "$stage" = copy ] && [ "$rc" -ne 0 ]; then echo "prereq copy refused" >&2; rc=2; break; fi
+      done
+    fi
+    grp=
+    set -m
+    ( chmod -R u+w "$home" 2>/dev/null || :; rm -rf "$home" ) & pid=$!
+    set "$mon"
+    t=0
+    while kill -0 "$pid" 2>/dev/null && [ "$t" -lt 30 ]; do sleep 0.1; t=$((t + 1)); done
+    if kill -0 "$pid" 2>/dev/null; then kill -KILL -- "-$pid" 2>/dev/null || :; fi
+    wait "$pid" 2>/dev/null || :
+    if [ -e "$home" ]; then echo "retained: $home" >&2; fi
+    trap - INT TERM
+    if [ "$sig" -ne 0 ]; then return "$sig"; fi
+    return "$rc"
+  }
+  isolated_gate "<src>" "<rel>" <gate>
+  ```
 - **Make the container own its lifetime.** Container validation wrappers should not rely on shell
   `trap` cleanup alone — a signal before the job or container ID is recorded, a second signal during
   finalization, `--rm` deleting the cidfile before it is read, or `SIGKILL` can all leak a container.

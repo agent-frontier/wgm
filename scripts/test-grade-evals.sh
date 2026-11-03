@@ -513,7 +513,7 @@ RET="$(sed -n 's/^retained: //p' <<<"$OUT" | head -1)"
 if [[ "$(id -u)" == 0 ]]; then
   pass "T7 cleanup failure: skipped visibly because root can remove a 0555 directory"
 elif [[ "$RC" -eq 0 && -n "$RET" && "$(attr .retained_path)" == "\"$RET\"" ]] && grep -q 'candidate: 1/2' <<<"$OUT" &&
-     [[ "$(jq -r .summary.pass_rate "$RD/case-1/candidate/grading.json")" == "0.5000" ]]; then
+     jq -e '(.summary.pass_rate | tonumber) == 0.5' "$RD/case-1/candidate/grading.json" >/dev/null; then
   pass "T7 cleanup failure: run completes, retained path reported and recorded, scoring unchanged"
 else
   fail "T7 cleanup failure handling wrong (rc=$RC, retained='$RET')"
