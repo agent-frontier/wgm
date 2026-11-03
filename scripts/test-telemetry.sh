@@ -28,7 +28,10 @@ jget() {
 import json, sys
 v = json.load(open(sys.argv[1]))
 for k in sys.argv[2].split("."):
-    v = v.get(k) if isinstance(v, dict) else None
+    if k.startswith("#"):  # "#N" indexes a list
+        v = v[int(k[1:])] if isinstance(v, list) and int(k[1:]) < len(v) else None
+    else:
+        v = v.get(k) if isinstance(v, dict) else None
 print(json.dumps(v, separators=(",", ":")))
 PY
 }
@@ -129,7 +132,7 @@ eq "wall_to_merged" "$R" clocks.wall_to_merged_s 780
 eq "wall_to_verified" "$R" clocks.wall_to_verified_s 1800
 eq "phase sums matched pairs" "$R" clocks.phases_s '{"plan":180}'
 # Gates / candidates / units.
-eq "gates" "$R" gates '{"count":2,"total_s":180,"failed":1}'
+eq "gates" "$R" gates '{"count":2,"total_s":180,"failed":1,"unknown":0}'
 eq "candidates" "$R" candidates '{"evaluated":3,"accepted":2,"rejected":1,"first_pass_yield":0.666667}'
 eq "units distinct done ids; other run excluded" "$R" units '{"learn":2}'
 # Data quality: 3 ledger + 1 session malformed; bogus kind; spans zz,open1,d1-dup,neg-end-without-start...
@@ -153,7 +156,7 @@ eq "peak concurrency excludes orchestrator" "$R" agents.peak_concurrency 2
 eq "by_lane lane1" "$R" agents.by_lane.lane1 '{"turns":2,"active_s":210,"model_s":50,"tool_s":5,"tokens":160,"cost":0.85}'
 eq "orchestrator separate" "$R" orchestrator '{"turns":1,"turns_untimed":0,"active_s":1800,"model_s":100,"tool_s":0,"tokens":1000,"cost":1}'
 eq "per_class (cost/tokens include orchestrator)" "$R" per_class.learn \
-  '{"units":2,"wall_min_per_unit":15,"agent_active_min_per_unit":2.75,"cost_per_unit":1.025,"tokens_per_unit":600,"shared_wall":false}'
+  '{"units":2,"wall_min_per_unit":15,"agent_active_min_per_unit":2.75,"cost_per_unit":1.025,"tokens_per_unit":600,"shared_wall":false,"usage_basis":"whole-run"}'
 eq "agent_work_compression" "$R" ratios.agent_work_compression 0.238889
 eq "implementation_parallelism" "$R" ratios.implementation_parallelism 1.5
 eq "retry_tax" "$R" ratios.retry_tax 0.333333
@@ -192,7 +195,7 @@ eq "baseline wall factor" "$TMP/b.json" baseline.factors.learn.wall_per_unit_x 2
 eq "baseline agent factor" "$TMP/b.json" baseline.factors.learn.agent_active_per_unit_x 2
 eq "zero baseline cost -> null factor" "$TMP/b.json" baseline.factors.learn.cost_per_unit_x null
 eq "zero denominator refusal names metric and class" "$TMP/b.json" baseline.refused '["cost_per_unit: zero baseline value for learn"]'
-eq "comparable" "$TMP/b.json" baseline.factors.learn.comparable true
+eq "wall comparable (complete, same basis, single class)" "$TMP/b.json" baseline.factors.learn.comparable.wall true
 eq "baseline provenance carried" "$TMP/b.json" baseline.factors.learn.baseline_provenance '"reconstructed"'
 grep -q "not newly measured" "$TMP/b.md" && pass "reconstructed baseline flagged in Markdown" || fail "reconstructed flag missing"
 
@@ -203,7 +206,7 @@ EOF2
 python3 "$TEL" report --ledger "$L" --run r1 --sessions "$TMP/s" --orchestrator-session "$TMP/orch/o.jsonl" \
   --baseline "$TMP/base2.json" --json "$TMP/b2.json" > /dev/null
 eq "unspecified provenance" "$TMP/b2.json" baseline.provenance '"unspecified"'
-eq "not comparable when basis differs/incomplete" "$TMP/b2.json" baseline.factors.learn.comparable false
+eq "wall not comparable when basis differs/incomplete" "$TMP/b2.json" baseline.factors.learn.comparable.wall false
 eq "factor still printed when not comparable" "$TMP/b2.json" baseline.factors.learn.cost_per_unit_x 2
 
 # Cross-class baseline refused.
@@ -283,7 +286,7 @@ python3 "$TEL" report --ledger "$TMP/neg.ndjson" --json "$TMP/neg.json" > /dev/n
 eq "ledger-order pairing: negative interval counted" "$TMP/neg.json" data_quality.negative_intervals 2
 eq "ledger-order pairing: not unmatched span" "$TMP/neg.json" data_quality.unmatched_spans 0
 eq "ledger-order pairing: not unmatched phase" "$TMP/neg.json" data_quality.unmatched_phases 0
-eq "negative span excluded from gate totals" "$TMP/neg.json" gates '{"count":0,"total_s":0,"failed":0}'
+eq "negative span excluded from gate totals" "$TMP/neg.json" gates '{"count":0,"total_s":0,"failed":0,"unknown":0}'
 
 # Session inventory: each real file is read once; the orchestrator file is never an agent input.
 # (protects against double counting when --sessions . also covers the orchestrator log)
@@ -330,7 +333,7 @@ python3 "$TEL" record --ledger "$SP" run run=sp edge=start ts=2025-01-01T10:00:0
 python3 "$TEL" record --ledger "$SP" span run=sp edge=start span=x cat=gate name=n ts=2025-01-01T10:00:00Z
 python3 "$TEL" record --ledger "$SP" span run=sp edge=end span=x rc=0 ts=2025-01-01T10:01:00Z
 python3 "$TEL" report --ledger "$SP" --json "$TMP/sp.json" > /dev/null
-eq "span key pairs start/end" "$TMP/sp.json" gates '{"count":1,"total_s":60,"failed":0}'
+eq "span key pairs start/end" "$TMP/sp.json" gates '{"count":1,"total_s":60,"failed":0,"unknown":0}'
 
 # No `run start`: nothing start-dependent is measured (wall, window filter, pre-registration, baseline factors).
 grep -v '"kind":"run","run":"r1","edge":"start"' "$L" > "$TMP/nostart.ndjson"
@@ -397,7 +400,7 @@ linehas "$TMP/b.md" '^- .learn.: wall' "lower bound" "session usage"
 # Orchestrator untimed turns: a trailing in-window unanswered user message is counted in
 # orchestrator.turns_untimed only (never agents.turns_untimed, never in any total), and shown on the Markdown line.
 cp "$TMP/orch/o.jsonl" "$TMP/orch/o2.jsonl"
-printf '%s\n' '{"type":"message","timestamp":"2025-01-01T10:35:00Z","message":{"role":"user"}}' >> "$TMP/orch/o2.jsonl"
+printf '%s\n' '{"type":"message","timestamp":"2025-01-01T10:30:00Z","message":{"role":"user"}}' >> "$TMP/orch/o2.jsonl"
 python3 "$TEL" report --ledger "$L" --run r1 --sessions "$TMP/s" --orchestrator-session "$TMP/orch/o.jsonl" --json "$TMP/ou0.json" --md "$TMP/ou0.md" > /dev/null
 python3 "$TEL" report --ledger "$L" --run r1 --sessions "$TMP/s" --orchestrator-session "$TMP/orch/o2.jsonl" --json "$TMP/ou1.json" --md "$TMP/ou1.md" > /dev/null
 eq "orchestrator untimed 0 without trailing user" "$TMP/ou0.json" orchestrator.turns_untimed 0
@@ -455,12 +458,14 @@ python3 "$TEL" report --ledger "$TMP/mix.ndjson" --baseline "$TMP/mixb.json" --j
 eq "mixed: current complete, verified basis" "$TMP/mx.json" clocks.wall_basis '"verified"'
 eq "mixed: shared_wall flagged" "$TMP/mx.json" per_class.learn.shared_wall true
 eq "mixed: factor still printed" "$TMP/mx.json" baseline.factors.learn.wall_per_unit_x 2
-eq "mixed: not comparable despite complete + same basis" "$TMP/mx.json" baseline.factors.learn.comparable false
-grep -q "NOT comparable (partial, shared-wall" "$TMP/mx.md" && pass "mixed: Markdown gives the not-comparable reason" || fail "mixed: Markdown lacks reason"
+eq "mixed: wall not comparable despite complete + same basis" "$TMP/mx.json" baseline.factors.learn.comparable.wall false
+eq "mixed: reason names the failed condition and side" "$TMP/mx.json" baseline.factors.learn.not_comparable.wall '["shared wall (current)"]'
+grep -q "wall NOT comparable (shared wall (current))" "$TMP/mx.md" && pass "mixed: Markdown gives the not-comparable reason" || fail "mixed: Markdown lacks reason"
 # A shared-wall BASELINE against a single-class current run is also not comparable.
 printf '%s\n' '{"run":"sb","clocks":{"wall_basis":"verified","complete":true},"per_class":{"learn":{"wall_min_per_unit":40,"agent_active_min_per_unit":1,"cost_per_unit":1,"shared_wall":true}}}' > "$TMP/sb.json"
 python3 "$TEL" report --ledger "$L" --run r1 --baseline "$TMP/sb.json" --json "$TMP/sb-out.json" > /dev/null
-eq "shared-wall baseline: not comparable" "$TMP/sb-out.json" baseline.factors.learn.comparable false
+eq "shared-wall baseline: wall not comparable" "$TMP/sb-out.json" baseline.factors.learn.comparable.wall false
+eq "shared-wall baseline: reason names the baseline side" "$TMP/sb-out.json" baseline.factors.learn.not_comparable.wall '["shared wall (baseline)"]'
 
 # Baseline failures: unreadable, malformed JSON and a non-object all fail closed (exit nonzero, message on stderr,
 # no report written), never "no baseline".
@@ -476,6 +481,301 @@ for bcase in "$TMP/absent.json" "$TMP/bad.json" "$TMP/arr.json"; do
     fail "baseline $(basename "$bcase"): wrong failure mode"
   fi
 done
+
+# ===== w5a contract amendments: A1 ownership, A2 validation, A3 one window + clipping, A4 evidence validity,
+# A5 per-metric comparability, A11 whole-run usage label, A12 pre-registration evidence =====
+wl() { printf '%s\n' "$@"; }   # write each argument as one ledger line
+
+# A1: events with no usable `run` belong to no run. Two runs plus untagged/empty/non-string run events: each run's
+# report sees only its own events; the unowned ones are excluded from every report and counted once (whole ledger).
+cat > "$TMP/own.ndjson" << 'EOF2'
+{"v":1,"ts":"2025-01-01T09:00:00Z","kind":"estimate","run":"A","unit_class":"learn","units":1,"human_hours":1,"by":"op"}
+{"v":1,"ts":"2025-01-01T10:00:00Z","kind":"run","run":"A","edge":"start"}
+{"v":1,"ts":"2025-01-01T10:01:00Z","kind":"unit","run":"A","id":"a1","class":"learn","status":"done"}
+{"v":1,"ts":"2025-01-01T10:01:00Z","kind":"candidate","run":"A","sha":"s1","decision":"accept"}
+{"v":1,"ts":"2025-01-01T10:09:00Z","kind":"milestone","run":"A","name":"verified"}
+{"v":1,"ts":"2025-01-01T10:00:00Z","kind":"run","run":"B","edge":"start"}
+{"v":1,"ts":"2025-01-01T10:02:00Z","kind":"unit","run":"B","id":"b1","class":"audit","status":"done"}
+{"v":1,"ts":"2025-01-01T10:02:00Z","kind":"unit","run":"B","id":"b2","class":"audit","status":"done"}
+{"v":1,"ts":"2025-01-01T10:20:00Z","kind":"expect","run":"B","publication":"pubB"}
+{"v":1,"ts":"2025-01-01T10:03:00Z","kind":"unit","id":"g1","class":"ghost","status":"done"}
+{"v":1,"ts":"2025-01-01T10:03:00Z","kind":"candidate","sha":"g","decision":"reject"}
+{"v":1,"ts":"2025-01-01T10:03:00Z","kind":"milestone","name":"verified","publication":"pubB"}
+{"v":1,"ts":"2025-01-01T08:00:00Z","kind":"estimate","run":"","unit_class":"learn","units":9,"human_hours":9,"by":"x"}
+{"v":1,"ts":"2025-01-01T10:03:00Z","kind":"unit","run":7,"id":"n1","class":"ghost","status":"done"}
+EOF2
+python3 "$TEL" report --ledger "$TMP/own.ndjson" --run A --json "$TMP/oa.json" > /dev/null
+python3 "$TEL" report --ledger "$TMP/own.ndjson" --run B --json "$TMP/ob.json" > /dev/null
+eq "A1: unowned events counted once (run A)" "$TMP/oa.json" data_quality.unowned_events 5
+eq "A1: unowned events counted once (run B, same whole-ledger count)" "$TMP/ob.json" data_quality.unowned_events 5
+eq "A1: run A units isolated" "$TMP/oa.json" units '{"learn":1}'
+eq "A1: run B units isolated" "$TMP/ob.json" units '{"audit":2}'
+eq "A1: run A candidates exclude untagged" "$TMP/oa.json" candidates.evaluated 1
+eq "A1: run B has no candidates of A or untagged" "$TMP/ob.json" candidates.evaluated 0
+eq "A1: run A completes on its own verified" "$TMP/oa.json" clocks.complete true
+eq "A1: untagged verified does not complete run B" "$TMP/ob.json" clocks.complete false
+eq "A1: run B missing its publication" "$TMP/ob.json" clocks.missing_publications '["pubB"]'
+eq "A1: run A estimates: only its own (empty-run one excluded)" "$TMP/oa.json" estimates.preregistered.#0.units 1
+eq "A1: run B has no estimates" "$TMP/ob.json" estimates '{"preregistered":[],"ignored_late":[],"unverifiable":[]}'
+eq "A1 control: fully tagged ledger has none unowned" "$R" data_quality.unowned_events 0
+
+# A2: each invalid shape is excluded and counted once; the control line (valid form) is counted 0.
+a2base='{"v":1,"ts":"2025-01-01T10:00:00Z","kind":"run","run":"t","edge":"start"}'
+a2() { # a2 NAME EXPECTED_INVALID LINE...
+  local name="$1" want="$2"
+  shift 2
+  { printf '%s\n' "$a2base"; printf '%s\n' "$@"; } > "$TMP/a2.ndjson"
+  python3 "$TEL" report --ledger "$TMP/a2.ndjson" --run t --json "$TMP/a2.json" > /dev/null
+  eq "A2 $name" "$TMP/a2.json" data_quality.invalid_events "$want"
+}
+T='"v":1,"ts":"2025-01-01T10:01:00Z","run":"t"'
+a2 "control: valid shapes of every kind" 0 \
+  "{$T,\"kind\":\"run\",\"edge\":\"end\"}" "{$T,\"kind\":\"phase\",\"name\":\"p\",\"edge\":\"start\"}" \
+  "{$T,\"kind\":\"span\",\"edge\":\"start\",\"span\":\"s\",\"cat\":\"gate\"}" "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"s\",\"rc\":0}" \
+  "{$T,\"kind\":\"candidate\",\"sha\":\"x\",\"decision\":\"accept\"}" "{$T,\"kind\":\"unit\",\"id\":\"u\",\"class\":\"c\",\"status\":\"done\"}" \
+  "{$T,\"kind\":\"milestone\",\"name\":\"merged\",\"sha\":\"x\",\"publication\":\"p\"}" "{$T,\"kind\":\"expect\",\"publication\":\"p\"}" \
+  "{$T,\"kind\":\"estimate\",\"unit_class\":\"c\",\"units\":1,\"human_hours\":0.5,\"by\":\"op\"}"
+a2 "run edge outside start|end" 1 "{$T,\"kind\":\"run\",\"edge\":\"middle\"}"
+a2 "run without edge" 1 "{$T,\"kind\":\"run\"}"
+a2 "phase without name" 1 "{$T,\"kind\":\"phase\",\"edge\":\"start\"}"
+a2 "phase bad edge" 1 "{$T,\"kind\":\"phase\",\"name\":\"p\",\"edge\":\"begin\"}"
+a2 "span without id" 1 "{$T,\"kind\":\"span\",\"edge\":\"start\",\"cat\":\"gate\"}"
+a2 "span start without cat" 1 "{$T,\"kind\":\"span\",\"edge\":\"start\",\"span\":\"s\"}"
+a2 "span end without rc" 1 "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"s\"}"
+a2 "span end rc string" 1 "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"s\",\"rc\":\"0\"}"
+a2 "span end rc boolean" 1 "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"s\",\"rc\":true}"
+a2 "span end rc fractional" 1 "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"s\",\"rc\":0.5}"
+a2 "span invalid edge" 1 "{$T,\"kind\":\"span\",\"edge\":\"x\",\"span\":\"s\",\"cat\":\"gate\"}"
+a2 "candidate without sha" 1 "{$T,\"kind\":\"candidate\",\"decision\":\"accept\"}"
+a2 "candidate bad decision" 1 "{$T,\"kind\":\"candidate\",\"sha\":\"x\",\"decision\":\"maybe\"}"
+a2 "unit without id" 1 "{$T,\"kind\":\"unit\",\"class\":\"c\",\"status\":\"done\"}"
+a2 "unit without class" 1 "{$T,\"kind\":\"unit\",\"id\":\"u\",\"status\":\"done\"}"
+a2 "unit without status" 1 "{$T,\"kind\":\"unit\",\"id\":\"u\",\"class\":\"c\"}"
+a2 "unit empty id" 1 "{$T,\"kind\":\"unit\",\"id\":\"\",\"class\":\"c\",\"status\":\"done\"}"
+a2 "milestone unknown name" 1 "{$T,\"kind\":\"milestone\",\"name\":\"shipped\"}"
+a2 "milestone non-string publication" 1 "{$T,\"kind\":\"milestone\",\"name\":\"verified\",\"publication\":5}"
+a2 "milestone non-string sha" 1 "{$T,\"kind\":\"milestone\",\"name\":\"merged\",\"sha\":1}"
+a2 "milestone empty sha" 1 "{$T,\"kind\":\"milestone\",\"name\":\"merged\",\"sha\":\"\"}"
+a2 "milestone empty publication" 1 "{$T,\"kind\":\"milestone\",\"name\":\"verified\",\"publication\":\"\"}"
+a2 "control: milestone non-empty sha and publication" 0 "{$T,\"kind\":\"milestone\",\"name\":\"verified\",\"sha\":\"x\",\"publication\":\"p\"}"
+a2 "expect without publication" 1 "{$T,\"kind\":\"expect\"}"
+a2 "estimate units zero" 1 "{$T,\"kind\":\"estimate\",\"unit_class\":\"c\",\"units\":0,\"human_hours\":1,\"by\":\"op\"}"
+a2 "estimate units boolean" 1 "{$T,\"kind\":\"estimate\",\"unit_class\":\"c\",\"units\":true,\"human_hours\":1,\"by\":\"op\"}"
+a2 "estimate human_hours NaN" 1 "{$T,\"kind\":\"estimate\",\"unit_class\":\"c\",\"units\":1,\"human_hours\":NaN,\"by\":\"op\"}"
+a2 "estimate without by" 1 "{$T,\"kind\":\"estimate\",\"unit_class\":\"c\",\"units\":1,\"human_hours\":1}"
+a2 "unknown kind is unknown, not invalid" 0 "{$T,\"kind\":\"zzz\"}"
+eq "A2: unknown kind still counted as unknown_kinds" "$TMP/a2.json" data_quality.unknown_kinds 1
+# An invalid event is excluded from aggregation: an id-less unit does not count; a bad-decision candidate neither.
+a2 "excluded from aggregation" 2 "{$T,\"kind\":\"unit\",\"class\":\"c\",\"status\":\"done\"}" \
+  "{$T,\"kind\":\"candidate\",\"sha\":\"x\",\"decision\":\"maybe\"}"
+eq "A2: invalid unit not counted" "$TMP/a2.json" units '{}'
+eq "A2: invalid candidate not counted" "$TMP/a2.json" candidates.evaluated 0
+# F3: a selected run with no valid events exits 2 with one stderr line naming the run and the invalid count.
+printf '%s\n' "{$T,\"kind\":\"unit\",\"class\":\"c\",\"status\":\"done\"}" "{$T,\"kind\":\"milestone\",\"name\":\"nope\"}" > "$TMP/allbad.ndjson"
+rm -f "$TMP/allbad.json"
+rc=0
+python3 "$TEL" report --ledger "$TMP/allbad.ndjson" --run t --json "$TMP/allbad.json" > "$TMP/allbad.out" 2> "$TMP/allbad.err" || rc=$?
+[ "$rc" -eq 2 ] && pass "F3: all-invalid run exits 2" || fail "F3: exit $rc, expected 2"
+[ "$(wc -l < "$TMP/allbad.err")" -eq 1 ] && grep -q "'t'" "$TMP/allbad.err" && grep -q "2 invalid" "$TMP/allbad.err" \
+  && pass "F3: one stderr line naming run and invalid count" || fail "F3: stderr wrong: $(cat "$TMP/allbad.err")"
+! grep -q Traceback "$TMP/allbad.err" && [ ! -e "$TMP/allbad.json" ] && [ ! -s "$TMP/allbad.out" ] \
+  && pass "F3: no traceback, no report" || fail "F3: traceback or report produced"
+# F3 (none case): an absent run against an empty ledger and against a ledger holding only another run.
+: > "$TMP/empty.ndjson"
+printf '%s\n' "$a2base" > "$TMP/other.ndjson"
+for nl in empty other; do
+  rm -f "$TMP/none.json" "$TMP/none.md"
+  rc=0
+  python3 "$TEL" report --ledger "$TMP/$nl.ndjson" --run absent --json "$TMP/none.json" --md "$TMP/none.md" > "$TMP/none.out" 2> "$TMP/none.err" || rc=$?
+  [ "$rc" -eq 2 ] && pass "F3: absent run on $nl ledger exits 2" || fail "F3: $nl ledger exit $rc, expected 2"
+  [ "$(wc -l < "$TMP/none.err")" -eq 1 ] && grep -q "'absent'" "$TMP/none.err" && grep -q "0 invalid" "$TMP/none.err" \
+    && pass "F3: $nl ledger: one stderr line naming run and 0 invalid" || fail "F3: $nl ledger stderr wrong: $(cat "$TMP/none.err")"
+  ! grep -q Traceback "$TMP/none.err" && [ ! -e "$TMP/none.json" ] && [ ! -e "$TMP/none.md" ] && [ ! -s "$TMP/none.out" ] \
+    && pass "F3: $nl ledger: no traceback, no report" || fail "F3: $nl ledger produced output"
+done
+# Control: the other run in that ledger still reports, exit 0.
+python3 "$TEL" report --ledger "$TMP/other.ndjson" --run t --json "$TMP/none.json" > /dev/null \
+  && [ -s "$TMP/none.json" ] && pass "F3 control: existing run still reports (exit 0)" || fail "F3 control: existing run failed"
+# All-invalid case also writes no Markdown file.
+rm -f "$TMP/allbad.md"
+python3 "$TEL" report --ledger "$TMP/allbad.ndjson" --run t --md "$TMP/allbad.md" > /dev/null 2>&1 || true
+[ ! -e "$TMP/allbad.md" ] && pass "F3: all-invalid run writes no Markdown file" || fail "F3: Markdown written for all-invalid run"
+# Control: one valid event among invalid ones reports normally.
+a2 "control: one valid event beside invalid ones reports" 2 "{$T,\"kind\":\"unit\",\"class\":\"c\",\"status\":\"done\"}" "{$T,\"kind\":\"milestone\",\"name\":\"nope\"}"
+
+# gates.unknown: a gate with no valid end is unknown (also unmatched) — never passed or failed.
+a2 "gate end without rc: invalid" 1 "{$T,\"kind\":\"span\",\"edge\":\"start\",\"span\":\"g\",\"cat\":\"gate\"}" \
+  "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"g\"}"
+eq "A2: gate without valid end is unknown" "$TMP/a2.json" gates '{"count":0,"total_s":0,"failed":0,"unknown":1}'
+eq "A2: unknown gate also unmatched" "$TMP/a2.json" data_quality.unmatched_spans 1
+a2 "gate with valid end rc=0" 0 "{$T,\"kind\":\"span\",\"edge\":\"start\",\"span\":\"g\",\"cat\":\"gate\"}" \
+  "{$T,\"kind\":\"span\",\"edge\":\"end\",\"span\":\"g\",\"rc\":0}"
+eq "A2 control: closed gate is passed, not unknown" "$TMP/a2.json" gates '{"count":1,"total_s":0,"failed":0,"unknown":0}'
+a2 "non-gate open span is not an unknown gate" 0 "{$T,\"kind\":\"span\",\"edge\":\"start\",\"span\":\"o\",\"cat\":\"agent\"}"
+eq "A2 control: open non-gate span" "$TMP/a2.json" gates.unknown 0
+
+# A3: one accounting window [run start, run start + wall]. Run 10:00, verified 10:10, run end 10:30.
+cat > "$TMP/win.ndjson" << 'EOF2'
+{"v":1,"ts":"2025-01-01T10:00:00Z","kind":"run","run":"w","edge":"start"}
+{"v":1,"ts":"2025-01-01T10:05:00Z","kind":"unit","run":"w","id":"u1","class":"learn","status":"done"}
+{"v":1,"ts":"2025-01-01T10:10:00Z","kind":"milestone","run":"w","name":"verified"}
+{"v":1,"ts":"2025-01-01T10:30:00Z","kind":"run","run":"w","edge":"end"}
+EOF2
+mkdir -p "$TMP/ws/lane1" "$TMP/ws/lane2" "$TMP/wo"
+# lane1: C crosses run start (09:58-10:01), A inside (10:02-10:04), untimed F inside (10:05), D crosses the
+# accounting end (10:09-10:12), untimed E after the end (10:20, excluded).
+cat > "$TMP/ws/lane1/a.jsonl" << 'EOF2'
+{"timestamp":"2025-01-01T09:58:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:01:00Z","role":"assistant","durationMs":1000,"usage":{"totalTokens":20,"cost":{"total":2}}}
+{"timestamp":"2025-01-01T10:02:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:04:00Z","role":"assistant","durationMs":1000,"usage":{"totalTokens":10,"cost":{"total":1}}}
+{"timestamp":"2025-01-01T10:05:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:09:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:12:00Z","role":"assistant","durationMs":2000,"usage":{"totalTokens":40,"cost":{"total":4}}}
+{"timestamp":"2025-01-01T10:20:00Z","role":"user"}
+EOF2
+# lane2: K ends exactly at run start (clipped to zero length; unclipped it would overlap C -> peak 2), B entirely
+# after the endpoint, H entirely before the start (both excluded).
+cat > "$TMP/ws/lane2/b.jsonl" << 'EOF2'
+{"timestamp":"2025-01-01T09:50:00Z","role":"user"}
+{"timestamp":"2025-01-01T09:51:00Z","role":"assistant","durationMs":1000,"usage":{"totalTokens":900,"cost":{"total":90}}}
+{"timestamp":"2025-01-01T09:57:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:00:00Z","role":"assistant","durationMs":1000,"usage":{"totalTokens":5,"cost":{"total":0.5}}}
+{"timestamp":"2025-01-01T10:13:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:14:00Z","role":"assistant","durationMs":1000,"usage":{"totalTokens":700,"cost":{"total":70}}}
+EOF2
+cat > "$TMP/wo/o.jsonl" << 'EOF2'
+{"timestamp":"2025-01-01T09:59:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:01:00Z","role":"assistant","durationMs":3000,"usage":{"totalTokens":300,"cost":{"total":3}}}
+EOF2
+python3 "$TEL" report --ledger "$TMP/win.ndjson" --run w --sessions "$TMP/ws" --orchestrator-session "$TMP/wo/o.jsonl" \
+  --json "$TMP/w.json" --md "$TMP/w.md" > /dev/null
+eq "A3: wall = 600" "$TMP/w.json" clocks.wall_s 600
+eq "A3: accounting_end = run start + wall" "$TMP/w.json" window.accounting_end '"2025-01-01T10:10:00Z"'
+eq "A3: window.end unchanged (run end)" "$TMP/w.json" window.end '"2025-01-01T10:30:00Z"'
+eq "A3: turns after endpoint / before start excluded (B, H, E)" "$TMP/w.json" data_quality.excluded_turns 3
+eq "A3: crossing turns clipped once each (C, D, K, orchestrator)" "$TMP/w.json" data_quality.clipped_turns 4
+eq "A3: timed turns (A, C, D, K) and untimed inside (F)" "$TMP/w.json" agents.turns 4
+eq "A3: untimed inside counted, untimed after end excluded" "$TMP/w.json" agents.turns_untimed 1
+eq "A3: active = overlap only (60 + 120 + 60 + 0)" "$TMP/w.json" agents.active_s 240
+eq "A3: usage of clipped turns counted in full; excluded turns not" "$TMP/w.json" agents.tokens 75
+eq "A3: cost in full" "$TMP/w.json" agents.cost 7.5
+eq "A3: peak concurrency uses the clipped overlap" "$TMP/w.json" agents.peak_concurrency 1
+eq "A3: by-lane active clipped" "$TMP/w.json" agents.by_lane.lane1.active_s 240
+eq "A3: orchestrator clipped too (active 60, usage full)" "$TMP/w.json" orchestrator '{"turns":1,"turns_untimed":0,"active_s":60,"model_s":3,"tool_s":0,"tokens":300,"cost":3}'
+# Controls: with the verified endpoint moved to 10:30 nothing is excluded for lateness and only the start-crossers clip.
+sed 's/"2025-01-01T10:10:00Z","kind":"milestone"/"2025-01-01T10:30:00Z","kind":"milestone"/' "$TMP/win.ndjson" > "$TMP/win2.ndjson"
+python3 "$TEL" report --ledger "$TMP/win2.ndjson" --run w --sessions "$TMP/ws" --json "$TMP/w2.json" > /dev/null
+eq "A3 control: wider window keeps B in" "$TMP/w2.json" data_quality.excluded_turns 1
+eq "A3 control: only C and K clip now" "$TMP/w2.json" data_quality.clipped_turns 2
+eq "A3 control: peak 1 (K clipped to zero length)" "$TMP/w2.json" agents.peak_concurrency 1
+eq "A3: no start -> accounting_end null" "$TMP/ns.json" window.accounting_end null
+
+# A4: reversed turn and invalid measurements. user 10:05 whose last message is at 10:04 = negative interval.
+mkdir -p "$TMP/bs/l"
+cat > "$TMP/bs/l/n.jsonl" << 'EOF2'
+{"timestamp":"2025-01-01T10:05:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:04:00Z","role":"assistant","durationMs":1000,"usage":{"totalTokens":99,"cost":{"total":9}}}
+{"timestamp":"2025-01-01T10:01:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:02:00Z","role":"assistant","durationMs":-1000,"usage":{"totalTokens":NaN,"cost":{"total":Infinity}}}
+{"timestamp":"2025-01-01T10:02:30Z","role":"toolResult","durationMs":-5}
+{"timestamp":"2025-01-01T10:03:00Z","role":"assistant","durationMs":"7","usage":{"totalTokens":-Infinity,"cost":{"total":-1}}}
+EOF2
+python3 "$TEL" report --ledger "$TMP/win.ndjson" --run w --sessions "$TMP/bs" --json "$TMP/bad.json" > /dev/null
+eq "A4: reversed turn excluded and counted" "$TMP/bad.json" data_quality.negative_intervals 1
+eq "A4: reversed turn adds nothing (one timed turn left)" "$TMP/bad.json" agents.turns 1
+eq "A4: negative/NaN/Infinity/wrong-type values are missing, +1 per message" "$TMP/bad.json" data_quality.missing_fields 3
+eq "A4: invalid values add nothing (tokens)" "$TMP/bad.json" agents.tokens 0
+eq "A4: invalid values add nothing (cost)" "$TMP/bad.json" agents.cost 0
+eq "A4: invalid durations add nothing (model)" "$TMP/bad.json" agents.model_s 0
+eq "A4: invalid durations add nothing (tool)" "$TMP/bad.json" agents.tool_s 0
+mkdir -p "$TMP/gs/l"
+cat > "$TMP/gs/l/g.jsonl" << 'EOF2'
+{"timestamp":"2025-01-01T10:01:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:02:00Z","role":"assistant","durationMs":0,"usage":{"totalTokens":0,"cost":{"total":0}}}
+{"timestamp":"2025-01-01T10:02:30Z","role":"toolResult","durationMs":5000}
+EOF2
+python3 "$TEL" report --ledger "$TMP/win.ndjson" --run w --sessions "$TMP/gs" --json "$TMP/good.json" > /dev/null
+eq "A4 control: zero values are valid (nothing missing)" "$TMP/good.json" data_quality.missing_fields 0
+eq "A4 control: no negative intervals" "$TMP/good.json" data_quality.negative_intervals 0
+eq "A4 control: valid tool duration counted" "$TMP/good.json" agents.tool_s 5
+
+# A5: metric-specific comparability. A clean current report vs baselines with asymmetric coverage.
+mkdir -p "$TMP/cs/l"
+cat > "$TMP/cs/l/c.jsonl" << 'EOF2'
+{"timestamp":"2025-01-01T10:01:00Z","role":"user"}
+{"timestamp":"2025-01-01T10:03:00Z","role":"assistant","durationMs":60000,"usage":{"totalTokens":10,"cost":{"total":1}}}
+EOF2
+python3 "$TEL" report --ledger "$TMP/win.ndjson" --run w --sessions "$TMP/cs" --json "$TMP/clean.json" > /dev/null
+a5() { # a5 NAME REPORT_JSON JQ-ish python mutation of the baseline; expected comparable + not_comparable
+  local name="$1" cur="$2" mut="$3" wantc="$4" wantn="$5"
+  python3 - "$TMP/clean.json" "$TMP/a5b.json" "$mut" << 'PY'
+import json, sys
+b = json.load(open(sys.argv[1]))
+exec(sys.argv[3])
+json.dump(b, open(sys.argv[2], "w"))
+PY
+  python3 "$TEL" report --ledger "$TMP/win.ndjson" --run w --sessions "$cur" --baseline "$TMP/a5b.json" --json "$TMP/a5.json" > /dev/null
+  eq "A5 $name: comparable" "$TMP/a5.json" baseline.factors.learn.comparable "$wantc"
+  eq "A5 $name: reasons" "$TMP/a5.json" baseline.factors.learn.not_comparable "$wantn"
+}
+a5 "control: clean both sides" "$TMP/cs" 'pass' '{"wall":true,"agent_active":true,"cost":true}' '{}'
+eq "A5: factor values still computed" "$TMP/a5.json" baseline.factors.learn.wall_per_unit_x 1
+a5 "baseline untimed turns" "$TMP/cs" 'b["agents"]["turns_untimed"]=1' '{"wall":true,"agent_active":false,"cost":true}' '{"agent_active":["untimed turns (baseline)"]}'
+a5 "baseline agents unavailable" "$TMP/cs" 'b["agents"]["available"]=False' '{"wall":true,"agent_active":false,"cost":true}' '{"agent_active":["agents unavailable (baseline)"]}'
+a5 "baseline missing usage fields" "$TMP/cs" 'b["data_quality"]["missing_fields"]=2' '{"wall":true,"agent_active":true,"cost":false}' '{"cost":["missing usage fields (baseline)"]}'
+a5 "baseline clipped turns" "$TMP/cs" 'b["data_quality"]["clipped_turns"]=1' '{"wall":true,"agent_active":true,"cost":false}' '{"cost":["clipped turns (baseline)"]}'
+a5 "orchestrator inclusion differs" "$TMP/cs" 'b["orchestrator"]={"turns":1}' '{"wall":true,"agent_active":true,"cost":false}' '{"cost":["orchestrator inclusion differs"]}'
+a5 "baseline lacks agents block" "$TMP/cs" 'del b["agents"]' '{"wall":true,"agent_active":false,"cost":true}' '{"agent_active":["baseline coverage unknown"]}'
+a5 "baseline lacks data_quality" "$TMP/cs" 'del b["data_quality"]' '{"wall":true,"agent_active":true,"cost":false}' '{"cost":["baseline coverage unknown"]}'
+a5 "baseline lacks clipped_turns key" "$TMP/cs" 'del b["data_quality"]["clipped_turns"]' '{"wall":true,"agent_active":true,"cost":false}' '{"cost":["baseline coverage unknown"]}'
+# F1: nothing is inferred. Each explicit wall key missing (or non-boolean) -> wall, and therefore agent_active and
+# cost, are "baseline coverage unknown"; descriptive factor values are still computed.
+unk3='{"wall":false,"agent_active":false,"cost":false}'
+unkr='{"wall":["baseline coverage unknown"],"agent_active":["baseline coverage unknown"],"cost":["baseline coverage unknown"]}'
+a5 "baseline lacks clocks.complete (not inferred from wall_basis=verified)" "$TMP/cs" 'del b["clocks"]["complete"]' "$unk3" "$unkr"
+eq "F1: factor still computed without clocks.complete" "$TMP/a5.json" baseline.factors.learn.wall_per_unit_x 1
+a5 "baseline clocks.complete not a boolean" "$TMP/cs" 'b["clocks"]["complete"]="true"' "$unk3" "$unkr"
+a5 "baseline lacks class row shared_wall (not read as false)" "$TMP/cs" 'del b["per_class"]["learn"]["shared_wall"]' "$unk3" "$unkr"
+eq "F1: factor still computed without shared_wall" "$TMP/a5.json" baseline.factors.learn.cost_per_unit_x 1
+a5 "baseline shared_wall not a boolean" "$TMP/cs" 'b["per_class"]["learn"]["shared_wall"]=0' "$unk3" "$unkr"
+a5 "baseline lacks clocks.wall_basis (top-level copy is not consulted)" "$TMP/cs" 'b["wall_basis"]=b["clocks"].pop("wall_basis")' "$unk3" "$unkr"
+a5 "wall basis differs" "$TMP/cs" 'b["clocks"]["wall_basis"]="window"' '{"wall":false,"agent_active":false,"cost":false}' '{"wall":["wall basis differs"],"agent_active":["wall basis differs"],"cost":["wall basis differs"]}'
+a5 "current agents unavailable" "$TMP/absent-dir" 'pass' '{"wall":true,"agent_active":false,"cost":true}' '{"agent_active":["agents unavailable (current)"]}'
+a5 "current untimed + clipped turns (and orchestrator-less baseline)" "$TMP/ws" 'pass' '{"wall":true,"agent_active":false,"cost":false}' '{"agent_active":["untimed turns (current)"],"cost":["clipped turns (current)"]}'
+python3 "$TEL" report --ledger "$TMP/win.ndjson" --run w --sessions "$TMP/ws" --baseline "$TMP/a5b.json" --md "$TMP/a5.md" > /dev/null
+grep -q "agent_active NOT comparable (untimed turns (current))" "$TMP/a5.md" && grep -q "cost NOT comparable (clipped turns (current))" "$TMP/a5.md" \
+  && pass "A5: Markdown names each metric's failed condition and side" || fail "A5: Markdown reasons missing"
+
+# A11: per-class usage is whole-run, labelled on the line and in the record.
+eq "A11: usage_basis recorded" "$R" per_class.learn.usage_basis '"whole-run"'
+linehas "$TMP/r.md" '^- .learn.: 2 units' "whole-run" "not attributed" "not additive"
+linehas "$TMP/mx.md" '^- .(learn|audit).: 1 units' "whole-run"
+linehas "$TMP/b.md" '^- .learn.: wall' "whole-run"
+eq "A11: every mixed-class row carries the basis" "$TMP/mx.json" per_class.audit.usage_basis '"whole-run"'
+
+# A12: pre-registration needs ts <= run start AND an earlier ledger line than the run's first run start.
+cat > "$TMP/pre.ndjson" << 'EOF2'
+{"v":1,"ts":"2025-01-01T09:00:00Z","kind":"estimate","run":"p","unit_class":"learn","units":1,"human_hours":2,"by":"early"}
+{"v":1,"ts":"2025-01-01T10:00:00Z","kind":"run","run":"p","edge":"start"}
+{"v":1,"ts":"2025-01-01T09:00:00Z","kind":"estimate","run":"p","unit_class":"learn","units":1,"human_hours":3,"by":"backdated"}
+{"v":1,"ts":"2025-01-01T10:05:00Z","kind":"unit","run":"p","id":"u","class":"learn","status":"done"}
+{"v":1,"ts":"2025-01-01T10:10:00Z","kind":"milestone","run":"p","name":"verified"}
+EOF2
+python3 "$TEL" report --ledger "$TMP/pre.ndjson" --run p --json "$TMP/pre.json" --md "$TMP/pre.md" > /dev/null
+eq "A12: control: early line + early ts is pre-registered" "$TMP/pre.json" estimates.preregistered.#0.by '"early"'
+eq "A12: exactly one pre-registered" "$TMP/pre.json" estimates.preregistered.#1 null
+eq "A12: backdated late append is unverifiable" "$TMP/pre.json" estimates.unverifiable.#0.by '"backdated"'
+python3 - "$TMP/pre.json" "$TMP/ns.json" << 'PY' && pass "A12: every unverifiable record has a reason (ledger order / no run start)" || fail "A12: unverifiable reasons wrong"
+import json, sys
+a = json.load(open(sys.argv[1]))["estimates"]["unverifiable"]
+b = json.load(open(sys.argv[2]))["estimates"]["unverifiable"]
+ok = len(a) == 1 and "backdated" in a[0]["reason"] and "ledger" in a[0]["reason"] and "factor_x" not in a[0]
+ok = ok and b and all(x["reason"] == "no run start" for x in b)
+sys.exit(0 if ok else 1)
+PY
+linehas "$TMP/pre.md" 'pre-registered estimate' "timestamp and ledger order only" "not proof of prior registration"
+linehas "$TMP/pre.md" 'UNVERIFIABLE' "timestamp and ledger order only" "backdated"
 
 # record subcommand appends a valid schema-v1 line.
 python3 "$TEL" record --ledger "$TMP/rec/e.ndjson" unit run=q id=u1 class=c status=done
