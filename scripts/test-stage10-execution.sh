@@ -76,12 +76,13 @@ make_patch() {
 write_manifest() {
   local identifier="$1" baseline="$2" evaluator_mode="$3"
   local evaluator_timeout="${4:-1}" budget="${5:-3}" non_regression_mode="${6:-pass}"
+  local non_regression_timeout="${7:-1}"
   python3 - "$PROJECT/.wgm/execution.json" "$identifier" "$baseline" "$evaluator_mode" \
-    "$evaluator_timeout" "$budget" "$non_regression_mode" <<'PY'
+    "$evaluator_timeout" "$budget" "$non_regression_mode" "$non_regression_timeout" <<'PY'
 import json
 import sys
 
-path, identifier, baseline, evaluator_mode, evaluator_timeout, budget, non_regression_mode = sys.argv[1:]
+path, identifier, baseline, evaluator_mode, evaluator_timeout, budget, non_regression_mode, non_regression_timeout = sys.argv[1:]
 manifest = {
     "id": identifier,
     "hypothesis": "the local fixture candidate passes bounded checks",
@@ -98,7 +99,7 @@ manifest = {
     "non_regression": [{
         "name": "non-regression",
         "argv": ["python3", "check.py", non_regression_mode],
-        "timeout_seconds": 1,
+        "timeout_seconds": float(non_regression_timeout),
     }],
     "budget": {"seconds": float(budget), "cost_units": 0},
 }
@@ -304,10 +305,14 @@ else
 fi
 
 # 9) This assertion protects the aggregate budget rather than only per-command timeouts: remaining
-# total time caps the second check, whose timeout result is retained before full cleanup.
+# total time caps the second check, whose timeout result is retained before full cleanup. The total
+# budget (3 s) and the evaluator's own timeout (3 s, equal to the budget) leave the evaluator room to
+# finish on a loaded machine, and the hanging non-regression check's own timeout (10 s) exceeds what
+# remains, so only the remaining budget can cap it. The last check must be that non-regression check,
+# so an evaluator that consumed the budget can never pass as the budget capping the hanging check.
 new_fixture budget
 make_patch
-write_manifest budget "$BASELINE" pass 1 0.25 hang
+write_manifest budget "$BASELINE" pass 3 3 hang 10
 run_execution
 if [[ "$RC" -eq 1 ]] && [[ -f "$REPORT" ]] && [[ ! -e "$WORKTREE" ]] \
    && ! git -C "$PROJECT" show-ref --verify --quiet "refs/heads/$BRANCH" \
@@ -318,8 +323,10 @@ import sys
 report = json.load(open(sys.argv[1], encoding="utf-8"))
 assert report["status"] == "timeout"
 assert report["cleanup"]["state"] == "removed"
+assert report["checks"][-1]["name"] == "non-regression"
 assert report["checks"][-1]["runner_result_record"]["status"] == "timeout"
-assert report["checks"][-1]["effective_timeout_seconds"] < 1
+assert report["checks"][-1]["effective_timeout_seconds"] > 0
+assert report["checks"][-1]["effective_timeout_seconds"] < 10
 assert report["budget"]["remaining_ms"] == 0
 PY
 then
