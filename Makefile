@@ -63,6 +63,7 @@ test: ## Run the bash harnesses (install, adapters, Stage 10, loop, Git/jj swarm
 	bash scripts/test-harvest-hive.sh
 	bash scripts/test-compile-heuristics.sh
 	bash scripts/test-grade-evals.sh
+	bash scripts/test-telemetry.sh
 	bash scripts/test-check-evals.sh
 	bash scripts/test-check-harnesses.sh
 	bash scripts/test-check-docs.sh

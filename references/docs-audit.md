@@ -95,6 +95,17 @@ For every getting-started or task journey:
 - deliberately run one invalid or degraded path and record the real operator-facing error string;
 - check placeholders and required options by running the command, not by confirming that the prose is
   factually accurate.
+- **Execute the published block verbatim.** Extract the fenced block exactly as published and
+  substitute only declared placeholders; a harness that rewrites a usage line can hide destructive
+  defects. Require an injection marker for each injected failure, a no-injection success control, and
+  a deliberately error-swallowing canary implementation the harness must flag (`[learn]` issue #169).
+  **Multi-step examples must fail fast.** Do not rely on STOP comments or a final exit check: chain
+  dependent commands with `&&` (or check each exit status), preserve each native exit status
+  immediately, and archive per-run logs before another launch truncates them (PowerShell Stop alone
+  does not check native exits). Run the exact fence or helper against a PATH stub or temporary-log
+  fixture, force a prerequisite failure, and assert downstream commands are not launched and the
+  original failure stays in the log. Label this offline control-flow evidence, not proof of the real
+  service; review duplicate examples across the fleet (`[learn]` issue #164).
 
 For reference tables, a `<!-- wgm: complete-table -->` marker opts the immediately following table
 into the structural gate. Every cell must be populated from the validating source; blank cells and

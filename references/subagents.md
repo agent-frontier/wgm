@@ -54,7 +54,10 @@ flowchart LR
 - **Review** → **two independent passes**: `wgm-spec-reviewer` first (did we build the right thing?),
   then `wgm-quality-reviewer` (is it correct, and does the check prove it?). Two sets of eyes catch
   spec drift and quality bugs separately — one reviewer rationalizes its own misses. **Neither may
-  emit PASS without the iteration's ruggedness verdict in hand** (below).
+  emit PASS without the iteration's ruggedness verdict in hand** (below). Dispatch `/rugged review`
+  BEFORE the reviewers declare PASS; if reviewers already ran, add a post-verdict confirmation pass
+  by the same reviewer roles bound to the same commit SHA, and withhold acceptance until both
+  confirm (`[learn]` issue #159).
 - **Review one immutable commit.** Hand each reviewer a pinned commit and pause the writer until
   the verdict is in. If the commit moves, discard the stale review and restart against the new
   commit; record the reviewed commit beside each verdict. When snapshotting a candidate commit with
@@ -218,6 +221,12 @@ Ownership boundaries the dispatcher makes deterministic rather than merely askin
 | One audit per tree | An atomic `.wgm/audit.lock` at the worktree root refuses a concurrent run — including one launched from a subdirectory — before any role starts; a non-git target is refused outright unless `--allow-unguarded` is passed. |
 | The holdout stays the validator's | Root `scenarios/` and `.wgm/scenarios/` are excluded from all snapshot reads and never named in reports or modified by the dispatcher. |
 
+**Keep dispatcher logs outside the guarded tree.** Redirecting the dispatcher's live output into
+the audited target tree makes the log's own mutation trip the repository-state guard before
+consolidation. Write the log outside that tree, check the exact printed delta, and rerun the
+complete audit unchanged; the guard rejected correctly, so never waive or weaken it
+(`[learn]` issue #171).
+
 The dispatcher resolves canonical roles, discipline, and template from its installed skill root and
 refuses missing resources before dispatch. Exit `0` / `audit: COMPLETE` means report production,
 not qualitative GREEN; native checking makes the same structure-only claim.
@@ -344,6 +353,23 @@ above. Each rule below was earned from a run that got it wrong:
   the loop still owns Git commits on per-lane branches. Do not run `jj new` or other operations
   that move a lane's Git HEAD during the loop; a failed/dirty/unverified lane is retained for review.
   See [`docs/reference/cli-swarm.md`](../docs/reference/cli-swarm.md).
+- **Snapshot every lane workspace before integrating.** A jj edit in workspace X is recorded only
+  when a jj command runs inside X; reading `X@` from elsewhere integrates the old tree. Run
+  `jj status` (after `jj workspace update-stale` if stale) INSIDE each lane workspace first
+  (`[learn]` issue #154).
+- **Make stack integration idempotent.** A no-op rebase (`jj rebase -r C -d P` when P is already C's
+  parent) still rewrites C's commit id, churning the commit that reviews and evidence bind to.
+  Rebase only when the parent differs; prove it by integrating twice and comparing tip ids
+  (`[learn]` issue #155).
+- **Assert `jj root` equals the inspected directory.** jj resolves the enclosing parent repository,
+  so a plain directory left by a failed workspace creation inside the tree reads as a clean
+  workspace. If `jj root` differs from the directory, report the check uninspectable; keep a
+  fixture for the nested plain-directory case (`[learn]` issue #156).
+- **Never remediate a parent lane and its child lane concurrently.** Amending the parent
+  auto-rebases the child; concurrent child edits create divergent copies and a racing snapshot
+  can overwrite the latest edit. Fix stacked lanes one at a time, snapshot each workspace
+  serially, fail integration on divergence, and resolve by keeping the copy whose content
+  matches the lane report (`[learn]` issue #168).
 - **Keep long-wave evidence on a persistent path.** Create the wave's working directory (logs,
   prompts, review outputs) on a persistent path from the start, never `/tmp` or another host temp
   dir a cleaner may purge mid-wave. Copy each piece of evidence into the repository when it is
@@ -412,6 +438,13 @@ So the canonical file is authored once and translated deterministically:
   opaque-command runner (above) — provided the host's headless command is configured as its agent.
   That is a fallback with weaker independence, and it says so; whether it has been exercised on a
   particular harness is recorded per entry in `compatibility/harnesses.json`, not assumed here.
+- **Delegated validation denial is not a product failure.** A source-only worker may be unable to
+  execute a required container or audit (permission denied) even when the authorized host can.
+  Keep the evidence gate blocked and the failed attempt recorded; run the exact check in an
+  explicitly authorized context before changing product code. Scripts, mocked command contracts,
+  and older adjacent integrations are not runtime proof. A later real execution supersedes the
+  missing-signal status without erasing dissent or claiming source-only reviewers ran it. With no
+  authorized context, stop blocked rather than bypassing permissions (`[learn]` issue #165).
 - **Ralph-full (`scripts/loop.sh`):** the runner invokes the configured agent command; it does not
   supply per-role implementer/reviewer dispatch. Separate fresh non-author reviewers or an independent
   human handoff must still supply both correctness-review passes; if unavailable, the gate is blocked.

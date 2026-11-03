@@ -90,6 +90,7 @@ bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + cons
 bash scripts/test-compile-heuristics.sh       # heuristics ledger fragments: compile order, stale check, lint
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
 bash scripts/test-grade-evals.sh              # fake-agent grading integrity, errors and baseline gates
+bash scripts/test-telemetry.sh                # efficiency report: clocks, session turns, baselines, estimates
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness
 actionlint                                    # lint .github/workflows/*.yml (CI: lint.yml)
 ```

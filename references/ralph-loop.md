@@ -221,6 +221,35 @@ loop, with progress living on disk (not the model's context) between passes
   `loop.sh` executes them after the agent returns and also injects the list into the prompt
   (`--gates FILE` to override).
 
+- **Make inspection tri-state, never a negated probe.** Treat probe exit 1 as absent, 0 as
+  alive/present, and anything else as uninspectable (a gate failure): `! pgrep -f X` also passes
+  when pgrep itself fails, and `[[ -z "$(cmd)" ]]` reads a failed command as clean, so check the exit
+  code of every inspection whose empty output means clean. `bash -c "pgrep -f X"` matches its own
+  command line (self-match); use a bracket pattern such as `wor[k]er-` (`[learn]` issue #157).
+- **Check every CLI flag a publish/release script passes against the real `--help`.** Fake
+  executables on PATH (seams) cannot see flag drift: grep the installed tool's `--help` for each
+  subcommand's flags, and add a bogus-flag counterfactual that must fail (`[learn]` issue #158).
+- **Run the CI runner's pinned ShellCheck version locally.** A newer local shellcheck can be silent
+  where the runner's older version fails (e.g. SC2317 on functions called only indirectly by trap or
+  wrappers). Fetch the pinned release into the gate and annotate indirect invocations with a reasoned
+  `# shellcheck disable=SC2317  # invoked indirectly (<how>)` (`[learn]` issue #166).
+- **A green build is not capability evidence.** A green container build, successful CLI startup and
+  a zero-result scan do not prove an execution capability exists. Verify the required helper
+  binaries and dynamic data in the shipped non-root runtime, then assert the selected packaged check
+  executed and completed: a missing selection can run zero checks and print plausible empty output.
+  Keep execution evidence separate from positive detection yield, and require a real smoke at the
+  owned boundary before exposing the capability in a UI (`[learn]` issue #160).
+- **Probe an installed validation script's real target.** An installed script can bind to its own
+  distribution root. Before adopting it as downstream backpressure, probe the actual target; replace
+  a mis-scoped check with an explicit target-repository validator and preserve the original failure
+  as origin evidence instead of editing the installed distribution (`[learn]` issue #161).
+- **Bounded output capture must carry overflow to the gate.** When a collector discards data,
+  propagate overflow and the actual end-of-stream state to the completion gate; validating only the
+  retained tail can lose an earlier failure while keeping success-shaped text. Test a failure prefix
+  outside the retained buffer with valid-looking completion text at the end, plus an incomplete-reader
+  case. Reject completion when evidence was lost, but keep a bounded diagnostic tail
+  (`[learn]` issue #172).
+
 ## The ruggedness gate in the loop
 Backpressure proves the change *works*; the ruggedness gate asks whether it **holds up for the
 operators and environment that actually run it**. It is part of the loop's Review step on every
