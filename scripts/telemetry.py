@@ -12,6 +12,7 @@ speedup claim or billing data.
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import re
 import sys
@@ -75,7 +76,45 @@ class DQ:
     def __init__(self):
         self.c = dict.fromkeys(["malformed_lines", "unknown_kinds", "unmatched_spans", "unmatched_phases",
                                 "negative_intervals", "excluded_turns", "missing_fields",
-                                "duplicate_session_files", "missing_inputs"], 0)
+                                "duplicate_session_files", "missing_inputs", "unowned_events",
+                                "invalid_events", "clipped_turns"], 0)
+
+
+def fnum(v):
+    """Finite int/float, booleans excluded."""
+    return num(v) and math.isfinite(v)
+
+
+def sstr(v):
+    return isinstance(v, str) and v != ""
+
+
+def valid_event(e):
+    """Per-kind required fields (references/telemetry.md, "Required fields per kind")."""
+    k, edge = e["kind"], e.get("edge")
+    if k == "run":
+        return edge in ("start", "end")
+    if k == "phase":
+        return sstr(e.get("name")) and edge in ("start", "end")
+    if k == "span":
+        if not sstr(e.get("span")) or edge not in ("start", "end"):
+            return False
+        if edge == "start":
+            return sstr(e.get("cat"))
+        return isinstance(e.get("rc"), int) and not isinstance(e.get("rc"), bool)
+    if k == "candidate":
+        return sstr(e.get("sha")) and e.get("decision") in ("accept", "reject")
+    if k == "unit":
+        return sstr(e.get("id")) and sstr(e.get("class")) and sstr(e.get("status"))
+    if k == "milestone":
+        return e.get("name") in ("ready-to-test", "merged", "verified") \
+            and all(x not in e or sstr(e[x]) for x in ("sha", "publication"))
+    if k == "expect":
+        return isinstance(e.get("publication"), str) and e["publication"] != ""
+    if k == "estimate":
+        return sstr(e.get("unit_class")) and fnum(e.get("units")) and e["units"] > 0 \
+            and fnum(e.get("human_hours")) and e["human_hours"] > 0 and sstr(e.get("by"))
+    return False
 
 
 def read_ledger(path, dq):
@@ -98,19 +137,21 @@ def read_ledger(path, dq):
                 dq.c["malformed_lines"] += 1
                 continue
             e["_t"] = t
+            e["_i"] = len(events)  # ledger append position (A12)
             events.append(e)
     return events
 
 
 def match_edges(events, key, dq, counter):
-    """Pair start/end edges by id. Returns (pairs, ) where pair = (start_ev, end_ev)."""
-    open_, pairs = {}, []
+    """Pair start/end edges by id. Returns (pairs, unmatched_starts); pair = (start_ev, end_ev)."""
+    open_, pairs, lost = {}, [], []
     for e in events:
         i = e.get(key)
         edge = e.get("edge")
         if edge == "start":
             if i in open_:
                 dq.c[counter] += 1
+                lost.append(open_[i])
             open_[i] = e
         elif edge == "end":
             s = open_.pop(i, None)
@@ -121,7 +162,8 @@ def match_edges(events, key, dq, counter):
             else:
                 pairs.append((s, e))
     dq.c[counter] += len(open_)
-    return pairs
+    lost.extend(open_.values())
+    return pairs, lost
 
 
 def inventory(dirs, orch, dq):
@@ -192,9 +234,23 @@ def parse_session(path, win, dq):
             cur["msgs"].append((role, m, e))
     res = []
     for tr in turns:
-        if win is not None and not (win[0] <= tr["start"] <= win[1]):
-            dq.c["excluded_turns"] += 1
+        s_, e_ = tr["start"], tr["end"]
+        cs, ce = s_, e_
+        if e_ is not None and e_ < s_:
+            dq.c["negative_intervals"] += 1
             continue
+        if win is not None:
+            if e_ is None:
+                if not (win[0] <= s_ <= win[1]):
+                    dq.c["excluded_turns"] += 1
+                    continue
+            else:
+                if e_ < win[0] or s_ > win[1]:
+                    dq.c["excluded_turns"] += 1
+                    continue
+                cs, ce = max(s_, win[0]), min(e_, win[1])
+                if (cs, ce) != (s_, e_):
+                    dq.c["clipped_turns"] += 1
         model = tool = tokens = cost = 0.0
         for role, m, e in tr["msgs"]:
             miss = False
@@ -204,7 +260,7 @@ def parse_session(path, win, dq):
                     cur_ = s
                     for n in names:
                         cur_ = cur_.get(n) if isinstance(cur_, dict) else None
-                    if num(cur_):
+                    if fnum(cur_) and cur_ >= 0:
                         return cur_
                 return None
             if role == "assistant":
@@ -221,7 +277,7 @@ def parse_session(path, win, dq):
                 miss = d is None
             if miss:
                 dq.c["missing_fields"] += 1
-        res.append({"start": tr["start"], "end": tr["end"], "model_s": model, "tool_s": tool,
+        res.append({"start": tr["start"], "end": tr["end"], "cs": cs, "ce": ce, "model_s": model, "tool_s": tool,
                     "tokens": tokens, "cost": cost})
     return res
 
@@ -229,7 +285,7 @@ def parse_session(path, win, dq):
 def agg(turns):
     timed = [t for t in turns if t["end"] is not None]
     return {"turns": len(timed), "turns_untimed": len(turns) - len(timed),
-            "active_s": rnd(sum(t["end"] - t["start"] for t in timed)),
+            "active_s": rnd(sum(t["ce"] - t["cs"] for t in timed)),
             "model_s": rnd(sum(t["model_s"] for t in timed)),
             "tool_s": rnd(sum(t["tool_s"] for t in timed)),
             "tokens": rnd(sum(t["tokens"] for t in timed)),
@@ -239,9 +295,9 @@ def agg(turns):
 def peak(turns):
     pts = []
     for t in turns:
-        if t["end"] is not None and t["end"] > t["start"]:
-            pts.append((t["start"], 1))
-            pts.append((t["end"], -1))
+        if t["end"] is not None and t["ce"] > t["cs"]:
+            pts.append((t["cs"], 1))
+            pts.append((t["ce"], -1))
     pts.sort()  # at equal time -1 sorts before +1: half-open [start,end)
     cur = best = 0
     for _, d in pts:
@@ -250,18 +306,73 @@ def peak(turns):
     return best
 
 
+def judge(bk, bcomplete, bbasis, b, basis, shared, agents, orch, dqc):
+    """A5: per-metric comparability. Returns ({wall, agent_active, cost}: bool, {metric: [reasons]})."""
+    unk = "baseline coverage unknown"
+    wall_r = []
+    # Nothing is inferred: wall needs explicit boolean clocks.complete, string clocks.wall_basis, boolean shared_wall.
+    if not isinstance(bcomplete, bool) or not isinstance(bbasis, str) or not isinstance(bk.get("shared_wall"), bool):
+        wall_r.append(unk)
+    else:
+        if not bcomplete:
+            wall_r.append("incomplete run (baseline)")
+        if bbasis != basis:
+            wall_r.append("wall basis differs")
+        if bk["shared_wall"]:
+            wall_r.append("shared wall (baseline)")
+    if shared:
+        wall_r.append("shared wall (current)")
+    ba = b.get("agents") if isinstance(b.get("agents"), dict) else None
+    bq = b.get("data_quality") if isinstance(b.get("data_quality"), dict) else None
+    act_r, cost_r = list(wall_r), list(wall_r)
+    # agent_active
+    if not agents["available"]:
+        act_r.append("agents unavailable (current)")
+    if agents["turns_untimed"] != 0:
+        act_r.append("untimed turns (current)")
+    if ba is None or "available" not in ba or "turns_untimed" not in ba:
+        if unk not in act_r:
+            act_r.append(unk)
+    else:
+        if ba["available"] is not True:
+            act_r.append("agents unavailable (baseline)")
+        if ba["turns_untimed"] != 0:
+            act_r.append("untimed turns (baseline)")
+    # cost
+    if dqc["missing_fields"] != 0:
+        cost_r.append("missing usage fields (current)")
+    if dqc["clipped_turns"] != 0:
+        cost_r.append("clipped turns (current)")
+    if bq is None or "missing_fields" not in bq or "clipped_turns" not in bq or "orchestrator" not in b:
+        if unk not in cost_r:
+            cost_r.append(unk)
+    else:
+        if bq["missing_fields"] != 0:
+            cost_r.append("missing usage fields (baseline)")
+        if bq["clipped_turns"] != 0:
+            cost_r.append("clipped turns (baseline)")
+        if (orch is not None) != isinstance(b.get("orchestrator"), dict):
+            cost_r.append("orchestrator inclusion differs")
+    reasons = {"wall": wall_r, "agent_active": act_r, "cost": cost_r}
+    return ({k: not v for k, v in reasons.items()}, {k: v for k, v in reasons.items() if v})
+
+
 def build(args):
     dq = DQ()
     allev = read_ledger(args.ledger, dq)
-    runs = sorted({e["run"] for e in allev if isinstance(e.get("run"), str) and e["run"]})
+    # A1: an event without a non-empty string `run` belongs to no run (counted once, whole ledger).
+    dq.c["unowned_events"] = sum(1 for e in allev if not sstr(e.get("run")))
+    allev = [e for e in allev if sstr(e.get("run"))]
+    runs = sorted({e["run"] for e in allev})
     run = args.run
     if run is None:
         if len(runs) > 1:
             raise SystemExit("error: several runs in ledger (%s); choose one with --run" % ", ".join(runs))
         run = runs[0] if runs else None
-    if run is None or (args.run is not None and run not in runs):
-        raise SystemExit("error: no events for run %r" % run)
-    ev = [e for e in allev if e.get("run") in (run, None)]
+    if run is None or run not in runs:
+        sys.stderr.write("error: run %r has no valid events (0 invalid)\n" % run)
+        raise SystemExit(2)
+    ev = [e for e in allev if e["run"] == run]
     ev_file = list(ev)  # ledger (append) order: span/phase edges pair in this order, never by ts
     ev.sort(key=lambda e: e["_t"])  # stable; used for window, milestones and "last" selections
     for e in ev:
@@ -269,8 +380,14 @@ def build(args):
             dq.c["unknown_kinds"] += 1
     ev = [e for e in ev if e["kind"] in KINDS]
     ev_file = [e for e in ev_file if e["kind"] in KINDS]
+    # A2: per-kind required fields; invalid evidence is excluded and counted, never repaired.
+    n_in = len(ev)
+    ev = [e for e in ev if valid_event(e)]
+    ev_file = [e for e in ev_file if valid_event(e)]
+    dq.c["invalid_events"] += n_in - len(ev)
     if not ev:
-        raise SystemExit("error: no usable events for run %r" % run)
+        sys.stderr.write("error: run %r has no valid events (%d invalid)\n" % (run, dq.c["invalid_events"]))
+        raise SystemExit(2)
 
     rs = [e for e in ev if e["kind"] == "run" and e.get("edge") == "start"]
     re_ = [e for e in ev if e["kind"] == "run" and e.get("edge") == "end"]
@@ -278,6 +395,7 @@ def build(args):
     t0 = rs[0]["_t"] if rs else None
     t1 = re_[-1]["_t"] if re_ else ev[-1]["_t"]
     window_s = t1 - t0 if t0 is not None else None
+    first_start_i = min((e["_i"] for e in rs), default=None)
 
     # clocks
     expected = sorted({e["publication"] for e in ev if e["kind"] == "expect" and isinstance(e.get("publication"), str)})
@@ -309,7 +427,7 @@ def build(args):
         basis, wall = "window", window_s
 
     phases = {}
-    for s, e in match_edges([x for x in ev_file if x["kind"] == "phase"], "name", dq, "unmatched_phases"):
+    for s, e in match_edges([x for x in ev_file if x["kind"] == "phase"], "name", dq, "unmatched_phases")[0]:
         phases[s["name"]] = phases.get(s["name"], 0) + (e["_t"] - s["_t"])
     clocks = {"wall_s": rnd(wall), "wall_basis": basis, "complete": complete,
               "expected_publications": expected, "verified_publications": verified_pubs,
@@ -320,10 +438,11 @@ def build(args):
               "phases_s": {k: rnd(phases[k]) for k in sorted(phases)}}
 
     # spans
-    spairs = match_edges([x for x in ev_file if x["kind"] == "span"], "span", dq, "unmatched_spans")
+    spairs, slost = match_edges([x for x in ev_file if x["kind"] == "span"], "span", dq, "unmatched_spans")
     gates = [(s, e) for s, e in spairs if s.get("cat") == "gate"]
     gates_o = {"count": len(gates), "total_s": rnd(sum(e["_t"] - s["_t"] for s, e in gates)),
-               "failed": sum(1 for s, e in gates if e.get("rc") not in (0, None) )}
+               "failed": sum(1 for s, e in gates if e.get("rc") != 0),
+               "unknown": sum(1 for s in slost if s.get("cat") == "gate")}
     lanes = {}
     for s, e in spairs:
         if s.get("cat") == "agent":
@@ -334,7 +453,7 @@ def build(args):
     par = div(sum(lives), max(lives)) if lives else None
 
     # candidates
-    cand = [e for e in ev if e["kind"] == "candidate" and e.get("decision") in ("accept", "reject")]
+    cand = [e for e in ev if e["kind"] == "candidate"]
     acc = sum(1 for e in cand if e["decision"] == "accept")
     cands = {"evaluated": len(cand), "accepted": acc, "rejected": len(cand) - acc,
              "first_pass_yield": rnd(div(acc, len(cand)))}
@@ -348,7 +467,9 @@ def build(args):
     shared = len(units) > 1
 
     # sessions
-    win = (t0, t1) if t0 is not None else None  # None: no in-window filter
+    # A3: one accounting window, the same as the wall: [run start, run start + wall].
+    win = (t0, t0 + wall) if t0 is not None and wall is not None else None  # None: no in-window filter
+    acct_end = win[1] if win else None
     all_turns, by_lane, nsess = [], {}, 0
     nread = 0
     for p in inventory(args.sessions or [], args.orchestrator_session, dq):
@@ -390,7 +511,8 @@ def build(args):
         else:
             cu = tu = None
         per_class[k] = {"units": n, "wall_min_per_unit": wm, "agent_active_min_per_unit": aa,
-                        "cost_per_unit": cu, "tokens_per_unit": tu, "shared_wall": shared}
+                        "cost_per_unit": cu, "tokens_per_unit": tu, "shared_wall": shared,
+                        "usage_basis": "whole-run"}
 
     comp = None
     if avail:
@@ -406,7 +528,11 @@ def build(args):
         rec = {"unit_class": e.get("unit_class"), "units": e.get("units"),
                "human_hours": e.get("human_hours"), "by": e.get("by"), "ts": iso(e["_t"])}
         if t0 is None:
+            rec["reason"] = "no run start"
             unver.append(rec)  # cannot check pre-registration without a run start
+        elif e["_t"] <= t0 and e["_i"] > first_start_i:
+            rec["reason"] = "backdated: timestamp precedes the run start but the line was appended after the first run start in the ledger"
+            unver.append(rec)
         elif e["_t"] <= t0:
             pc = per_class.get(rec["unit_class"])
             f = None
@@ -435,10 +561,8 @@ def build(args):
             baseline["refused"].append("incomplete run")
         else:
             bc = b.get("clocks") if isinstance(b.get("clocks"), dict) else {}
-            bbasis = b.get("wall_basis", bc.get("wall_basis"))
-            bcomplete = b.get("complete", bc.get("complete"))
-            if bcomplete is None:
-                bcomplete = bbasis == "verified"
+            bbasis = bc.get("wall_basis")
+            bcomplete = bc.get("complete")
             bpc = b.get("per_class") if isinstance(b.get("per_class"), dict) else {}
             common = sorted(set(bpc) & set(per_class))
             if not common:
@@ -446,7 +570,7 @@ def build(args):
                     ", ".join(sorted(bpc)) or "none", ", ".join(sorted(per_class)) or "none"))
             for k in common:
                 bk = bpc[k] if isinstance(bpc[k], dict) else {}
-                comparable = bool(bcomplete) and not shared and not bk.get("shared_wall") and bbasis == basis
+                comparable, why = judge(bk, bcomplete, bbasis, b, basis, shared, agents, orch, dq.c)
                 fac = {}
                 for fname, mname, mkey in (("wall_per_unit_x", "wall_per_unit", "wall_min_per_unit"),
                                            ("agent_active_per_unit_x", "agent_active_per_unit", "agent_active_min_per_unit"),
@@ -463,11 +587,12 @@ def build(args):
                     else:
                         fac[fname] = rnd(div(base, cur))
                 fac["comparable"] = comparable
+                fac["not_comparable"] = why
                 fac["baseline_provenance"] = bprov
                 baseline["factors"][k] = fac
 
     return {"schema": SCHEMA, "run": run, "provenance": provenance,
-            "window": {"start": iso(t0), "end": iso(t1)}, "clocks": clocks, "agents": agents,
+            "window": {"start": iso(t0), "end": iso(t1), "accounting_end": iso(acct_end)}, "clocks": clocks, "agents": agents,
             "orchestrator": orch, "gates": gates_o, "candidates": cands, "units": units,
             "per_class": per_class, "ratios": ratios, "baseline": baseline,
             "estimates": {"preregistered": pre, "ignored_late": late, "unverifiable": unver},
@@ -484,7 +609,9 @@ def markdown(r):
     c, a, o, q = r["clocks"], r["agents"], r["orchestrator"], r["data_quality"]
     L = ["# Efficiency report — run %s" % r["run"], "",
          "> No ratio below is a causal speedup claim, and none is billing data: no serial counterfactual was run.", "",
-         "Window: %s → %s · provenance: %s" % (r["window"]["start"] or "unavailable", r["window"]["end"], r["provenance"]), "",
+         "Window: %s → %s · accounting window (wall and session figures): %s → %s · provenance: %s" % (
+             r["window"]["start"] or "unavailable", r["window"]["end"], r["window"]["start"] or "unavailable",
+             r["window"]["accounting_end"] or "unavailable", r["provenance"]), "",
          "## Clocks",
          "- Wall: %s (measured; basis `%s`, complete: %s)" % (fx(c["wall_s"], " s"), c["wall_basis"], str(c["complete"]).lower())
          + (" — wall unavailable: the run has no `run start` event" if c["wall_basis"] == "unavailable" else ""),
@@ -520,7 +647,7 @@ def markdown(r):
     if not r["per_class"]:
         L.append("- unavailable (no units done)")
     for k, p in r["per_class"].items():
-        L.append("- `%s`: %d units; wall %s min/unit (measured); agent active %s min/unit (lower bound); cost %s/unit; tokens %s/unit (measured from session usage; available sources only)%s" % (
+        L.append("- `%s`: %d units; wall %s min/unit (measured); agent active %s min/unit (whole-run total ÷ units; lower bound); cost %s/unit; tokens %s/unit (measured from session usage; whole-run totals ÷ units, not attributed to the class, not additive across classes; available sources only)%s" % (
             k, p["units"], fx(p["wall_min_per_unit"]), fx(p["agent_active_min_per_unit"]), fx(p["cost_per_unit"]),
             fx(p["tokens_per_unit"]), "; SHARED WALL (whole wall divided by this class's units)" if p["shared_wall"] else ""))
     L += ["", "## Baseline comparison (descriptive)"]
@@ -530,9 +657,11 @@ def markdown(r):
     else:
         L.append("- Baseline run `%s`, provenance: %s" % (b["run"], b["provenance"]))
         for k, f in b["factors"].items():
-            L.append("- `%s`: wall %s, agent-active (lower bound) %s, cost (session usage) %s — Nx vs baseline under these boundaries; %s; baseline %s%s" % (
+            cm = f["comparable"]
+            L.append("- `%s`: wall %s, agent-active (whole-run, lower bound) %s, cost (whole-run, session usage) %s — Nx vs baseline under these boundaries; %s; baseline %s%s" % (
                 k, fx(f["wall_per_unit_x"], "x"), fx(f["agent_active_per_unit_x"], "x"), fx(f["cost_per_unit_x"], "x"),
-                "comparable" if f["comparable"] else "NOT comparable (partial, shared-wall or differing wall basis)",
+                "; ".join("%s %s" % (m, "comparable" if cm[m] else "NOT comparable (%s)" % ", ".join(f["not_comparable"][m]))
+                          for m in ("wall", "agent_active", "cost")),
                 f["baseline_provenance"], " (reconstructed, not newly measured)" if f["baseline_provenance"] == "reconstructed" else ""))
         for x in b["refused"]:
             L.append("- refused: %s" % x)
@@ -541,12 +670,13 @@ def markdown(r):
     if not e["preregistered"] and not e["ignored_late"] and not e["unverifiable"]:
         L.append("- none")
     for x in e["preregistered"]:
-        L.append("- `%s`: %s units, %s h by %s → %s (pre-registered estimate, not measured)" % (
+        L.append("- `%s`: %s units, %s h by %s → %s (pre-registered estimate, not measured; classified by timestamp and ledger order only — not proof of prior registration)" % (
             x["unit_class"], x["units"], x["human_hours"], x["by"], fx(x["factor_x"], "x")))
     for x in e["unverifiable"]:
-        L.append("- UNVERIFIABLE (no run start, pre-registration cannot be checked): `%s`, %s h by %s at %s" % (x["unit_class"], x["human_hours"], x["by"], x["ts"]))
+        L.append("- UNVERIFIABLE (%s; classified by timestamp and ledger order only — not proof of prior registration): `%s`, %s h by %s at %s" % (
+            x["reason"], x["unit_class"], x["human_hours"], x["by"], x["ts"]))
     for x in e["ignored_late"]:
-        L.append("- IGNORED (registered after run start): `%s`, %s h by %s at %s" % (x["unit_class"], x["human_hours"], x["by"], x["ts"]))
+        L.append("- IGNORED (registered after run start; classified by timestamp only): `%s`, %s h by %s at %s" % (x["unit_class"], x["human_hours"], x["by"], x["ts"]))
     L += ["", "## Data quality", "- " + ", ".join("%s=%s" % (k, q[k]) for k in q), ""]
     return "\n".join(L)
 
