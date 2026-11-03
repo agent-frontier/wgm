@@ -236,17 +236,41 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
 - **Run the gate in an isolated HOME (recipe).** Define `copy_prereq` (above) and the function below
   in the shell that runs the gate. Record the prerequisite source paths first, then run the affected
   checks first and the original full gate second, each through `isolated_gate`. The temp HOME must lie
-  outside the current checkout (refused with exit 2 otherwise, gate not run); a refused copy exits 2
-  and never runs the gate. The gate's own status is preserved. The temp HOME is always removed
-  afterwards (bounded, a few seconds), or reported as `retained: <path>` on stderr. SIGINT/SIGTERM to
-  this shell terminate the gate's whole process group. The group is owned until it is empty: after the
-  gate's leader exits (normally or not) any remaining members get TERM, then KILL after a bounded 2 s,
-  and only then is the temp HOME removed. Then clean up or report `retained:` and
-  return 130/143. The gate may be a command or a shell function; it runs in a subshell with `HOME` set.
+  outside the current checkout (refused with exit 2 otherwise, gate not run). Form:
+  `isolated_gate [<src> <rel>]... -- <gate…>`: zero or more prerequisite pairs before `--`, each
+  copied with `copy_prereq` into the same temp HOME before the gate; any refused copy exits 2, never
+  runs the gate and removes the temp HOME. `isolated_gate -- <gate…>` runs with an empty temp HOME; a
+  missing `--`, an odd number of words before it, or no gate exits 2 with nothing run. The gate's own
+  status is preserved. The temp HOME is removed afterwards (bounded, a few seconds) only when every
+  stage's process group (each copy, then the gate) was observed absent; or reported as `retained: <path>` on stderr.
+  SIGINT/SIGTERM to this shell terminate the running stage's whole process group. The group is owned
+  until it is empty: after the leader exits (normally or not) any remaining members get TERM, then KILL
+  after a bounded 2 s, and in every case (members seen or not) absence is observed with
+  `pgrep -g <pgid>` as a tri-state probe (exit 1 absent, 0 present, other = could not inspect), bounded
+  to 2 s by one deadline covering every attempt (a probe still running at the deadline is killed and
+  reaped and counts as could-not-inspect; a probe that has COMPLETED is used whatever its timing: absence observed late is still absence, the deadline bounds waiting, not truth), before moving to the next stage. An unconfirmed copy-stage group stops the recipe before the
+  gate. If absence is not confirmed, the temp HOME is kept and
+  `retained: <path> (process group <pgid> not confirmed empty)` is printed on stderr; the function
+  returns 75 if the gate's own status was 0 (a pass is never reported over unproven cleanup), otherwise
+  the gate's status. Otherwise clean up or report `retained:` and return 130/143 after a signal. The
+  gate may be a command or a shell function; it runs in a subshell with `HOME` set and
+  `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` exported to `.config`,
+  `.local/share`, `.cache`, `.local/state` under the temp HOME (created; inherited values are
+  overridden). **Limit:** app-specific overrides holding absolute paths (tool `*_HOME`, cache or
+  self-update variables) are not redirected; unset or redirect them before native-app gates (see the
+  native-validation rule in `references/hard-to-test-domains.md`).
   ```bash
   isolated_gate() {
-    local src=$1 rel=$2 top home hr tr pid grp rc=0 sig=0 t stage mon=+m
-    shift 2
+    local top home hr tr pid grp rc=0 sig=0 t stage mon=+m np=0 k a r unc= pre=()
+    for a in "$@"; do
+      if [ "$a" = -- ]; then break; fi
+      np=$((np + 1))
+    done
+    if [ "$np" -ge "$#" ] || [ $((np % 2)) -ne 0 ] || [ "$np" -eq $(($# - 1)) ]; then
+      echo "usage: isolated_gate [<src> <rel>]... -- <gate>" >&2; return 2
+    fi
+    if [ "$np" -gt 0 ]; then pre=("${@:1:np}"); fi
+    shift $((np + 1))
     case $- in *m*) mon=-m;; esac
     trap '[ "$sig" -ne 0 ] || sig=130; [ -z "$grp" ] || kill -TERM -- "$grp" 2>/dev/null || :' INT
     trap '[ "$sig" -ne 0 ] || sig=143; [ -z "$grp" ] || kill -TERM -- "$grp" 2>/dev/null || :' TERM
@@ -254,15 +278,30 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
     if ! home=$(mktemp -d); then trap - INT TERM; return 2; fi
     hr=$(cd "$home" && pwd -P) || hr=$home
     tr=$(cd "$top" && pwd -P) || tr=$top
-    case "$rel" in ''|/*|..|../*|*/../*|*/..) echo "unsafe relative path: $rel" >&2; rc=2;; esac
+    k=1
+    while [ "$k" -lt "$np" ]; do
+      case "${pre[k]}" in ''|/*|..|../*|*/../*|*/..) echo "unsafe relative path: ${pre[k]}" >&2; rc=2;; esac
+      k=$((k + 2))
+    done
     case "$hr/" in "$tr"/*) echo "temp HOME is inside the checkout; set TMPDIR outside it" >&2; rc=2;; esac
+    # Scratch user-state paths (XDG only; app-specific overrides are NOT redirected, see below).
     if [ "$rc" -eq 0 ]; then
-      for stage in copy gate; do
+      mkdir -p "$home/.config" "$home/.local/share" "$home/.cache" "$home/.local/state" || rc=2
+    fi
+    if [ "$rc" -eq 0 ]; then
+      k=0
+      while [ "$k" -le "$np" ]; do
         set -m   # job control gives each stage its own process group
-        if [ "$stage" = copy ]; then
-          ( copy_prereq "$src" "$home/$rel" ) & pid=$!
+        if [ "$k" -lt "$np" ]; then
+          stage=copy
+          ( copy_prereq "${pre[k]}" "$home/${pre[k+1]}" ) & pid=$!
         else
-          ( HOME=$home; export HOME; "$@" ) & pid=$!
+          stage=gate
+          ( HOME=$home; export HOME
+            XDG_CONFIG_HOME=$home/.config XDG_DATA_HOME=$home/.local/share
+            XDG_CACHE_HOME=$home/.cache XDG_STATE_HOME=$home/.local/state
+            export XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
+            "$@" ) & pid=$!
         fi
         set "$mon"; grp=-$pid
         t=0
@@ -278,25 +317,54 @@ or "shipped," require that exact evidence or leave it blocked/unverified (`[lear
           while kill -0 -- "$grp" 2>/dev/null && [ "$t" -lt 20 ]; do sleep 0.1; t=$((t + 1)); done
           kill -KILL -- "$grp" 2>/dev/null || :
         fi
+        # Confirm absence (tri-state pgrep: 1 absent, 0 present, other = cannot inspect). One deadline
+        # (20 ticks of 0.1 s, plus a 3 s wall-clock backstop) covers every probe attempt; each probe
+        # runs in the background in its own group, and one still running at the deadline is KILLed,
+        # reaped and counted as could-not-inspect; a probe that has COMPLETED is used whatever its
+        # timing (absence observed late is still absence: the deadline bounds waiting, not truth).
+        t=0; k0=$SECONDS
+        while :; do
+          set -m; pgrep -g "$pid" >/dev/null 2>&1 & pp=$!; set "$mon"
+          r=
+          while kill -0 "$pp" 2>/dev/null; do
+            if [ "$t" -ge 20 ] || [ $((SECONDS - k0)) -ge 3 ]; then
+              kill -KILL -- "-$pp" 2>/dev/null || :; kill -KILL "$pp" 2>/dev/null || :
+              r=stalled; break
+            fi
+            sleep 0.1; t=$((t + 1))
+          done
+          if [ -z "$r" ]; then r=0; wait "$pp" 2>/dev/null || r=$?; else wait "$pp" 2>/dev/null || :; fi
+          if [ "$r" = 1 ]; then break; fi
+          if [ "$r" != 0 ] || [ "$t" -ge 20 ] || [ $((SECONDS - k0)) -ge 3 ]; then unc=$pid; break; fi
+          kill -KILL -- "$grp" 2>/dev/null || :
+          sleep 0.1; t=$((t + 1))
+        done
+        if [ -n "$unc" ]; then break; fi
         if [ "$sig" -ne 0 ]; then break; fi
         grp=
         if [ "$stage" = copy ] && [ "$rc" -ne 0 ]; then echo "prereq copy refused" >&2; rc=2; break; fi
+        if [ "$stage" = copy ]; then k=$((k + 2)); else k=$((np + 1)); fi
       done
     fi
     grp=
-    set -m
-    ( chmod -R u+w "$home" 2>/dev/null || :; rm -rf "$home" ) & pid=$!
-    set "$mon"
-    t=0
-    while kill -0 "$pid" 2>/dev/null && [ "$t" -lt 30 ]; do sleep 0.1; t=$((t + 1)); done
-    if kill -0 "$pid" 2>/dev/null; then kill -KILL -- "-$pid" 2>/dev/null || :; fi
-    wait "$pid" 2>/dev/null || :
-    if [ -e "$home" ]; then echo "retained: $home" >&2; fi
+    if [ -z "$unc" ]; then
+      set -m
+      ( chmod -R u+w "$home" 2>/dev/null || :; rm -rf "$home" ) & pid=$!
+      set "$mon"
+      t=0
+      while kill -0 "$pid" 2>/dev/null && [ "$t" -lt 30 ]; do sleep 0.1; t=$((t + 1)); done
+      if kill -0 "$pid" 2>/dev/null; then kill -KILL -- "-$pid" 2>/dev/null || :; fi
+      wait "$pid" 2>/dev/null || :
+      if [ -e "$home" ]; then echo "retained: $home" >&2; fi
+    else
+      echo "retained: $home (process group $unc not confirmed empty)" >&2
+      if [ "$rc" -eq 0 ] && [ "$sig" -eq 0 ]; then rc=75; fi
+    fi
     trap - INT TERM
     if [ "$sig" -ne 0 ]; then return "$sig"; fi
     return "$rc"
   }
-  isolated_gate "<src>" "<rel>" <gate>
+  isolated_gate "<src>" "<rel>" -- <gate>
   ```
 - **Make the container own its lifetime.** Container validation wrappers should not rely on shell
   `trap` cleanup alone — a signal before the job or container ID is recorded, a second signal during

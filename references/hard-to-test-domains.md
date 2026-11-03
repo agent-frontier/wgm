@@ -34,7 +34,7 @@ Treat the harness as the product's first feature, not an afterthought.
   app-specific data/cache/self-update env vars into a disposable `mktemp -d` directory (with
   self-update and audio disabled) so test runs never touch the operator's real `~/.local/share` or
   `~/.config` (adapted from [`horizon-rust/horizon`](https://github.com/horizon-rust/horizon)'s
-  `AGENTS.md`).
+  `AGENTS.md`). The `isolated_gate` recipe in `references/validation-env.md` redirects only `HOME` and the four XDG variables; app-specific absolute-path overrides must still be unset or redirected here first.
 - **Build differential oracle harnesses for ports and replacements.** When porting or reimplementing
   an existing system, pair each subsystem probe with a differential oracle that runs the reference
   implementation and the candidate on identical seeds/inputs and diffs their serialized state or
