@@ -234,6 +234,13 @@ loop, with progress living on disk (not the model's context) between passes
 - **Check every CLI flag a publish/release script passes against the real `--help`.** Fake
   executables on PATH (seams) cannot see flag drift: grep the installed tool's `--help` for each
   subcommand's flags, and add a bogus-flag counterfactual that must fail (`[learn]` issue #158).
+- **Validate a release helper against the artifact format of the tool version it installs.** Do
+  not trust only the configured version string: an older installer can request a detached-signature
+  asset that a modern tool no longer publishes, while source tests and ordinary CI stay green.
+  Inspect the canonical asset names and the maintained helper's signature verification path, pin a
+  compatible helper revision, and never bypass signature checks. Preserve the actual failed
+  release, and require a successful real workflow rerun; source-only approval is not
+  application-release proof (`[learn]` issue #177).
 - **Run the CI runner's pinned ShellCheck version locally.** A newer local shellcheck can be silent
   where the runner's older version fails (e.g. SC2317 on functions called only indirectly by trap or
   wrappers). Fetch the pinned release into the gate and annotate indirect invocations with a reasoned
