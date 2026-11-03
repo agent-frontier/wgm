@@ -156,6 +156,11 @@ loop, with progress living on disk (not the model's context) between passes
 - **Assert exactly what the spec makes exact.** Event count and variant, bytes or digest, sequence
   range, or the specific terminal error: a generic rejection never satisfies a typed outcome, and
   each test's assertion must measure the behavior its name claims.
+- **Test capacity bounds one byte past the limit.** A fill that stops at a record-multiple
+  (aligned) boundary can pass while a raised limit survives. Build valid retained input so the next
+  operation exceeds the documented bound/limit/capacity by exactly one byte, and assert both the
+  output size and the retained-generation bytes. Confirm a small raised-limit mutant is killed, and
+  count a compilation failure separately from an assertion kill (`[learn]` issue #173).
 - **Prove guards with mutants.** A mutant is a deliberate small break in a scratch copy: a flipped
   condition, a deleted guard, two swapped steps. For each claimed guard, branch, and ordering,
   confirm a test fails on its mutant (kills it). A compile error is not a kill, so confirm each
