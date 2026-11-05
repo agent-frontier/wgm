@@ -58,10 +58,10 @@ embedded legend. Human-facing artifacts stay readable prose. See
 
 | Path | Read by | Purpose |
 |---|---|---|
-| `wgm.yml` or `.wgm/gates.yml` | `loop.sh` | A `gates:` list of commands executed by the host after every build iteration and also shown in the prompt. Auto-detected. |
+| `wgm.yml` or `.wgm/gates.yml` | `loop.sh` | A `gates:` list of commands run after every build iteration — by default inside the sandbox container (as `bash -c "$gate"`), on the host only when the run is unsandboxed — and also shown in the prompt. Auto-detected. |
 | `.github/wgm-hive.yml` | Triage, `harvest-hive.sh` | Your project's Hive Growth Loop consent decision. Written once, on the first run, whichever way you answer. |
 | `.wgm/required-trailers` or `.github/required-trailers` | `check-trailers.sh` | Mandated commit trailer keys, one per line. |
-| `.devcontainer/devcontainer.json` | `devcontainer.sh` | The shared local sandbox definition, scaffolded by `devcontainer.sh init`. |
+| `.devcontainer/devcontainer.json` | `devcontainer.sh` | The devcontainer definition scaffolded by `devcontainer.sh init`, for editors / the devcontainer CLI. The loop's image is selected by `--devcontainer-image`, `WGM_DEVCONTAINER_IMAGE`, the approval record's `image:` or the base image — not by this file. |
 | `~/.copilot/skills/*/plugin.toml` | Host adapter / Triage metadata | Plugin metadata for the proposed/unwired host integration. The portable runner does not invoke hooks. |
 
 ## The consent file

@@ -64,7 +64,10 @@ path equal to wall time means one lane gated everything and the parallelism boug
 ## What the tooling records
 - **Per turn** (`.wgm/metrics.tsv`, on by default; `--metrics off` to disable): `start_timestamp`,
   `end_timestamp`, `iter`, `mode`, `agent`, `duration_s`, `plan_changed`, `result`, `cost`,
-  `parent`. `result` is normally `ok` or `fail`; a build that reaches the configured repeated
+  `parent`, `sandbox` (eleven columns). `sandbox` is the trailing column: `container:<ENGINE>` (the agent
+  ran in a sandbox container), `off:<REASON>` (unsandboxed, with the reason), or `inside` (already running
+  in a wgm devcontainer). An older ledger whose header lacks `sandbox` gets `\tsandbox` appended to its header
+  in place; its older rows stay shorter, so read a missing value as unknown. `result` is normally `ok` or `fail`; a build that reaches the configured repeated
   no-progress limit records `stall`. The `parent` column comes from `$WGM_PARENT_TASK`, which
   `swarm.sh` sets per lane, so every turn attributes to the lane that ran it.
 - **Per lane** (`.wgm/metrics/<prefix>-<n>.tsv`): the same ledger, written into the **parent**

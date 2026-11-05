@@ -10,10 +10,11 @@
 - **Golden rules:** run rootless, bind localhost on a free port, never bake in secrets, always
   clean up — with one scoped exception when the consumer is on the *other side* of a virtualization
   boundary (see [Reaching a service across an OS boundary](#reaching-a-service-across-an-os-boundary)).
-- **Not what you want if:** you're trying to sandbox the *agent loop itself* (not the app under
-  test) — see [devcontainers.md](devcontainers.md) instead.
+- **Not what you want if:** you're trying to sandbox the *agent* (not the app under test). The default
+  devcontainer sandbox runs the agent, gates, commits and callbacks in a container while the loop's machinery stays on the
+  host — see [devcontainers.md](devcontainers.md) instead.
 - **Next:** [running-the-loop.md](running-the-loop.md) (`--container`) ·
-  [devcontainers.md](devcontainers.md) (sandbox the loop itself) ·
+  [devcontainers.md](devcontainers.md) (the default agent sandbox: the loop's machinery stays on the host) ·
   [scenarios-and-scoring.md](../agent/scenarios-and-scoring.md).
 
 Some acceptance scenarios can only be judged against the software **actually running** — an HTTP

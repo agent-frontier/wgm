@@ -335,6 +335,9 @@ above. Each rule below was earned from a run that got it wrong:
   second turn and one advanced local `main`. `swarm.sh` injects the pin and the loop checks path,
   branch, tip, and a parent-state fingerprint around turns and host commits. These checks are not a
   sandbox: arbitrary agent commands and changes reverted between checks remain outside their reach.
+  The default per-lane container (`references/devcontainers.md`) is what confines file access — but
+  separate containers do **not** give each lane its own Git authority: every lane writes the one shared
+  git store, so the guards stay necessary.
   If this does happen, **never repair it by discarding commits**: preserve reachability first (keep
   the accidental commits on the intended branch plus an explicit recovery branch), then restore the
   intended checkout from the remote.
@@ -349,8 +352,10 @@ above. Each rule below was earned from a run that got it wrong:
 - **Partition by what a shared-type change breaks.** Before dispatch, search for every exhaustive
   match, struct literal, and trait impl that a shared-type change breaks, and put those files in
   the file set of the lane that owns the change, or sequence the lanes.
-- **Keep the jj boundary explicit.** `swarm.sh --backend jj` creates colocated jj workspaces, but
-  the loop still owns Git commits on per-lane branches. Do not run `jj new` or other operations
+- **Keep the jj boundary explicit.** `swarm.sh` defaults to `--backend jj` (when colocated jj and
+  `worktree add --orphan` are available; else Git worktrees with a notice). The **host** creates and
+  integrates the colocated workspaces; each lane's **container** runs the agent, gates and Git commits.
+  The loop still owns Git commits on per-lane branches. Do not run `jj new` or other operations
   that move a lane's Git HEAD during the loop; a failed/dirty/unverified lane is retained for review.
   See [`docs/reference/cli-swarm.md`](../docs/reference/cli-swarm.md).
 - **Snapshot every lane workspace before integrating.** A jj edit in workspace X is recorded only

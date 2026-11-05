@@ -5,7 +5,7 @@
 - **For:** anyone hitting a snag installing or running wgm.
 - **First move:** every wgm gate prints a `Gate check:` block naming the failed item. Read that
   before anything else — it usually names the fix.
-- **How this page is organized:** by stage — Install · Companions · Loop · Validation · Artifacts ·
+- **How this page is organized:** by stage — Install · Companions · Loop · Sandbox · Validation · Artifacts ·
   Contributing. Each entry is symptom, cause, resolution.
 - **Most common three:** the skill is not listed (wrong directory name, or the session needs a
   restart); `build` refuses to start (no `IMPLEMENTATION_PLAN.md` yet); the loop never stops (pass a
@@ -219,15 +219,15 @@ and reinstalls in one step.
 | | |
 |---|---|
 | **Symptom** | A lane exits immediately with a guard message. |
-| **Cause** | The lane's path, branch, tip, or parent state no longer matches its assignment. The host refuses its own commit; it does not sandbox agent commands. |
+| **Cause** | The lane's path, branch, tip, or parent state no longer matches its assignment. The host refuses its own commit; the guard is a tripwire, not a sandbox (the container is). |
 | **Resolution** | Inspect the lane log, `git worktree list`, and the retained files/branch before recovery. For jj also inspect `jj --ignore-working-copy workspace list`; never run destructive cleanup before saving work. See [swarm recovery](../reference/cli-swarm.md#merging-and-cleanup). |
 
 ### The jj swarm refuses setup or retains a lane
 
 | | |
 |---|---|
-| **Symptom** | `--backend jj` reports missing/old jj, unsupported Git `--orphan`, an unclean parent, an unignored runtime path, or changed workspace identity. |
-| **Cause** | jj is opt-in and requires Git with `worktree add --orphan` (normally 2.42+), a clean colocated checkout, and ignored runtime/lane paths. Failed or ambiguous cleanup retains work. |
+| **Symptom** | An explicit `--backend jj` reports missing/old jj, unsupported Git `--orphan`, or no colocation; or the jj backend reports an unclean parent, an unignored runtime path, or changed workspace identity. (Without `--backend`, missing jj tooling or colocation only prints one notice and uses Git worktrees.) |
+| **Cause** | The jj backend requires Git with `worktree add --orphan` (normally 2.42+), a clean colocated checkout, and ignored runtime/lane paths; swarm never initializes jj. Failed or ambiguous cleanup retains work. |
 | **Resolution** | Install jj 0.46.0+ and compatible Git, or explicitly select `--backend git`. Inspect the parent and `jj --ignore-working-copy workspace list`; follow the [jj setup and recovery guide](../reference/cli-swarm.md#try-the-jj-backend). Do not use `make clean-worktrees` in a jj checkout. |
 
 ### A swarm lane says `ok` but has zero commits
@@ -237,6 +237,204 @@ and reinstalls in one step.
 | **Symptom** | The swarm summary marks a lane as failed even though the lane process exited zero. |
 | **Cause** | `swarm.sh` verifies the artifact after waiting; a task lane with no reachable commit is a silent no-op, not a success. |
 | **Resolution** | Read `.wgm/swarm-logs/*.log`, confirm the agent invocation has tool/write permission, and rerun the lane. Do not merge or report a zero-commit lane as completed. |
+
+## Sandbox (default devcontainer)
+
+Loops and swarms run sandboxed by default (see [devcontainers.md](devcontainers.md)). Every failure
+below is a **fail-closed preflight** (exit 2, no iteration and no lane started) unless noted; none of
+them falls back to the host. Opting out is explicit: `--no-devcontainer` or `WGM_DEVCONTAINER=0`.
+`--dry-run` is non-mutating, so it is a safe way to *see* the decision or the unresolved prerequisite
+(it does not claim readiness). The record is at `${XDG_CONFIG_HOME:-$HOME/.config}/wgm/sandbox/<REPO-KEY>.yml`.
+
+### No container engine (Podman or Docker) is installed
+
+| | |
+|---|---|
+| **Symptom** | Interactive: a notice with install commands and `Proceed without a sandbox and remember this? [y/N]`. Headless / `--devcontainer`: exit 2 "no container engine". |
+| **Cause** | Neither `podman` nor `docker` is on `PATH`, and no decline is recorded (headless runs never decide for anyone; a forced run never accepts a decline). |
+| **Recovery** | Install one — Debian/Ubuntu `sudo apt-get install -y podman`; Fedora `sudo dnf install -y podman`; Arch `sudo pacman -S podman`; macOS `brew install podman && podman machine init && podman machine start` (or Docker) — and rerun; a detected engine always overrides a recorded decline. Or answer `y` once to record the decline (loop runs then carry `sandbox: OFF — unsandboxed (recorded-decline)`), or pass `--no-devcontainer`. To clear a recorded decline set `engine_declined: false` in the record or delete the record. |
+| **Verify** | `podman info >/dev/null && echo ok` (or `docker info`), then `scripts/loop.sh build --dry-run` prints `sandbox=on`. |
+
+### The engine is installed but broken
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 though `podman`/`docker` exists; or an iteration fails with the engine's own message (never a host fallback). |
+| **Cause** | Detection requires `<ENGINE> info` to succeed: a stopped Podman machine, an inaccessible Docker socket, a rootless-storage fault, or a stale `DOCKER_HOST`/`CONTAINER_HOST` (names pointing inside a writable mount are dropped: `sandbox: host env: dropped <NAME>`). |
+| **Recovery** | Run `podman info` (or `docker info`) yourself and fix what it reports: `podman machine start`, add yourself to the `docker` group and re-login, unset a stale `DOCKER_HOST`. Rootless Podman also needs `XDG_DATA_HOME` pointing at your real image store. |
+| **Verify** | `podman info >/dev/null; echo $?` prints `0`; rerun `scripts/loop.sh build --dry-run`. |
+
+### "conflicting sandbox choices"
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 "conflicting sandbox choices". |
+| **Cause** | `--devcontainer` together with `--no-devcontainer`, or a flag that contradicts `WGM_DEVCONTAINER` (`0` = off, `1` = force). |
+| **Recovery** | Pass one choice: drop the flag, or `unset WGM_DEVCONTAINER` / set it to match. |
+| **Verify** | `env | grep WGM_DEVCONTAINER`, then `scripts/loop.sh build --dry-run` prints a decision. |
+
+### Credentials are unapproved, stale or the record is unusable
+
+| | |
+|---|---|
+| **Symptom** | Interactive: `Mount these into the sandbox? [Y/n]` again. Headless (including every swarm lane): exit 2 naming the missing approval. |
+| **Cause** | No record yet; the set of agents changed (main, `--agent`, or frugal); a token file's canonical target changed; a config dir became a symlink; the record is malformed (treated as absent), is a symlink, is not owned by you or is group/world-writable (refused); or the record directory lies inside a mount. A `.wgm/sandbox.yml` inside the repository is never read. |
+| **Recovery** | Run once from a terminal: `scripts/sandbox.sh preflight --interactive yes --agent-cmd '<YOUR AGENT COMMAND>'` (repeat `--agent-cmd` for a frugal agent) and answer `Y`. Fix permissions with `chmod 700` on the directory and `chmod 600` on the file, replace a symlink with a regular file, or set `XDG_CONFIG_HOME` outside the project and git dir. To revoke, delete the record. |
+| **Verify** | `ls -ld "${XDG_CONFIG_HOME:-$HOME/.config}"/wgm/sandbox "${XDG_CONFIG_HOME:-$HOME/.config}"/wgm/sandbox/*.yml` shows `drwx------` and `-rw-------`, then `scripts/loop.sh build --dry-run` runs without a prompt. |
+
+### "credential … not reachable"
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 "credential `<file or NAME>` not reachable" — including a token file listed in the approval record that is now missing, unreadable or no longer a regular file. |
+| **Cause** | An approved token file is unreadable on the host (moved, deleted, wrong permissions) or its copy is unreadable inside the container, or an approved env name is unset or empty. |
+| **Recovery** | A deleted *approved* token is **not** cleared by interactive re-approval alone. Restore the file (re-login with the agent on the host so it exists), **or** remove that token's line from the approval record (the refusal prints the record's path and the exact `  - <PATH>` line under `tokens:`) or delete the record, then rerun interactively to re-approve (`scripts/sandbox.sh preflight --interactive yes --agent-cmd '<YOUR AGENT COMMAND>'`). For an unreadable file or unset env name: re-login so the file exists, `chmod u+r` it, or export the variable (API-key env auth is recommended: `export ANTHROPIC_API_KEY=…`; values travel by name only). Then rerun. Preflight does **not** check the login itself — a bad or expired login only shows at the agent's first real call. |
+| **Verify** | `test -r <FILE> && echo readable`, or `test -n "${NAME:-}" && echo set`; rerun `scripts/loop.sh build --dry-run`. |
+
+### The agent CLI is not executable inside the container
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 from the readiness probe naming the agent and "install the agent CLI in a project image". |
+| **Cause** | The agent's first word does not resolve or run in the container (not under a mountable prefix, a wrong-architecture native binary, a missing interpreter, "exec format error", exit 126/127). |
+| **Recovery** | Build a project image and select it. Create `.devcontainer/Containerfile` with `FROM localhost/wgm-devcontainer-base:latest` and the install lines, then run the published build block (`ENGINE=podman; TAG=…; CF=.devcontainer/Containerfile`, then `"$ENGINE" build -t "$TAG" -f "$CF" .`) and rerun with `--devcontainer-image "$TAG"` (or `WGM_DEVCONTAINER_IMAGE`). See [devcontainers.md](devcontainers.md#decision-order-first-match-wins). |
+| **Verify** | `podman run --rm <TAG> sh -c 'command -v <AGENT> && <AGENT> --version'`; then the readiness probe passes on rerun. |
+
+### The toolchain smoke (gate) fails inside the container
+
+| | |
+|---|---|
+| **Symptom** | Preflight shows the tail of your gate command's output; interactive asks whether to proceed anyway, headless exits 2. |
+| **Cause** | The shared image lacks a tool your gates need, or they depend on a host-only service. |
+| **Recovery** | Add the tool via a project image as above (build, then `--devcontainer-image <TAG>`). Proceeding anyway records nothing, and every iteration's own gate still runs (and fails that iteration) — there is no host fallback; run host-side tests deliberately with `WGM_DEVCONTAINER=0`. |
+| **Verify** | `podman run --rm -v "$PWD:$PWD" -w "$PWD" <TAG> <GATE COMMAND>` exits 0; preflight then passes. |
+
+### The git common directory is unreachable
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 "unresolvable common dir" (or a lane's commits fail inside the container). |
+| **Cause** | A lane workspace's `.git` file points at a git dir that no longer exists, was moved, or is refused by the mount policy; the container needs it at the same absolute path. |
+| **Recovery** | Restore or re-create the workspace from the host (`jj workspace update-stale`, or remove and re-add the lane); never edit the `.git` pointer by hand. |
+| **Verify** | `git -C <LANE> rev-parse --git-common-dir` prints an existing path; `scripts/loop.sh build --dry-run` from the lane succeeds. |
+
+### A mount is refused
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 naming a path and a reason (`$HOME`/`/`, `~/.ssh`…, runtime tree, contains a socket/device/FIFO, contains a mount point, hard-linked file, a directory wgm cannot inspect, a `PATH` executable symlinked into a writable mount, config include inside a writable mount, two mounts on one path, `rw` extra mount). |
+| **Cause** | The [mount policy](devcontainers.md#mounts--the-full-inventory) refused it; the message names the exact item. |
+| **Recovery** | Remove or move the named item (an uninspectable directory: restore your read/execute permission on it, or move it out of the project; entries vanishing mid-scan are not failures; a `PATH` entry `<DIR>/<NAME> -> <TARGET>` pointing into the project: remove that link or drop that directory from `PATH` when running wgm) (a socket out of the tree, `git repack -a -d && git prune-packed` for hard-linked objects, re-copy hard-linked files, move an included config file outside the writable mounts), drop the extra `--devcontainer-mount` or make it a read-only file/dir, or move the install prefix. Never "fix" it by mounting `$HOME`. |
+| **Verify** | `scripts/loop.sh build --dry-run` stops naming nothing; for a hard link `find . -xdev -type f -links +1 -print -quit` prints nothing. |
+
+### "agent-written symlink at <PATH> — refusing to follow"
+
+| | |
+|---|---|
+| **Symptom** | A running loop stops with exit 2 after an agent iteration, naming a path (also when wgm was about to *read* memories, the plan, the ownership manifest or a status file). |
+| **Cause** | The agent created a symlink where wgm writes or reads (metrics, `.wgm/run/*`, plan, memory, manifest or status files), or at an ancestor inside the project, or the file is not regular. wgm refused to follow it; nothing was read, passed to a helper (e.g. the Hive harvest) or touched. That iteration ran. |
+| **Recovery** | Inspect `ls -l <PATH>` and its ancestors, replace the symlink with the intended regular file (or remove it) after confirming its target, review the iteration's diff, and rerun. |
+| **Verify** | `test ! -L <PATH>` succeeds; the loop starts and iterates. |
+
+### A symlinked git configuration is refused
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 before any container, naming `config` or `config.worktree` as a symlink. |
+| **Cause** | The executable git configuration must be a regular file; a symlink could point host git at a file the agent can edit, so wgm refuses it. |
+| **Recovery** | Check the referent (`readlink -f .git/config` and read what it points to), then replace the symlink with a regular file holding the intended configuration: `cp --remove-destination "$(readlink -f .git/config)" .git/config` (likewise for `config.worktree`). Rerun. |
+| **Verify** | `test -f .git/config && test ! -L .git/config`; a real (non-dry-run) preflight passes. |
+
+### "git configuration changed by the agent" / "git metadata changed by the agent"
+
+| | |
+|---|---|
+| **Symptom** | A running loop stops with exit 2 after an agent iteration. |
+| **Cause** | (Include targets are pinned by their content as resolved at capture time, so changing an included file also trips this.) The pinned digest of `config`, `config.worktree`, `hooks/`, `info/`, alternates or admin dir names, or a pinned pointer (`.git` file/dir, `commondir`, `gitdir`), differs from before the run. Nothing was executed on the host. |
+| **Recovery** | Compare against a trusted copy (`git config --show-origin -l` from a clean checkout, `ls -l .git/hooks`), restore the changed file or pointer from the host, and review the iteration's work before continuing. If you changed config yourself, do so while no loop runs. |
+| **Verify** | Run a real (non-dry-run) preflight or loop: that is what captures and checks the pins; it completes an iteration without this message. `--dry-run` only shows the decision and the planned mounts — it returns before any pin is captured, so it cannot confirm this. |
+
+### `retained container <NAME>` or `retained credential copy <PATH>`
+
+| | |
+|---|---|
+| **Symptom** | After SIGINT/SIGTERM (loop and swarm exit 130 for SIGINT and 143 for SIGTERM) or a failed cleanup, the log prints the name or path. |
+| **Cause** | wgm removes every container it started (agent, gates, `--cost-cmd`, `--notify`, readiness, probe, smoke, preflight) by name with zero grace and bounded waits, and prints this when absence cannot be confirmed (a hung engine client — engine calls during cleanup are time-bounded, so wgm still exits promptly; swarm prints `cleanup unverified: retained container …` — or an engine hiccup, an interrupted swarm's ~24 s cleanup window expiring, an undeletable copy). The run's own exit status is unchanged. |
+| **Also** | If wgm cannot confirm a container is gone after a contained command returns (e.g. an agent timeout followed by a failed engine removal), the run stops at once with **exit 2** — it does not verify, inspect, continue or retry — and prints `retained container <NAME>`. Container absence is the prerequisite for every host-side check of the agent's tree. |
+| **Recovery** | Once the engine responds: `podman rm -f -t 0 <NAME>` (or `docker rm -f <NAME>`); `chmod -R u+rwx <PATH> && rm -rf <PATH>` for a credential copy (a `0700` dir outside every mount, never mounted again). `scripts/devcontainer.sh prune` removes any other stopped wgm-labeled leftovers. |
+| **Verify** | `podman ps -a --filter name=<NAME>` (or `docker ps -a --filter name=<NAME>`) lists nothing, and `podman ps -a --filter label=wgm.devcontainer=1` shows nothing stale; `test ! -e <PATH>`. Then rerun; the next run is not blocked. |
+
+### "cleanup unverified: retained container wgm-<KEY8>-<LOOP PID>-*" (swarm)
+
+| | |
+|---|---|
+| **Symptom** | After a swarm, one line per lane loop `cleanup unverified: retained container wgm-<KEY8>-<LOOP PID>-*`, and swarm exits non-zero (unless the run had already failed). |
+| **Cause** | The engine could not be inspected, or a lane container could not be confirmed removed. Swarm reports it rather than claiming a clean exit. |
+| **Recovery** | List: `podman ps -a --filter name=wgm-` (or `docker ps -a --filter name=wgm-`). Remove each match: `podman rm -f -t 0 <NAME>` (or `docker rm -f <NAME>`). If the engine itself is broken, fix it first (see "The engine is installed but broken"). |
+| **Verify** | The same `ps -a --filter name=wgm-` command lists nothing for that swarm's prefix; the next run is not blocked. |
+
+### "retained preflight workspace <NAME> at <PATH>" (swarm interrupted during preflight)
+
+| | |
+|---|---|
+| **Symptom** | You pressed Ctrl+C (or swarm got SIGTERM) during its preflight; swarm printed `retained preflight workspace <NAME> at <PATH> — recover: jj workspace forget <NAME> && rm -rf <PATH>` and exited non-zero. |
+| **Cause** | Preflight stopped promptly and removed its containers by name with zero grace, but could not verify that its throwaway preflight workspace (created at the parent's HEAD) was removed. No lane had been created. |
+| **Recovery** | jj backend: `jj workspace forget <NAME> && rm -rf <PATH>`. Git backend: `git worktree remove --force <PATH>`. Also list leftovers with `podman ps -a --filter name=wgm-` (or `docker ps -a --filter name=wgm-`) and remove with `podman rm -f -t 0 <NAME>` / `docker rm -f <NAME>`. |
+| **Verify** | `jj --ignore-working-copy workspace list` (or `git worktree list`) no longer lists `<NAME>`, `test ! -e <PATH>`, and a fresh swarm `--dry-run` runs. |
+
+### Swarm stopped on containment loss (retained containers, lanes and preflight workspace)
+
+| | |
+|---|---|
+| **Symptom** | Swarm prints every `retained container <NAME>` plus retained lanes (and, during preflight, the preflight workspace) with recovery lines. Exit status: **1** for a post-run containment loss (lanes retained), **2** for a preflight containment or trust loss and for a post-run trust loss (lanes retained) — see the [exact table](../reference/cli-swarm.md#exact-exit-status-per-terminal-phase-and-what-each-retains). It did not inspect lanes, consolidate memories or clean up — even with `--cleanup`. |
+| **Cause** | A lane or the preflight could not confirm one of its containers gone, or swarm's own container sweep could not confirm absence. Containment loss is terminal for the whole swarm. |
+| **Recovery** | In this order: (1) `podman rm -f -t 0 <NAME>` / `docker rm -f <NAME>` for each printed container, and verify absence (`podman ps -a --filter name=wgm-`); (2) inspect and merge the lanes; (3) clean up: `jj workspace forget <NAME>` / `git worktree remove <PATH>`; (4) rerun. |
+| **Verify** | `ps -a --filter name=wgm-` lists nothing for the swarm's prefix; `jj --ignore-working-copy workspace list` / `git worktree list` shows only what you kept. |
+
+### The approval record is locked, partial or malformed
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 naming a lock (`.lock.own` or `.lock` in the record directory) held by a live process; or, interactively, the credentials question is asked again though you approved before; headless runs exit 2. |
+| **Cause** | Record writes are always locked: every writer takes the owner-record lock FILE `<DIR>/.lock.own` (created atomically together with its owner record — process id + start time) **and also** `flock <DIR>/.lock` where `flock` exists. A stale `.lock.own` (owner gone, reused pid, or older than 120 s) is broken automatically under a short breaker mutex `<DIR>/.lock.break`; a live holder fails closed with exit 2 naming the lock. A malformed or partial record (a write killed mid-way is never half-visible, but a hand-edited file can be) is treated as absent: interactive runs ask again, headless runs exit 2. |
+| **Recovery** | Only if no wgm process is running (`pgrep -af 'wgm|loop.sh|swarm.sh|sandbox.sh'` shows none for this repository): `rm "${XDG_CONFIG_HOME:-$HOME/.config}/wgm/sandbox/.lock.own"`, and `rmdir "${XDG_CONFIG_HOME:-$HOME/.config}/wgm/sandbox/.lock.break"` if a leftover breaker directory exists; then rerun. For a malformed record, rerun interactively to rewrite it, or fix/delete the file. |
+| **Verify** | `test ! -e "${XDG_CONFIG_HOME:-$HOME/.config}/wgm/sandbox/.lock.own"`; `scripts/loop.sh build --dry-run` completes without exit 2 (or without a prompt once the record is valid). |
+
+### Swarm refuses the parent index
+
+| | |
+|---|---|
+| **Symptom** | Swarm exits 2 naming the parent's git index, with a `retained preflight workspace <NAME> at <PATH> — recover: …` line. |
+| **Cause** | The parent index (`.git/index` in the shared git dir) is not a regular file — e.g. an agent replaced it with a symlink. wgm copies the parent index only without following symlinks, into a private directory outside every mount, so it refuses instead. |
+| **Recovery** | Inspect it: `ls -l .git/index`. Restore it in the parent checkout: `rm .git/index && git reset`. Then clear the retained preflight workspace (`jj workspace forget <NAME> && rm -rf <PATH>`; git backend `git worktree remove --force <PATH>`) and rerun. |
+| **Verify** | `test -f .git/index && test ! -L .git/index`; `git status` shows your expected state; a swarm `--dry-run` passes. |
+
+### The run stops because a filtered file looks modified (e.g. Git LFS)
+
+| | |
+|---|---|
+| **Symptom** | A loop or swarm stops (fail closed) reporting a modified file that you did not change, in a repository using clean/smudge filters such as Git LFS. |
+| **Cause** | wgm's host-side git never runs repository-configured commands (filter drivers, diff drivers/textconv, `diff.external`, credential helpers, pager, editor; hooks, fsmonitor and transports too). A filtered file whose timestamp changed can therefore look modified to it. |
+| **Recovery** | Run `git status` yourself once in the checkout (it runs your filters and refreshes the index), then rerun. |
+| **Verify** | `git status --short` is clean for that file; the rerun passes the check. |
+
+### "pointers were redirected" (git pointer files changed)
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 naming a pointer file — the worktree `.git` file, the admin `gitdir` or `commondir`, or `objects/info/alternates` — with "pointers were redirected … nothing was scanned or opened". Swarm retains the redirected lane. |
+| **Cause** | After a contained command, wgm compares these pointers with the values pinned before the first container, before its host side touches git at all. The agent changed one. |
+| **Recovery** | (If a worktree admin dir itself became a symlink, pointer files are not read — exit 2 first: remove the link and move the real admin dir back.) Restore the original content: a worktree's admin `commondir` is normally `../..`; `.git` in a worktree reads `gitdir: <COMMON>/worktrees/<NAME>`; `alternates` back to its pinned content (or absent). Review the lane's work, then rerun. |
+| **Verify** | `cat <FILE>` shows the restored value; `git -C <LANE> rev-parse --git-common-dir` prints the parent's common dir; the rerun passes. |
+
+### A git-dir entry is a symlink or special file
+
+| | |
+|---|---|
+| **Symptom** | Exit 2 naming a path inside a git dir (index, `HEAD`, a ref, `packed-refs`, a log, `info`, a worktree admin dir, `objects`); swarm retains the affected lane and exits non-zero. |
+| **Cause** | Before running git on a repository or worktree, wgm checks without following symlinks that every entry git may open is a regular file or a real directory. A symlink or special file there (typically agent-written) fails closed. |
+| **Recovery** | Inspect `ls -l <PATH>`. Remove the **link itself** — `rm <PATH>` — never its target. For an index, then run `git reset` in that checkout. Review the lane/iteration's work and rerun. |
+| **Verify** | `test ! -L <PATH>`; `git status` works in that checkout; the rerun passes. **Residual:** a sibling lane running at the same moment could swap an entry between wgm's check and git's open; closing that needs a shared-git quiescence protocol (follow-up). |
 
 ## Validation
 

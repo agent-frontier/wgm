@@ -28,8 +28,9 @@ This is the minimum an operator needs to memorize to run wgm correctly, without 
 - [ ] Choose **Ralph-full** (`scripts/loop.sh`, fresh context per iteration) whenever a
       non-interactive agent is available. Use **Ralph-lite** in-session only for interactive-only
       hosts or Quick-track work. See [running-the-loop.md](running-the-loop.md).
-- [ ] If you'll validate against a live service, confirm Podman or Docker is available
-      ([containers.md](containers.md)).
+- [ ] Confirm Podman (preferred) or Docker is available: the DEFAULT `loop.sh`/`swarm.sh` run the agent in a container, and
+      live-service validation needs one too ([containers.md](containers.md)). Without an engine wgm asks once (interactive) or
+      exits 2 (headless); a declined run is labelled unsandboxed ([devcontainers.md](devcontainers.md)).
 
 ## Per-build checklist (every time you run `/wgm`)
 

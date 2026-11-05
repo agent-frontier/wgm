@@ -5,7 +5,7 @@ What must be present before you install wgm, and what is optional.
 ## Executive overview
 
 - **For:** anyone about to install wgm, or diagnosing why part of it will not run.
-- **The short version:** you need a skills-compatible agent client. Everything else is optional.
+- **The short version:** you need a skills-compatible agent client to use the skill. The external `loop.sh`/`swarm.sh` run the agent in a container by default, so they also need Podman (preferred) or Docker; everything else is optional.
 - **Watch out:** the *skill* needs almost nothing; the *optional scripts* need bash and git. "Skills-compatible" is not the same as "wgm has been run here" — see the evidence tiers below.
 - **Next:** [Get started](README.md) to install and run your first build.
 
@@ -65,14 +65,23 @@ has not executed. Other harnesses publish one too — `gemini -p`, `agent -p` (C
 [harness portability](../../references/harness-portability.md). Check the flags against your
 installed version before letting a loop run unattended.
 
+### The default sandbox needs a container engine
+
+The default `loop.sh` and `swarm.sh` run the agent and its gates in a container, so **Podman (preferred) or Docker is
+what the default needs**. Without an engine, wgm asks once (interactive: install help, or record a decline) or exits 2
+(headless); a declined run proceeds with `--no-devcontainer` semantics and is labelled
+`sandbox: OFF — unsandboxed (recorded-decline)` in its log and metrics. `--no-devcontainer` / `WGM_DEVCONTAINER=0` opts
+out explicitly. A detected engine always wins over a recorded decline. See
+[devcontainers](../operator/devcontainers.md). The skill itself, used in-session, needs no engine.
+
 ## Optional
 
-Nothing here blocks normal use. Each unlocks one capability.
+Nothing here blocks normal use of the skill. Each unlocks one capability.
 
 | Software | Unlocks | Without it |
 |---|---|---|
-| Podman or Docker | Containerized scenario validation (`loop.sh --container`), and the local devcontainer sandbox | Scenarios needing a live service cannot be judged; run the app yourself |
-| [`jj` 0.46.0+](https://docs.jj-vcs.dev/latest/install-and-setup/) and Git with `worktree add --orphan` (normally 2.42+) | Opt-in colocated [jj workspace swarm](../reference/cli-swarm.md#try-the-jj-backend) | The default Git swarm and skill continue to work |
+| Podman or Docker | Containerized scenario validation (`loop.sh --container`). (The default loop/swarm sandbox also needs an engine — see above.) | Scenarios needing a live service cannot be judged; run the app yourself |
+| [`jj` 0.46.0+](https://docs.jj-vcs.dev/latest/install-and-setup/) and Git with `worktree add --orphan` (normally 2.42+) | The default [jj workspace swarm](../reference/cli-swarm.md#try-the-jj-backend) backend (requires a colocated jj repository) | `swarm.sh` prints one notice and uses Git worktrees; the skill continues to work |
 | `jq` | `scripts/check-evals.sh`, `scripts/check-harnesses.sh` | Those two gates exit `2` and report the dependency |
 | `shellcheck` | `make lint` | You cannot run the shell lint locally; CI still does |
 | `gh`, authenticated | Filing an anonymized lesson upstream (`harvest-hive.sh`) | The courier stays local-only; nothing breaks |
