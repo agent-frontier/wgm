@@ -121,18 +121,27 @@ jobs:
 
       - name: Loop harness (bash)
         run: bash scripts/test-loop.sh
+        env:
+          WGM_DEVCONTAINER: "0"  # stub agents run on the host: an explicit, labelled opt-out of the default sandbox
 
       - name: Swarm harness (bash)
         run: bash scripts/test-swarm.sh
+        env:
+          WGM_DEVCONTAINER: "0"  # stub agents run on the host: an explicit, labelled opt-out of the default sandbox
 
       - name: Jujutsu workspace swarm harness (bash, local fixtures)
         run: bash scripts/test-jj-swarm.sh
+        env:
+          WGM_DEVCONTAINER: "0"  # stub agents run on the host: an explicit, labelled opt-out of the default sandbox
 
       - name: Audit harness (bash, fixture agents)
         run: bash scripts/test-audit.sh
 
       - name: Devcontainer harness (bash, Podman/Docker when available)
         run: bash scripts/test-devcontainer.sh
+
+      - name: Sandbox harness (bash, stub engines + a real engine when available)
+        run: bash scripts/test-sandbox.sh
 
       - name: Harvest-hive harness (bash)
         run: bash scripts/test-harvest-hive.sh

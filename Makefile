@@ -40,7 +40,11 @@ docs: ## Docs backpressure (structure, links, mermaid, placeholders, evals fixtu
 	bash scripts/check-harnesses.sh
 	bash scripts/sync-agent-adapters.sh --check
 
-test: ## Run the bash harnesses (install, adapters, Stage 10, loop, Git/jj swarm, audit, devcontainer, harvest, eval/docs/gate checks, release-index, wsl-boundary)
+# The loop/swarm harnesses use stub agents on the host: they opt out of the default sandbox explicitly
+# (a labelled operator choice, WGM_DEVCONTAINER=0). Only test-sandbox.sh / test-devcontainer.sh
+# launch (stub or real) containers, and test-sandbox.sh unsets this variable itself.
+test: export WGM_DEVCONTAINER = 0
+test: ## Run the bash harnesses (install, adapters, Stage 10, loop, Git/jj swarm, audit, devcontainer, sandbox, harvest, eval/docs/gate checks, release-index, wsl-boundary)
 	bash scripts/test-install.sh
 	bash scripts/test-agent-adapters.sh
 	bash scripts/test-plugin-registry.sh
@@ -60,6 +64,7 @@ test: ## Run the bash harnesses (install, adapters, Stage 10, loop, Git/jj swarm
 	bash scripts/test-jj-swarm.sh
 	bash scripts/test-audit.sh
 	bash scripts/test-devcontainer.sh
+	bash scripts/test-sandbox.sh
 	bash scripts/test-harvest-hive.sh
 	bash scripts/test-compile-heuristics.sh
 	bash scripts/test-grade-evals.sh

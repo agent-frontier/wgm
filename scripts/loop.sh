@@ -63,7 +63,7 @@
 #                        retry in a row; 0 = never trip (default: 3). For fail-fast on the first
 #                        error, set --max-retries 0 --max-consecutive-failures 1.
 #   --metrics FILE       append a per-iteration TSV row (start_timestamp, end_timestamp, iter, mode,
-#                        agent, duration_s, plan_changed, result, cost, parent) to FILE. Telemetry is
+#                        agent, duration_s, plan_changed, result, cost, parent, sandbox) to FILE. Telemetry is
 #                        ON by default at .wgm/metrics.tsv; pass `--metrics off` to disable it.
 #                        $WGM_PARENT_TASK (set by swarm.sh per lane) populates the parent column.
 #   --cost-cmd "CMD"     after each iteration run CMD (shell) to print a token/cost figure for the
@@ -71,18 +71,27 @@
 #   --max-cost N         stop the build loop once cumulative cost (summed from --cost-cmd's output,
 #                        whatever unit it emits) reaches N; 0 = unlimited (default: 0). Requires
 #                        --cost-cmd to have anything to sum — warns at startup if set without it.
-#   --devcontainer       run this ENTIRE invocation sandboxed in wgm's disk-conscious local
-#                        devcontainer (scripts/devcontainer.sh) — one shared base image reused
-#                        across every project, never a per-project build. See
-#                        references/devcontainers.md. A no-op with --dry-run (annotates the
-#                        preview instead of launching a container).
+#   --devcontainer       FORCE the sandbox (a working Podman/Docker engine is required). The sandbox is
+#                        ON BY DEFAULT: every agent invocation, gate/validation command and operator
+#                        shell command (--notify, --cost-cmd) runs in a devcontainer
+#                        (scripts/devcontainer.sh run --same-path) mounting only this project, its git
+#                        directory (hooks/config read-only) and the approved agent credential copies;
+#                        loop.sh itself, git bookkeeping and telemetry stay on the host. The decision
+#                        comes from `scripts/sandbox.sh preflight` (see docs/reference/cli-loop.md).
+#   --no-devcontainer    opt OUT: run unsandboxed on the host (labelled `sandbox: OFF` in the log and
+#                        the metrics `sandbox` column). Also WGM_DEVCONTAINER=0.
+#   --devcontainer-image TAG
+#                        image for the sandbox (else WGM_DEVCONTAINER_IMAGE, the record, the shared base)
 #   --devcontainer-mount HOST[:CONTAINER]
-#                        repeatable credential/config bind mount forwarded to the devcontainer
+#                        repeatable EXTRA read-only mount (regular files/dirs only; policy-checked)
 #   --dry-run            print the prompt and the command that WOULD run; invoke nothing
 #   --commit             commit each build iteration; takes exclusive ownership of the worktree
 #   -h | --help          show this help
 #
 # Safety:
+#   * Sandbox on (default): the agent cannot touch anything outside this project, its git directory
+#     and its own credential copies. It CAN change this repository's content and history (commits
+#     need the git store) — see docs/reference/cli-loop.md for the residual risk.
 #   * The host commits only with --commit or --checkpoint-interval and never pushes. The agent may
 #     still edit files or run commands — use a workspace you trust it in.
 #   * Every non-dry-run build or plan probes agent write capability before iteration 1.
@@ -93,10 +102,20 @@
 
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# (bash builtins only: no external tool runs before the host environment/PATH is sanitized — see sb_bootstrap_host_env)
+_h="${BASH_SOURCE[0]}"; if [[ "$_h" == */* ]]; then _h="${_h%/*}"; else _h=.; fi
+HERE="$(cd "$_h" && pwd)"; unset _h
 # shellcheck source=scripts/swarm-parent-guard.sh
+# shellcheck disable=SC1091  # resolvable when the whole scripts/ set is checked; info-only otherwise
 source "$HERE/swarm-parent-guard.sh"
+# shellcheck source=scripts/sandbox.sh
+source "$HERE/sandbox.sh"
 ORIGINAL_ARGV=("$@")
+# C7 phase 1 — the FIRST host action: in-process (builtins only) environment allowlist, when this run may be
+# sandboxed. The original environment is kept IN MEMORY (never exported, never on an argv) so an unsandboxed
+# decision (recorded decline) can restore it; it is dropped as soon as the run is known to be sandboxed.
+SB_ORIG_ENV=""
+if sb_sandbox_may_be_on "$@"; then SB_ORIG_ENV="$(export -p)"; sb_env_allowlist_inproc; fi
 
 # ----- defaults -------------------------------------------------------------
 MODE="build"
@@ -133,11 +152,13 @@ COST_CMD=""
 MAX_COST=0
 CUM_COST=0
 USE_DEVCONTAINER=0
+NO_DEVCONTAINER=0
+DEV_IMAGE=""
 AGENT_TIMEOUT=0
 TIMEOUT_BIN=""
 DEV_MOUNTS=()
 
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
+usage() { sb_usage_from "$0"; }   # builtins only (see sb_usage_from)
 
 # ----- parse args -----------------------------------------------------------
 POSITIONAL=()
@@ -147,6 +168,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --commit)  DO_COMMIT=1; shift ;;
     --devcontainer) USE_DEVCONTAINER=1; shift ;;
+    --no-devcontainer) NO_DEVCONTAINER=1; shift ;;
+    --devcontainer-image) [[ $# -ge 2 ]] || { echo "--devcontainer-image requires TAG" >&2; exit 2; }; DEV_IMAGE="$2"; shift 2 ;;
     --devcontainer-mount) [[ $# -ge 2 ]] || { echo "--devcontainer-mount requires HOST[:CONTAINER]" >&2; exit 2; }; DEV_MOUNTS+=("$2"); shift 2 ;;
     --agent)   [[ $# -ge 2 ]] || { echo "--agent requires a command" >&2; exit 2; }; AGENT="$2"; shift 2 ;;
     --frugal-agent) [[ $# -ge 2 ]] || { echo "--frugal-agent requires a command" >&2; exit 2; }; FRUGAL_AGENT="$2"; shift 2 ;;
@@ -196,12 +219,14 @@ for n in "$THRESHOLD" "$ESCALATE_AFTER" "$DOWNGRADE_AFTER" "$MAX_RUNTIME" "$IDLE
 done
 # --max-cost is a plain number, not necessarily an integer (a cost figure may be fractional).
 [[ "$MAX_COST" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "expected a non-negative number for --max-cost, got: $MAX_COST" >&2; exit 2; }
-if [[ -z "$COST_CMD" ]] && awk -v m="$MAX_COST" 'BEGIN{exit !(m>0)}'; then
+if [[ -z "$COST_CMD" && "$MAX_COST" =~ [1-9] ]]; then   # (m > 0 without awk: a non-zero digit)
   echo "⚠ --max-cost is set but --cost-cmd is not; the cost ceiling will never trigger." >&2
 fi
-if [[ "${#DEV_MOUNTS[@]}" -gt 0 && "$USE_DEVCONTAINER" -eq 0 ]]; then
-  echo "--devcontainer-mount requires --devcontainer." >&2
-  exit 2
+
+# Sandbox mode: bind the host tools FIRST (builtins only up to here). Everything below may now run externals.
+if [[ "$NO_DEVCONTAINER" -eq 0 && "${WGM_DEVCONTAINER:-}" != 0 && -z "${WGM_IN_DEVCONTAINER:-}" ]]; then
+  SB_EXTRA_MOUNTS=("${DEV_MOUNTS[@]}")   # (known CLI extra mounts: no private artifact may land inside them)
+  sb_bootstrap_host_env "$PWD"
 fi
 
 resolve_runtime_primitives() {
@@ -269,30 +294,65 @@ if [[ "$DRY_RUN" -eq 0 ]] && [[ "$MODE" == "build" || "$MODE" == "review" || "$M
 fi
 PLAN_REF="${PLAN:-IMPLEMENTATION_PLAN.md (none yet)}"
 
+# Strip ONE pair of quotes only when they wrap the whole entry; a gate such as `sh -c 'a; b'` ends in
+# a quote that belongs to the command and must reach bash -c untouched.
+strip_wrapping_quotes() {
+  local v="$1"
+  if [[ ${#v} -ge 2 && ( ( "${v:0:1}" == '"' && "${v: -1}" == '"' ) || ( "${v:0:1}" == "'" && "${v: -1}" == "'" ) ) ]]; then
+    v="${v:1:${#v}-2}"
+  fi
+  printf '%s' "$v"
+}
+
 # ----- project gates (wgm.yml) ---------------------------------------------
 # Optional named backpressure: commands executed by the host after every build iteration.
 GATES=()
+# NO-FOLLOW GUARD for every host read of the gates file (it is agent-writable: a contained command — the readiness
+# probe included — could swap it for a symlink to an outside readable file, which the host would then read and echo into
+# the prompt). Inside the project the file must be a regular file with no symlinked component on its path (the project
+# root itself included); the guard runs before AND after the single read, and the parser works on the bytes read once.
+gates_refuse() {  # print the refusal, release a decision dir this (re-exec'd) process owns — no trap exists yet — and exit 2
+  echo "$1" >&2
+  local d="${WGM_SANDBOX_DECISION%/*}"   # (pure bash: the PATH here may not carry dirname/rm yet)
+  if [[ "${WGM_SANDBOX_DECISION_OWNED:-}" == 1 && "${d##*/}" == wgm-decision.* ]]; then "${SB_BOOT_RM:-/bin/rm}" -rf -- "$d" 2>/dev/null || true; fi
+  exit 2
+}
+gates_guard() {  # gates_guard FILE → returns 0, or exits 2 naming the offending path
+  local f="$1" abs root bad
+  root="$(pwd -P)"
+  case "$f" in /*) abs="$f" ;; *) abs="$root/$f" ;; esac
+  abs="$(sb_lexnorm "$abs")"
+  if [[ "$abs" == "$root"/* ]]; then
+    if ! bad="$(sb_chain_ok "$abs" "$root")"; then
+      gates_refuse "gates file refused: $bad is a symlink (on the path to $f); the gates file must be a regular file inside the project. Recovery: remove that link itself, never its target."
+    fi
+  fi
+  if [[ -e "$f" && ! -f "$f" ]]; then gates_refuse "gates file refused: $f is not a regular file"; fi
+}
 if [[ -z "$GATES_FILE" ]]; then
-  if [[ -f "wgm.yml" ]]; then GATES_FILE="wgm.yml"
-  elif [[ -f ".wgm/gates.yml" ]]; then GATES_FILE=".wgm/gates.yml"; fi
+  if [[ -e "wgm.yml" || -L "wgm.yml" ]]; then GATES_FILE="wgm.yml"
+  elif [[ -e ".wgm/gates.yml" || -L ".wgm/gates.yml" ]]; then GATES_FILE=".wgm/gates.yml"; fi
 fi
 if [[ -n "$GATES_FILE" ]]; then
+  gates_guard "$GATES_FILE"
   [[ -f "$GATES_FILE" ]] || { echo "gates file not found: $GATES_FILE" >&2; exit 2; }
   [[ -r "$GATES_FILE" ]] || { echo "gates file is unreadable: $GATES_FILE" >&2; exit 2; }
-  _gates_header="$(awk '/^[[:space:]]*gates[[:space:]]*:/ { print; exit }' "$GATES_FILE")"
+  _gates_text="$(<"$GATES_FILE")"
+  gates_guard "$GATES_FILE"
+  _gates_header="$(awk '/^[[:space:]]*gates[[:space:]]*:/ { print; exit }' <<<"$_gates_text")"
   [[ -n "$_gates_header" ]] || { echo "gates file must declare a gates: list: $GATES_FILE" >&2; exit 2; }
   if [[ "$_gates_header" =~ gates[[:space:]]*:[[:space:]]*\[(.*)\] ]]; then
     _inline="${BASH_REMATCH[1]}"
     IFS=',' read -r -a _inline_gates <<< "$_inline"
     for _g in "${_inline_gates[@]}"; do
       _g="${_g#"${_g%%[![:space:]]*}"}"; _g="${_g%"${_g##*[![:space:]]}"}"
-      _g="${_g#\"}"; _g="${_g%\"}"; _g="${_g#\'}"; _g="${_g%\'}"
+      _g="$(strip_wrapping_quotes "$_g")"
       [[ -n "$_g" ]] && GATES+=("$_g")
     done
   else
     while IFS= read -r _g; do
       _g="${_g#"${_g%%[![:space:]]*}"}"; _g="${_g%"${_g##*[![:space:]]}"}"
-      _g="${_g#\"}"; _g="${_g%\"}"; _g="${_g#\'}"; _g="${_g%\'}"
+      _g="$(strip_wrapping_quotes "$_g")"
       [[ -n "$_g" ]] && GATES+=("$_g")
     done < <(
       awk '
@@ -300,7 +360,7 @@ if [[ -n "$GATES_FILE" ]]; then
         /^[[:space:]]*gates[[:space:]]*:[[:space:]]*$/ { g=1; next }
         g && /^[[:space:]]*-[[:space:]]+/ { sub(/^[[:space:]]*-[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; next }
         g && /^[^[:space:]#]/ { g=0 }
-      ' "$GATES_FILE"
+      ' <<<"$_gates_text"
     )
   fi
   [[ "${#GATES[@]}" -gt 0 ]] || { echo "gates file contains no executable gate commands: $GATES_FILE" >&2; exit 2; }
@@ -344,6 +404,126 @@ Honor wgm's gates, backpressure (a task is done only when its validation command
 context hygiene (advance exactly one task; leave ${PLAN_REF} resumable by a fresh agent).
 EOF
 
+# ----- sandbox (D1): decision, host-env re-exec, run state ------------------------------------------
+SB_ON=0
+SB_METRIC="off:unknown"
+
+sandbox_preflight_args() {  # fills the global SB_PF array
+  SB_PF=(preflight --project "$PWD")
+  local m g
+  if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then SB_PF+=(--agent-exe "${AGENT_ARGV[0]}")
+  elif [[ -n "$AGENT" ]]; then SB_PF+=(--agent-cmd "$AGENT"); fi
+  [[ -n "$FRUGAL_AGENT" ]] && SB_PF+=(--agent-cmd "$FRUGAL_AGENT")
+  [[ "$USE_DEVCONTAINER" -eq 1 ]] && SB_PF+=(--devcontainer)
+  [[ "$NO_DEVCONTAINER" -eq 1 ]] && SB_PF+=(--no-devcontainer)
+  [[ -n "$DEV_IMAGE" ]] && SB_PF+=(--devcontainer-image "$DEV_IMAGE")
+  for m in "${DEV_MOUNTS[@]}"; do SB_PF+=(--devcontainer-mount "$m"); done
+  # EVERY configured gate is smoked inside the sandbox in EVERY mode (contract step 11) — not only in build mode
+  for g in "${GATES[@]}"; do SB_PF+=(--gate-cmd "$g"); done
+  return 0
+}
+
+sandbox_stage() {
+  local decision="" rc=0 dfile="" ddir tb snap="" w script oldpath="$PATH" pe
+  sandbox_preflight_args
+  # No external tool may run from a project-planted PATH entry: strip those before the first git call.
+  if [[ -z "${WGM_HOST_ENV_CLEAN:-}" ]]; then
+    sb_path_text_clean "$(pwd -P)"
+    PATH="$SB_CLEAN_PATH"; export PATH
+  fi
+  if [[ -n "${WGM_SANDBOX_DECISION:-}" ]]; then
+    sb_load_decision_file "$WGM_SANDBOX_DECISION"
+  else
+    # Handlers exist BEFORE the first launch of any kind. Preflight runs as a background child (stdin kept
+    # for the interactive questions) so a signal interrupts the wait at once; the child has its own
+    # registry/handlers and removes its containers, and we TERM it.
+    sb_host_tmp_init
+    trap 'sb_cleanup' EXIT
+    trap 'sb_on_signal 130' INT
+    trap 'sb_on_signal 143' TERM
+    WGM_HOST_ENV_QUIET=1 "$BASH" "$HERE/sandbox.sh" "${SB_PF[@]}" > "$SB_HOSTTMP/decision.out" <&0 &
+    SB_CHILD=$!
+    wait "$SB_CHILD" || rc=$?
+    SB_CHILD=""
+    if [[ "$rc" -ne 0 ]]; then exit "$rc"; fi
+    decision="$(cat "$SB_HOSTTMP/decision.out")"
+    sb_parse_decision <<<"$decision"
+  fi
+  if [[ "$SB_MODE" == on ]]; then
+    sb_apply_decision_env   # C7 phase 2: unset every credential name the decision did not approve
+    SB_ORIG_ENV=""
+  elif [[ -n "$SB_ORIG_ENV" ]]; then
+    eval "$SB_ORIG_ENV" 2>/dev/null || true   # an unsandboxed decision keeps the operator's environment
+    SB_ORIG_ENV=""
+  fi
+  case "$SB_MODE" in
+    inside) trap 'sb_cleanup' EXIT; PATH="$oldpath"; SB_METRIC="inside"; echo "sandbox: inside (already running in a wgm devcontainer; not nesting)"; return 0 ;;
+    off)    trap 'sb_cleanup' EXIT; PATH="$oldpath"; SB_METRIC="off:${SB_REASON}"; echo "sandbox: OFF — unsandboxed (${SB_REASON})"; return 0 ;;
+  esac
+  SB_METRIC="container:${SB_ENGINE}"
+  for pe in "${SB_PATH_DROPPED[@]}"; do sb_note "host env: dropped PATH entry $pe"; done
+  sb_repo_layout "$PWD"
+  SB_WRITABLE=("$SB_PROJECT" "$SB_COMMON")
+  if [[ -n "${WGM_SANDBOX_DECISION:-}" ]]; then
+    # a SUPPLIED decision must lie outside EVERY mount (project, git dir, approved extra mounts, skill bundle)
+    sb_outside_all_mounts "$WGM_SANDBOX_DECISION" || sb_die "decision file $WGM_SANDBOX_DECISION lies inside the mount $SB_INSIDE_OF — a container could read it"
+  fi
+  # the trusted-runner snapshot, too, must lie outside every approved mount (it IS the skill mount's source, so
+  # the skill source is excluded from this one comparison)
+  if [[ -n "${WGM_TRUSTED_RUNNER:-}" ]]; then
+    SB_MSRC_SKIP_SKILL=1
+    sb_outside_all_mounts "$WGM_TRUSTED_RUNNER" || sb_die "the trusted-runner snapshot $WGM_TRUSTED_RUNNER lies inside the approved mount $SB_INSIDE_OF — a container could rewrite or read it. Move that mount or set TMPDIR elsewhere."
+    SB_MSRC_SKIP_SKILL=0
+  fi
+  if [[ -z "${WGM_HOST_ENV_CLEAN:-}" ]]; then
+    # Host trusts nothing it inherited: re-exec under an allowlisted environment (and, when the skill
+    # dir is itself writable by the agent, from a private snapshot of it).
+    if [[ -z "${WGM_SANDBOX_DECISION:-}" ]]; then
+      tb="$(sb_private_base)" || exit 2   # outside EVERY mount (project, git dir, extra mounts, skill)
+      ddir="$(umask 077; mktemp -d "$tb/wgm-decision.XXXXXX")" || sb_die "cannot create the decision dir"
+      chmod 700 "$ddir"
+      dfile="$ddir/decision"
+      ( umask 077; printf '%s\n' "$decision" > "$dfile" )
+      export WGM_SANDBOX_DECISION="$dfile" WGM_SANDBOX_DECISION_OWNED=1
+    fi
+    script="$HERE/loop.sh"
+    if [[ -z "${WGM_TRUSTED_RUNNER:-}" ]]; then
+      snap="$(sb_trusted_snapshot "$HERE/..")"
+      if [[ -n "$snap" ]]; then export WGM_TRUSTED_RUNNER="$snap" WGM_TRUSTED_RUNNER_OWNED=1; script="$snap/scripts/loop.sh"; fi
+    fi
+    [[ -n "$SB_HOSTTMP" ]] && { rm -rf -- "$SB_HOSTTMP"; SB_HOSTTMP=""; unset WGM_LIVE_REGISTRY; }   # exec skips traps: no leak (the re-exec'd loop makes its own registry)
+    trap - EXIT
+    SB_KEEP_ENV=("${SB_ENVS[@]}")   # only the APPROVED credential env names survive the host re-exec
+    sb_clean_env_exec 0 "$script" "${ORIGINAL_ARGV[@]}"
+  fi
+  # ---- clean host environment from here on ----
+  sb_export_git_env   # no-op when the re-exec already applied it (e.g. a swarm-provided environment)
+  if [[ -n "${WGM_DEBUG_HOST_ENV:-}" ]]; then sb_safe_path "$WGM_DEBUG_HOST_ENV"; compgen -e > "$WGM_DEBUG_HOST_ENV"; fi
+  sb_check_host_tools
+  [[ "${WGM_SANDBOX_DECISION_OWNED:-}" == 1 && -n "${WGM_SANDBOX_DECISION:-}" ]] && SB_OWNED_DECISION="$WGM_SANDBOX_DECISION"
+  [[ "${WGM_TRUSTED_RUNNER_OWNED:-}" == 1 && -n "${WGM_TRUSTED_RUNNER:-}" ]] && SB_SNAPSHOT="$WGM_TRUSTED_RUNNER"
+  [[ -n "$SB_SNAPSHOT" ]] && echo "sandbox: running from the trusted runner snapshot $SB_SNAPSHOT (the skill dir is writable by the agent)"
+  trap 'sb_cleanup' EXIT
+  trap 'sb_on_signal 130' INT
+  trap 'sb_on_signal 143' TERM
+  SB_DIE_PROPAGATE=1; trap 'exit 2' USR1
+  sb_host_tmp_init
+  cd "$SB_PROJECT"
+  sb_ensure_overlays
+  sb_pin_capture
+  sb_make_copies
+  sb_assert_private_outside
+  SB_ON=1
+  echo "sandbox: on (${SB_ENGINE}, image ${SB_IMAGE}) — agent, gates and git commits run in a container; the host runs only loop bookkeeping"
+}
+
+# ----- trusted runner FIRST: before preflight, readiness, probe, smoke or any dry-run container work ---
+SB_EXTRA_MOUNTS=("${DEV_MOUNTS[@]}")
+[[ "$NO_DEVCONTAINER" -eq 1 ]] || sb_ensure_trusted_runner "$HERE/loop.sh" "${ORIGINAL_ARGV[@]}"
+if [[ "${WGM_TRUSTED_RUNNER_OWNED:-}" == 1 && -n "${WGM_TRUSTED_RUNNER:-}" ]]; then
+  SB_SNAPSHOT="$WGM_TRUSTED_RUNNER"; trap 'sb_cleanup' EXIT
+fi
+
 # ----- dry run --------------------------------------------------------------
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "== wgm loop (dry run) =="
@@ -355,7 +535,16 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "metrics=${METRICS_FILE:-off} cost_cmd=${COST_CMD:+set} max_cost=${MAX_COST}"
   echo "capability_probe=on (dry-run never executes the probe)"
   echo "gates=${GATES_FILE:-none} (${#GATES[@]})"
-  echo "devcontainer=${USE_DEVCONTAINER} mounts=${#DEV_MOUNTS[@]}$([[ $USE_DEVCONTAINER -eq 1 ]] && echo ' (would re-exec this whole invocation inside scripts/devcontainer.sh — skipped for --dry-run)')"
+  echo "devcontainer=${USE_DEVCONTAINER} mounts=${#DEV_MOUNTS[@]} (the sandbox is on by default; --no-devcontainer opts out)"
+  sandbox_preflight_args
+  _dr_rc=0
+  _dr_out="$("$BASH" "$HERE/sandbox.sh" "${SB_PF[@]}" --dry-run 2>&1)" || _dr_rc=$?
+  if [[ "$_dr_rc" -eq 0 ]]; then
+    echo "sandbox decision (dry run, nothing launched or written):"
+    while IFS= read -r _dr_line; do echo "  $_dr_line"; done <<<"$_dr_out"
+  else
+    echo "sandbox: unresolved — ${_dr_out//$'\n'/ }"
+  fi
   if [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then echo "agent(argv)=${AGENT_ARGV[*]}"
   else echo "agent=${AGENT:-<unset: set \$WGM_AGENT, --agent, or -- argv>}"; fi
   echo "--- prompt ---"; printf '%s\n' "$PROMPT"
@@ -373,34 +562,8 @@ if [[ ${#AGENT_ARGV[@]} -eq 0 && -z "$AGENT" && -z "$FRUGAL_AGENT" ]]; then
   exit 2
 fi
 
-# ----- optional: re-exec this whole invocation inside a disk-conscious devcontainer sandbox ------
-# WGM_IN_DEVCONTAINER is set by devcontainer.sh's own `run` on every container it launches (not
-# just when asked to), so this guard also prevents any accidental nested re-wrap if --devcontainer
-# somehow reaches an invocation already running inside one.
-if [[ "$USE_DEVCONTAINER" -eq 1 && -z "${WGM_IN_DEVCONTAINER:-}" ]]; then
-  SKILL_ROOT="$(cd "$HERE/.." && pwd)"
-  REEXEC_ARGV=()
-  _skip_mount_value=0
-  for _a in "${ORIGINAL_ARGV[@]}"; do
-    if [[ "$_skip_mount_value" -eq 1 ]]; then
-      _skip_mount_value=0
-      continue
-    fi
-    case "$_a" in
-      --devcontainer) ;;
-      --devcontainer-mount) _skip_mount_value=1 ;;
-      *) REEXEC_ARGV+=("$_a") ;;
-    esac
-  done
-  ENV_FLAGS=()
-  MOUNT_FLAGS=()
-  for _mount in "${DEV_MOUNTS[@]}"; do MOUNT_FLAGS+=(--mount "$_mount"); done
-  [[ -n "${WGM_AGENT:-}" ]] && ENV_FLAGS+=(--env WGM_AGENT)
-  [[ -n "${WGM_FRUGAL_AGENT:-}" ]] && ENV_FLAGS+=(--env WGM_FRUGAL_AGENT)
-  [[ -n "${WGM_PROMPT_STDIN:-}" ]] && ENV_FLAGS+=(--env WGM_PROMPT_STDIN)
-  exec "$HERE/devcontainer.sh" run --skill-dir "$SKILL_ROOT" "${MOUNT_FLAGS[@]}" "${ENV_FLAGS[@]}" -- \
-    /opt/wgm-skill/scripts/loop.sh "${REEXEC_ARGV[@]}"
-fi
+# ----- sandbox decision (preflight once; headless lanes reuse swarm's decision file) ------------------
+sandbox_stage
 
 # ----- run the loop ---------------------------------------------------------
 run_main() {
@@ -421,6 +584,28 @@ run_with_prompt() {
   local timeout_args=()
   if [[ -n "$TIMEOUT_BIN" && "$AGENT_TIMEOUT" -ne 0 ]]; then
     timeout_args=("$TIMEOUT_BIN" --signal=TERM --kill-after=5s "$AGENT_TIMEOUT")
+  fi
+
+  if [[ "$SB_ON" -eq 1 ]]; then
+    # Every agent invocation goes through sandbox_exec (the container); the timeout wrapper, when any,
+    # supervises the engine client on the host and the container is reaped afterwards.
+    SB_TIMEOUT=("${timeout_args[@]}")
+    local shell_cmd="" use_argv=0
+    if [[ "$role" == "frugal" ]]; then shell_cmd="$FRUGAL_AGENT"
+    elif [[ ${#AGENT_ARGV[@]} -gt 0 ]]; then use_argv=1
+    else shell_cmd="$AGENT"; fi
+    rc=0
+    if [[ "$use_argv" -eq 1 ]]; then
+      if [[ "$PROMPT_STDIN" == "1" ]]; then sandbox_exec -i "${AGENT_ARGV[@]}" < <(printf '%s' "$prompt") || rc=$?
+      else sandbox_exec "${AGENT_ARGV[@]}" "$prompt" || rc=$?; fi
+    elif [[ "$PROMPT_STDIN" == "1" ]]; then
+      sandbox_exec -i bash -c "$shell_cmd" < <(printf '%s' "$prompt") || rc=$?
+    else
+      sandbox_exec bash -c "$shell_cmd \"\$1\"" _ "$prompt" || rc=$?
+    fi
+    SB_TIMEOUT=()
+    report_agent_status "$rc"
+    return
   fi
 
   if [[ "$role" == "frugal" ]]; then
@@ -464,7 +649,10 @@ epoch_to_utc() {
     || echo "$1"
 }
 
+# Every host READ of an agent-writable path first goes through safe_path (symlinked ancestor/leaf or a
+# non-regular file → exit 2 naming it, even from a $(...) subshell via the USR1 propagation).
 plan_hash() {
+  [[ -n "$PLAN" ]] && safe_path "$PLAN"
   if [[ -n "$PLAN" && -f "$PLAN" ]]; then
     if command -v sha1sum >/dev/null 2>&1; then sha1sum "$PLAN" | awk '{print $1}'
     elif command -v shasum >/dev/null 2>&1; then shasum "$PLAN" | awk '{print $1}'
@@ -476,6 +664,7 @@ plan_hash() {
 
 plan_done_count() {
   local count=0
+  [[ -n "$PLAN" ]] && safe_path "$PLAN"
   if [[ -n "$PLAN" && -f "$PLAN" ]]; then
     count="$(grep -ciE '(status\*\*:[[:space:]]*done|status:[[:space:]]*done|\[x\])' "$PLAN" 2>/dev/null || true)"
     [[ "$count" =~ ^[0-9]+$ ]] || count=0
@@ -485,6 +674,7 @@ plan_done_count() {
 
 file_hash() {
   local file="$1"
+  safe_path "$file"
   if command -v sha1sum >/dev/null 2>&1; then sha1sum "$file" | awk '{print $1}'
   elif command -v shasum >/dev/null 2>&1; then shasum "$file" | awk '{print $1}'
   else cksum "$file" | awk '{print $1}'; fi
@@ -492,12 +682,14 @@ file_hash() {
 
 file_hash_or_none() {
   local file="$1"
+  [[ -n "$file" ]] && safe_path "$file"
   if [[ -f "$file" ]]; then file_hash "$file"; else printf 'none'; fi
 }
 
 codebase_patterns_content() {
   local file content
   for file in AGENTS.md .wgm/AGENTS.md; do
+    safe_path "$file"
     [[ -f "$file" ]] || continue
     content="$(awk '
       /^##+[[:space:]]+Codebase patterns[[:space:]]*$/ { capture=1 }
@@ -510,12 +702,35 @@ codebase_patterns_content() {
 }
 
 meaningful_file() {
+  safe_path "$1"
   [[ -f "$1" ]] && grep -q '[^[:space:]]' "$1"
 }
 
+# Operator-supplied shell command strings (--notify, --cost-cmd, gates) share the agent's boundary.
+shell_cmd_exec() {
+  if [[ "$SB_ON" -eq 1 ]]; then sandbox_exec bash -c "$1"; else bash -c "$1"; fi
+}
+# git that can run repository-configured programs (hooks, filters, fsmonitor, textconv) runs in the
+# container when the sandbox is on; the host only ever uses plumbing (wgm_host_git).
+loop_git() {
+  if [[ "$SB_ON" -eq 1 ]]; then sandbox_exec git "$@"; else git "$@"; fi
+}
+# Refuse agent-written symlinks before any host write/read of a file the agent could have replaced.
+# Run-private 0700 scratch dir outside every mount (removed by sb_cleanup on exit).
+host_tmp_init() { sb_host_tmp_init; }  # call in the main shell (a $(...) subshell would lose the variable)
+host_tmp_file() {  # host_tmp_file LABEL → path of a fresh O_EXCL file inside it
+  mktemp "$SB_HOSTTMP/$1.XXXXXX"
+}
+safe_path() { [[ "$SB_ON" -eq 1 ]] && sb_safe_path "$1"; return 0; }
+# EVERY host mutation (rm, mv, write, truncate) of an agent-writable path goes through the no-follow guard first —
+# on the success, failure, disposal and cleanup paths alike. safe_rm = guard, then remove (rm never follows the
+# leaf, but a symlinked ANCESTOR such as `.wgm/run` would redirect it onto an outside file of the same name).
+safe_rm() { local f; for f in "$@"; do safe_path "$f"; done; rm -f -- "$@"; }
+ensure_run_dir() { safe_path ".wgm/run/.x"; mkdir -p .wgm/run; }
+
 notify() {  # $1 = lifecycle event; best-effort, its failure never breaks the loop
   [[ -n "$NOTIFY" ]] || return 0
-  WGM_EVENT="$1" WGM_ITER="${ITER:-0}" bash -c "$NOTIFY" || true
+  WGM_EVENT="$1" WGM_ITER="${ITER:-0}" shell_cmd_exec "$NOTIFY" || true
 }
 
 record_metrics() {  # $1 = result (ok|fail|stall); best-effort, never breaks the loop
@@ -524,7 +739,11 @@ record_metrics() {  # $1 = result (ok|fail|stall); best-effort, never breaks the
   if [[ "$(plan_hash)" != "$HASH_BEFORE" ]]; then changed=1; else changed=0; fi
   cost=""
   if [[ -n "$COST_CMD" ]]; then
-    cost="$(WGM_EVENT=iteration WGM_ITER="$ITER" bash -c "$COST_CMD" 2>/dev/null || true)"
+    # via a FILE, not $(...): a signal must interrupt a slow sandboxed cost command immediately
+    local cf; cf="$(host_tmp_file cost)"
+    WGM_EVENT=iteration WGM_ITER="$ITER" shell_cmd_exec "$COST_CMD" > "$cf" 2>/dev/null || true
+    cost="$(cat "$cf")"; rm -f "$cf"
+    [[ "$SB_ON" -eq 1 ]] && sb_verify_pins
     cost="${cost//$'\t'/ }"; cost="${cost//$'\n'/ }"
     # Accumulate toward --max-cost independent of --metrics; a non-numeric cost figure contributes
     # nothing (best-effort, same contract as the rest of --cost-cmd's failure handling).
@@ -537,10 +756,19 @@ record_metrics() {  # $1 = result (ok|fail|stall); best-effort, never breaks the
   ts_start="$(epoch_to_utc "$ITER_START")"
   parent="${WGM_PARENT_TASK:-}"
   parent="${parent//$'\t'/ }"; parent="${parent//$'\n'/ }"
+  safe_path "$METRICS_FILE"
   mkdir -p "$(dirname "$METRICS_FILE")" 2>/dev/null || true
-  [[ -f "$METRICS_FILE" ]] || printf 'start_timestamp\tend_timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\tparent\n' > "$METRICS_FILE"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$ts_start" "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" "${parent:-none}" >> "$METRICS_FILE"
+  if [[ ! -f "$METRICS_FILE" ]]; then
+    printf 'start_timestamp\tend_timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\tparent\tsandbox\n' > "$METRICS_FILE"
+  elif ! head -1 "$METRICS_FILE" | grep -q $'\tsandbox$'; then
+    # migrate an older ledger in place: only the header gains the column (older rows stay shorter)
+    # mktemp (O_EXCL, unpredictable) next to the ledger, then an atomic rename over it (after safe_path)
+    local mig; mig="$(mktemp "${METRICS_FILE}.XXXXXX")" || return 0
+    { printf '%s\tsandbox\n' "$(head -1 "$METRICS_FILE")"; tail -n +2 "$METRICS_FILE"; } > "$mig" && mv -f "$mig" "$METRICS_FILE"
+    rm -f "$mig"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$ts_start" "$ts" "$ITER" "$MODE" "$ACTIVE" "$dur" "$changed" "$1" "$cost" "${parent:-none}" "$SB_METRIC" >> "$METRICS_FILE"
 }
 
 # Model escalation engages only when BOTH a frugal and a main agent are available.
@@ -557,10 +785,10 @@ PROBE_FILE=""
 probe_capability() {
   [[ "$MODE" == "build" || "$MODE" == "plan" ]] || return 0
 
-  mkdir -p .wgm
-  PROBE_FILE="$(pwd)/.wgm/.loop-write-probe-${$}-${RANDOM}"
+  ensure_run_dir
+  PROBE_FILE="$(pwd)/.wgm/run/.loop-write-probe-${$}-${RANDOM}"
   local probe_content="wgm-capability-probe" probe_plan_hash probe_rc
-  rm -f "$PROBE_FILE"
+  safe_rm "$PROBE_FILE"
   probe_plan_hash="$(plan_hash)"
   echo "Capability probe: asking ${ACTIVE} agent to create a disposable write marker."
   export WGM_CAPABILITY_PROBE_FILE="$PROBE_FILE"
@@ -571,14 +799,15 @@ probe_capability() {
   set -e
   unset WGM_CAPABILITY_PROBE_FILE WGM_CAPABILITY_PROBE_CONTENT
 
+  safe_path "$PROBE_FILE"
   if [[ "$probe_rc" -ne 0 || ! -f "$PROBE_FILE" || "$(cat "$PROBE_FILE" 2>/dev/null || true)" != "$probe_content" ]]; then
-    rm -f "$PROBE_FILE"
+    safe_rm "$PROBE_FILE"
     echo "Capability probe failed: the ${ACTIVE} agent exited ${probe_rc} without creating the required marker." >&2
     echo "Grant the agent write access or use a full-shell invocation, then rerun the lifecycle." >&2
     notify error
     return 1
   fi
-  rm -f "$PROBE_FILE"
+  safe_rm "$PROBE_FILE"
   if [[ "$(plan_hash)" != "$probe_plan_hash" ]]; then
     echo "Capability probe failed: the agent changed the plan during the probe." >&2
     notify error
@@ -593,9 +822,9 @@ probe_capability() {
 assert_lane_identity() {
   [[ "${WGM_SWARM_LANE:-0}" == 1 ]] || return 0
   local top branch tip expected_top="${WGM_SWARM_ROOT:-}" expected_branch="${WGM_SWARM_BRANCH:-}"
-  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  branch="$(git branch --show-current 2>/dev/null || true)"
-  tip="$(git rev-parse --verify 'HEAD^{commit}' 2>/dev/null || true)"
+  top="$(wgm_host_git rev-parse --show-toplevel 2>/dev/null || true)"
+  branch="$(wgm_host_git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+  tip="$(wgm_host_git rev-parse --verify 'HEAD^{commit}' 2>/dev/null || true)"
   if [[ -z "$expected_top" || -z "$expected_branch" || -z "$tip" || "$top" != "$expected_top" \
         || "$branch" != "$expected_branch" || ( -n "${LANE_EXPECTED_TIP:-}" && "$tip" != "$LANE_EXPECTED_TIP" ) ]]; then
     echo "✗ lane guard: expected worktree ${expected_top:-<unset>} on ${expected_branch:-<unset>} at ${LANE_EXPECTED_TIP:-<initial>}, got ${top:-<none>} on ${branch:-<none>} at ${tip:-<none>}" >&2
@@ -619,7 +848,10 @@ assert_lane_identity() {
 }
 
 git_status_paths() {
-  git status --porcelain=v1 | while IFS= read -r status_line; do
+  local st_tmp
+  st_tmp="$(host_tmp_file status)"
+  loop_git status --porcelain=v1 > "$st_tmp" || { rm -f "$st_tmp"; return 1; }
+  while IFS= read -r status_line; do
     path="${status_line:3}"
     # Only untracked .wgm runtime scratch is disposable. Tracked .wgm paths are project data and
     # must pass the same clean-baseline and ownership checks as every other tracked file.
@@ -629,7 +861,8 @@ git_status_paths() {
     else
       printf '%s\n' "$path"
     fi
-  done | sort -u
+  done < "$st_tmp" | sort -u
+  rm -f "$st_tmp"
 }
 
 COMMIT_MODE=0
@@ -638,15 +871,19 @@ if [[ "$MODE" == "build" && ( "$DO_COMMIT" -eq 1 || "$CHECKPOINT_INTERVAL" -ne 0
 fi
 
 assert_clean_commit_baseline() {
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if ! wgm_host_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Refusing to commit: current directory is not a Git worktree." >&2
     return 1
   fi
-  local dirty
-  if ! dirty="$(git_status_paths)"; then
+  local dirty df
+  df="$(host_tmp_file dirty)"
+  if ! git_status_paths > "$df"; then
+    rm -f "$df"
     echo "Refusing to commit: could not inspect the worktree status." >&2
     return 1
   fi
+  dirty="$(cat "$df")"; rm -f "$df"
+  [[ "$SB_ON" -eq 1 ]] && sb_verify_pins
   if [[ -n "$dirty" ]]; then
     echo "Refusing to commit: --commit requires a clean worktree before iteration 1." >&2
     printf 'Unowned paths already present:\n%s\n' "$dirty" >&2
@@ -658,15 +895,17 @@ assert_clean_commit_baseline() {
 OWNERSHIP_MANIFESTS=()
 stage_owned_paths() {
   local owned_tmp actual_tmp staged_tmp undeclared path manifest
-  owned_tmp=".wgm/.loop-owned-${ITER}-$$"
-  actual_tmp=".wgm/.loop-actual-${ITER}-$$"
-  staged_tmp=".wgm/.loop-staged-${ITER}-$$"
+  ensure_run_dir
+  # host-only scratch lives in a run-private dir OUTSIDE the project (never a predictable in-project name)
+  owned_tmp="$(host_tmp_file owned)"
+  actual_tmp="$(host_tmp_file actual)"
+  staged_tmp="$(host_tmp_file staged)"
   if [[ "${#OWNERSHIP_MANIFESTS[@]}" -eq 0 ]]; then
     echo "Refusing to commit: no iteration ownership manifest was registered." >&2
     return 1
   fi
-  : > "$owned_tmp"
   for manifest in "${OWNERSHIP_MANIFESTS[@]}"; do
+    safe_path "$manifest"
     if [[ ! -f "$manifest" ]]; then
       echo "Refusing to commit: iteration ownership manifest is missing: $manifest" >&2
       rm -f "$owned_tmp" "$actual_tmp"
@@ -703,9 +942,9 @@ stage_owned_paths() {
   fi
   while IFS= read -r path || [[ -n "$path" ]]; do
     [[ -n "$path" ]] || continue
-    git add -A -- "$path"
+    loop_git add -A -- "$path"
   done < "$owned_tmp"
-  if ! git diff --cached --name-only > "$staged_tmp"; then
+  if ! loop_git diff --cached --name-only > "$staged_tmp"; then
     echo "Refusing to commit: could not inspect staged paths." >&2
     rm -f "$owned_tmp" "$actual_tmp" "$staged_tmp"
     return 1
@@ -808,7 +1047,7 @@ run_project_gates() {
   for gate in "${GATES[@]}"; do
     gate_index=$((gate_index + 1))
     echo "Project gate ${gate_index}/${#GATES[@]}: ${gate}"
-    if ! bash -c "$gate"; then
+    if ! shell_cmd_exec "$gate"; then
       echo "Project gate failed (${gate_index}/${#GATES[@]}): ${gate}" >&2
       return 1
     fi
@@ -836,7 +1075,7 @@ iteration_failure() {
 discard_iteration_ownership() {
   local last
   [[ "$COMMIT_MODE" -eq 1 ]] || return 0
-  [[ -n "${OWNERSHIP_MANIFEST:-}" ]] && rm -f "$OWNERSHIP_MANIFEST"
+  [[ -n "${OWNERSHIP_MANIFEST:-}" ]] && safe_rm "$OWNERSHIP_MANIFEST"
   if [[ "${#OWNERSHIP_MANIFESTS[@]}" -gt 0 ]]; then
     last=$(( ${#OWNERSHIP_MANIFESTS[@]} - 1 ))
     unset "OWNERSHIP_MANIFESTS[$last]"
@@ -847,6 +1086,11 @@ run_harvest_hook() {
   local memories=".wgm/memories.md" hash marker=".wgm/.last-harvest-hash" rc memory_hash consent_hash
   [[ "$MODE" == "build" && "$LOOP_FAILED" -eq 0 && "$LOOP_HANDOFF" -eq 1 ]] || return 0
   [[ "${WGM_SWARM_LANE:-0}" -eq 0 && -x "$HERE/harvest-hive.sh" ]] || return 0
+  safe_path "$memories"; safe_path .github/wgm-hive.yml; safe_path "$marker"
+  # WGM_HIVE_DENYLIST survives the env allowlist and harvest-hive.sh (not ours) tests it with -f and greps it on the HOST:
+  # inside a writable root it goes through the no-follow guard (regular file, no symlinked component) BEFORE the hook
+  # runs, else exit 2 naming it; outside every writable root it is used as is.
+  [[ -z "${WGM_HIVE_DENYLIST:-}" ]] || safe_path "$WGM_HIVE_DENYLIST"
   [[ -s "$memories" ]] || return 0
   memory_hash="$(file_hash "$memories")"
   consent_hash="$(file_hash_or_none .github/wgm-hive.yml)"
@@ -874,6 +1118,7 @@ run_harvest_hook() {
     set -e
   fi
   if [[ "$rc" -eq 0 ]]; then
+    safe_path "$marker"
     printf '%s\n' "$hash" > "$marker"
   elif [[ -n "$TIMEOUT_BIN" ]]; then
     echo "Ship/Handoff harvest hook failed or timed out; build result is unchanged." >&2
@@ -891,11 +1136,12 @@ NOPROG=0
 PROG=0
 START_TS=$(date +%s)
 LAST_PROG_TS=$START_TS
+host_tmp_init
 notify start
 LANE_EXPECTED_TIP=""
 assert_lane_identity || exit 1
 if [[ "${WGM_SWARM_LANE:-0}" == 1 ]]; then
-  LANE_EXPECTED_TIP="$(git rev-parse --verify 'HEAD^{commit}')" || exit 1
+  LANE_EXPECTED_TIP="$(wgm_host_git rev-parse --verify 'HEAD^{commit}')" || exit 1
 fi
 if [[ "$DRY_RUN" -eq 0 && "$COMMIT_MODE" -eq 1 ]]; then
   assert_clean_commit_baseline || exit 1
@@ -927,8 +1173,9 @@ while :; do
   PHASE_AGENT_PATTERNS_BEFORE="$(codebase_patterns_content)"
   export WGM_PLAN_FILE="$PLAN_REF"
   if [[ "$COMMIT_MODE" -eq 1 ]]; then
-    OWNERSHIP_MANIFEST="$(pwd)/.wgm/.loop-touched-${ITER}-$$"
-    rm -f "$OWNERSHIP_MANIFEST"
+    ensure_run_dir
+    OWNERSHIP_MANIFEST="$(pwd)/.wgm/run/.loop-touched-${ITER}-$$"
+    safe_rm "$OWNERSHIP_MANIFEST"
     OWNERSHIP_MANIFESTS+=("$OWNERSHIP_MANIFEST")
     export WGM_OWNERSHIP_MANIFEST="$OWNERSHIP_MANIFEST"
     ITER_PROMPT="${PROMPT}
@@ -973,14 +1220,14 @@ Commit ownership: before you finish, write every repository-relative file path y
         exit 1
       fi
       assert_lane_identity || { record_metrics fail; notify error; exit 1; }
-      if git diff --cached --quiet; then
+      if loop_git diff --cached --quiet; then
         echo "(nothing to commit)"
-      elif ! git commit -m "chore: wgm build iteration ${ITER}"; then
+      elif ! loop_git commit -m "chore: wgm build iteration ${ITER}"; then
         record_metrics fail
         notify error
         exit 1
       elif [[ "${WGM_SWARM_LANE:-0}" == 1 ]]; then
-        LANE_EXPECTED_TIP="$(git rev-parse --verify 'HEAD^{commit}')" || exit 1
+        LANE_EXPECTED_TIP="$(wgm_host_git rev-parse --verify 'HEAD^{commit}')" || exit 1
       fi
       OWNERSHIP_MANIFESTS=()
     fi
