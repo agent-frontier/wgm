@@ -506,7 +506,9 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
     [[ "$required" -eq 1 ]] && args+=(-RequireWebSocket)
   fi
 
+  local t0=$SECONDS elapsed
   out="$(run_pwsh "${args[@]}" 2>&1)"; rc=$?
+  elapsed=$((SECONDS - t0))
   # Strip CR once, up front: a genuine Windows probe reports "origin-platform=Win32NT\r", and a
   # comparison against the un-normalized string would reject real field evidence as non-Windows.
   out="${out//$'\r'/}"
@@ -525,7 +527,18 @@ probe_windows() {  # $1=leg $2=via-label $3=host $4=port $5=websocket(0|1) $6=re
   # A killed probe produces no output, which would otherwise look exactly like "not a Windows
   # process". Say what actually happened: 124 is GNU timeout's own status, 137/143 are the kill
   # signals it forwards with --preserve-status.
+  # uutils coreutils (>= 0.10) with `--preserve-status -k` reports the BARE signal number (15 for
+  # TERM, 9 for KILL) where GNU reports 128+N. A bare 9/15 is only trusted as the hard timeout
+  # when one was in force AND the probe ran for the whole bound, so a fast genuine exit 9/15 from
+  # the probe is never misread as a timeout.
+  local timed_out=0
   if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
+    timed_out=1
+  elif [[ "$rc" -eq 9 || "$rc" -eq 15 ]] && [[ ${#PWSH_TIMEOUT[@]} -gt 0 ]] \
+       && [[ "$elapsed" -ge "$PWSH_HARD_TIMEOUT" ]]; then
+    timed_out=1
+  fi
+  if [[ "$timed_out" -eq 1 ]]; then
     fail "probe for $leg ($via) $url TIMED OUT (rc=$rc) — the Windows interop path did not answer within the harness bound. This is a timeout, NOT evidence that the process was non-Windows."
     FAILED=1
     RESULTS+=("$leg|via=$via|$url|origin=timeout|http=timeout|asset=timeout|ws=timeout|rc=$rc|required=$required")
