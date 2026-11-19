@@ -32,7 +32,7 @@ on the later Record-step trim discipline; swarm consolidation itself appends the
 files first.
 
 ## Swarm harvest (consolidating parallel streams)
-`scripts/swarm.sh` fans work into parallel Git worktrees or opt-in colocated jj workspaces. Each
+`scripts/swarm.sh` fans work into parallel colocated jj workspaces by default (when the repo is colocated and jj ≥ 0.46 with `git worktree add --orphan` are available; otherwise one visible notice and the Git-worktree backend). Each
 stream's lessons stay in its lane unless brought back. Terminology here is exact: **swarm** = the
 parallel-stream mechanism; a **stream** = one working directory and Git branch; the **hive** = the
 shared upstream `agent-frontier/wgm` that consented builds ultimately report to.

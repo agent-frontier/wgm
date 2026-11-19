@@ -39,7 +39,9 @@ bash scripts/test-jj-swarm.sh      # runs the real preflight and the disposable 
 A Debian bookworm fixture reported Git 2.39.5 without this capability on 2026-10-29. Install a
 [compatible Git](https://git-scm.com/install/) (normally upstream 2.42+) or a vendor backport, then
 rerun the harness. CI runs the same harness, but does not make an unavailable local gate green.
-Ordinary wgm use and the default Git swarm do not require jj or this jj-specific capability.
+Ordinary wgm use does not require jj or this jj-specific capability: the swarm defaults to the jj backend only when
+the repository is a jj (colocated) repository and jj 0.46+ with this Git capability is available; otherwise it prints one
+visible notice and uses Git worktrees.
 
 Install the validator once:
 
@@ -50,8 +52,8 @@ pip install "git+https://github.com/agentskills/agentskills.git#subdirectory=ski
 ## The backpressure suite (run before every PR)
 
 `make validate` is the complete local contributor suite; its real workspace fixture needs jj and
-Git's `worktree add --orphan` capability. A vendor backport is accepted. Normal wgm use and the
-default Git swarm do not require jj or this jj-specific Git capability. CI installs the official
+Git's `worktree add --orphan` capability. A vendor backport is accepted. Normal wgm use does not
+require jj or this jj-specific Git capability (without them the swarm prints one visible notice and uses the Git backend). CI installs the official
 0.46.0 Linux archive after a pinned SHA-256 check; the default harness itself does not download tools.
 The canonical bash harness inventory is
 `Makefile`'s `test` recipe; CI includes those harnesses, including audit and devcontainer checks,
@@ -82,13 +84,14 @@ bash scripts/test-stage10-execution.sh        # isolated local branch/worktree e
 bash scripts/test-stage10-pr.sh               # report-derived, human-gated local PR bundle
 bash scripts/test-stage10-policy.sh           # offline learned-policy comparison
 bash scripts/test-stage10-deferred-e2e.sh     # final disposable deferred-boundary integration
-bash scripts/test-loop.sh                     # loop.sh limits + resilience + metrics harness
-bash scripts/test-swarm.sh                    # swarm.sh parallel-worktree harness
-bash scripts/test-jj-swarm.sh                 # real jj workspace, Git interop + recovery fixtures
+WGM_DEVCONTAINER=0 bash scripts/test-loop.sh   # loop.sh limits + resilience + metrics harness (host stub agents: explicit sandbox opt-out)
+WGM_DEVCONTAINER=0 bash scripts/test-swarm.sh  # swarm.sh parallel-worktree harness (same opt-out; `make test` sets it for you)
+WGM_DEVCONTAINER=0 bash scripts/test-jj-swarm.sh  # real jj workspace, Git interop + recovery fixtures (same opt-out)
 bash scripts/test-audit.sh                    # audit.sh dispatch harness, fixture agents only
 bash scripts/test-harvest-hive.sh             # harvest-hive.sh anonymize + consent harness
 bash scripts/test-compile-heuristics.sh       # heuristics ledger fragments: compile order, stale check, lint
 bash scripts/test-devcontainer.sh             # devcontainer.sh sandbox harness (real podman/docker cases)
+bash scripts/test-sandbox.sh                  # sandbox.sh preflight, mount policy, record, host-trust rules (stub engines + one real-engine pass)
 bash scripts/test-grade-evals.sh              # fake-agent grading integrity, errors and baseline gates
 bash scripts/test-telemetry.sh                # efficiency report: clocks, session turns, baselines, estimates
 pwsh -File scripts/test-install.ps1           # PowerShell installer harness
@@ -101,9 +104,12 @@ actionlint                                    # lint .github/workflows/*.yml (CI
 Run the complete local suite with **`make validate`** (lint + docs + `Makefile`'s bash harnesses); `make help`
 lists every target (`make update` refreshes your installed copy, `make test`, `make lint`, …).
 
-Try the opt-in [jj workspace swarm](docs/reference/cli-swarm.md#try-the-jj-backend) when exploring
-parallel development. It preserves Git commits and never converts a checkout automatically; see the
-[comparison record](docs/plans/2026-10-29_JJ_WORKSPACES_EVALUATION.md) before changing defaults.
+The [swarm](docs/reference/cli-swarm.md) defaults to jj workspaces when the repository is a jj (colocated) repository and
+jj 0.46+ with `git worktree add --orphan` is available, and otherwise falls back to Git worktrees with one visible notice
+(`--backend git` or `--backend jj` forces either). It preserves Git commits and never converts a checkout automatically;
+see the [comparison record](docs/plans/2026-10-29_JJ_WORKSPACES_EVALUATION.md) before changing defaults. Loops and swarm
+lanes run the agent sandboxed by default (see [devcontainers](docs/operator/devcontainers.md)); the loop/swarm harnesses
+opt out explicitly with `WGM_DEVCONTAINER=0`.
 
 The devcontainer harness prefers Podman, falls back to Docker, and visibly skips real-engine cases
 only when neither is installed; its disposable test image is separate from the operator's base image.

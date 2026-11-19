@@ -30,9 +30,9 @@ loop, with progress living on disk (not the model's context) between passes
   `codex`, `aider`) on `PATH` with a print/non-interactive mode. **Detecting capability:** if you
   (the in-session agent) can shell out to invoke a CLI agent non-interactively — the same check
   `scripts/loop.sh`'s wiring already assumes (`docs/operator/running-the-loop.md` "Wiring up your
-  agent") — prefer launching the loop over continuing in-session, even for small/medium work. Run it
-  **sandboxed and disk-conscious** with `--devcontainer` (`references/devcontainers.md`) when you
-  want the loop isolated from the host without a new multi-GB image per project.
+  agent") — prefer launching the loop over continuing in-session, even for small/medium work. It
+  runs **sandboxed and disk-conscious by default** — agent and gate commands in a throwaway container, no
+  new multi-GB image per project (`references/devcontainers.md`); `--no-devcontainer` is the explicit opt-out.
 - **Ralph-lite (fallback)** — run the loop in-session when no headless invocation exists (a purely
   interactive host) or the work is **Quick**-track (a whole subprocess loop is overkill for one short
   prompt once clarification lands). Compensate for context accumulation with strict persistence:

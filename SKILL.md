@@ -2,7 +2,7 @@
 name: wgm
 description: Autonomous build skill that turns a rough request into working software through a relentless requirements interview (grill), a persistent plan, and a Ralph-style build loop (analyze → implement → validate → review → record). Use when the user runs /wgm, or asks to build, implement, prototype, or ship a feature or app from rough intent; when a task is ambiguous and needs requirements interrogation before coding; or for multi-step feature work that benefits from a planned, test-validated iterative loop. Supports phase modes grill, analyze, plan, build, and review, with an optional "only" qualifier to run a single phase (e.g. "/wgm analyze only"). Not for trivial one-file edits, pure debugging, or research-only questions.
 license: MIT
-compatibility: Optional Podman or Docker for containerized validation; the external swarm requires Git, and its optional jj backend needs jj 0.46.0+ and Git with worktree add --orphan.
+compatibility: Podman or Docker for the default sandboxed external loop and swarm (opt out with --no-devcontainer) and for containerized validation; the external swarm requires Git and defaults to its jj backend (jj 0.46.0+, a colocated repository and Git with worktree add --orphan), falling back to Git worktrees with a notice.
 metadata:
   author: Agent Frontier Store
   version: "0.5.1"
@@ -187,10 +187,10 @@ retain superseded verdicts only as dated history, never as a second current verd
      (an operator-set `WGM_AGENT`, or a known CLI — `copilot`, `claude`, `codex`, `aider` — on `PATH`
      with a print/non-interactive mode). Run the bundled loop runner (`scripts/loop.sh` **inside this
      skill's own directory**, the base dir this `SKILL.md` loads from) **from the target project's
-     root**, or restart with a clean context between iterations. For a locally sandboxed, disk-
-     conscious run, add `--devcontainer` (`references/devcontainers.md`). For independent slices, fan
-     out with `scripts/swarm.sh` — Git worktrees by default; try `--backend jj` for colocated jj
-     workspaces. Each stream still commits to a Git branch; only successful, verified stream memories
+     root**, or restart with a clean context between iterations. The loop runs sandboxed by default (agent and gate commands in a container, wgm's own machinery on
+     the host; `--no-devcontainer` opts out; `references/devcontainers.md`). For independent slices, fan
+     out with `scripts/swarm.sh` — jj workspaces by default (Git worktrees, with a notice, when jj is
+     unavailable), each lane's loop in its own container. Each stream still commits to a Git branch; only successful, verified stream memories
      are consolidated (`references/self-improvement.md`, "Swarm harvest").
    - **Ralph-lite (fallback)**: run the loop in-session when no headless invocation is available (a
      purely interactive host) or the track is **Quick** (a whole subprocess loop is overkill for one
@@ -488,13 +488,13 @@ scoring** (`references/scoring.md`) — but deterministic checks remain the hard
 - `references/hard-to-test-domains.md` — backpressure for native/games/GUIs/engines (headless harness, output capture, crash soaks, symbolized repro, native gotchas).
 - `references/gene-transfusion.md` — seed the build from an exemplar codebase.
 - `references/validation-env.md` — OCI/Podman-first containerized validation.
-- `references/devcontainers.md` — running the loop itself sandboxed in a disk-conscious local
-  devcontainer (shared base image, `scripts/devcontainer.sh`).
+- `references/devcontainers.md` — the default sandbox for loop and swarm agents: a disk-conscious local
+  devcontainer (shared base image, `scripts/devcontainer.sh`), its guarantee and residual risk.
 - `references/self-improvement.md` — the Hive Growth Loop: harvest lessons from every source
   (dogfood memories, swarm streams, this project's own Issues, cross-pollinated external research),
   always anonymize, and report upstream automatically once a project consents via
   `.github/wgm-hive.yml`; `references/heuristics.md` is the curated ledger.
 - `assets/` — fill-in templates scaffolded per-build (`spec`, `scenario`, `IMPLEMENTATION_PLAN`, `AGENTS`, `constitution`, `context`, `memories`, `genes`, `docs-audit-report`, optional `sprint-status`, optional `adr`, optional `morning-report`, `wgm-hive.template.yml`), plus `state.template.toon` (compact agent-only state), `evals.template.json` (wgm's own self-test fixture skeleton — not scaffolded into arbitrary builds; see `references/evals.md`), and `devcontainer/` (the shared devcontainer.json + Containerfile templates `scripts/devcontainer.sh init` scaffolds).
-- `scripts/loop.sh` — optional external Ralph loop (`--devcontainer` runs it sandboxed); `scripts/swarm.sh` — parallel Git worktrees or opt-in colocated jj workspaces. `scripts/check-trailers.sh` — audit every introduced commit (merges included) for mandated trailers. `scripts/check-doc-sync.sh` — flag a diff that adds public surface without touching docs. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
+- `scripts/loop.sh` — optional external Ralph loop (agent and gate commands run sandboxed by default; `--no-devcontainer` opts out); `scripts/swarm.sh` — parallel colocated jj workspaces by default, Git worktrees as the fallback. `scripts/check-trailers.sh` — audit every introduced commit (merges included) for mandated trailers. `scripts/check-doc-sync.sh` — flag a diff that adds public surface without touching docs. `scripts/devcontainer.sh` — init/build-base/run/prune a shared local sandbox. `scripts/harvest-hive.sh` — the Hive Growth Loop's courier (anonymize, consent-check, publish). `scripts/install.sh` / `install.ps1` — installers.
 - `references/PLUGIN_PROTOCOL.md` — plugin contract (discovery, hooks, structured I/O, error handling).
 - `references/plugin-integration.md` — where plugins attach in Triage/Plan/Validate.

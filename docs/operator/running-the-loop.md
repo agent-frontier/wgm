@@ -8,18 +8,29 @@
   agent a fresh context every iteration (Ralph-full, the preferred default whenever invocable).
 - **Fastest path:** set `WGM_AGENT`, then `./scripts/loop.sh build 20`.
 - **Key knobs:** `--threshold` (satisfaction target), `--stratified` (converge tier 1 → 2 → 3),
-  `--container`, `--devcontainer` (sandbox the loop itself, disk-conscious), plus frugal ↔ powerful
+  `--container`, `--no-devcontainer` (opt out of the default sandbox), plus frugal ↔ powerful
   model escalation.
+- **Sandboxed by default:** agent and gate commands run in a throwaway Podman/Docker container while the loop
+  itself stays on the host. No engine? An interactive run asks once (install help, or record a decline);
+  a headless run exits 2 with the fix. The sandbox protects your home directory, credentials and other
+  projects — not this repository's history. First launch problems:
+  [troubleshooting](troubleshooting.md#sandbox-default-devcontainer).
 - **Safety:** no host commits by default; `--commit` or `--checkpoint-interval` enables them, and the runner never pushes; stop anytime
   with `Ctrl+C` or a `STOP` sentinel.
 - **Preflight:** a non-dry-run build probes the selected agent's write capability before iteration 1;
   repeated exit-0 iterations with no plan progress are a first-class stall; and a monotonic
   plan-progress guard rejects any iteration that decreases completed task count (`status: done` /
   `[x]`).
-- **Devcontainer credentials:** pass `--devcontainer-mount HOST[:CONTAINER]` for a narrowly scoped
-  agent auth/config directory; the loop never mounts a whole home directory automatically.
+- **Sandbox credentials:** the first run proposes only the configured agent's own token and config files,
+  asks once, and records your answer outside the repository; the agent gets a throwaway *copy*. Headless
+  provisioning and revocation: [devcontainers.md](devcontainers.md#the-decision-record--approve-once-per-repository).
+  `--devcontainer-mount` is for extra **read-only** files/dirs only; the loop never mounts a whole home directory.
+- **Skill inside the sandbox:** The running wgm skill bundle is mounted **read-only** at its host path and at the agent's conventional skills dir under the
+container HOME (`~/.agents/skills/wgm` plus the agent-specific dir), so the agent has its skill inside the sandbox and cannot modify wgm from there.
+- **Dry run:** `--dry-run` is non-mutating — it prints the sandbox decision (or the unresolved prerequisite)
+  and prompts, records, probes and launches nothing.
 - **Next:** [containers.md](containers.md) for live-service scenarios ·
-  [devcontainers.md](devcontainers.md) for sandboxing the loop itself ·
+  [devcontainers.md](devcontainers.md) for the default agent sandbox (the loop's machinery stays on the host; the agent, gates, commits and callbacks run in the container) ·
   [troubleshooting.md](troubleshooting.md).
 
 wgm runs in-session when you invoke `/wgm`, but its strongest mode gives the agent a **fresh context
@@ -45,8 +56,9 @@ flowchart LR
   accumulating context with strict persistence to `IMPLEMENTATION_PLAN.md`.
 - **Ralph-full** — `loop.sh` invokes your agent once per iteration with a clean context. **The
   preferred default whenever it's invocable** — not reserved for large/ambiguous builds only. The
-  plan file is the only memory between passes. Add `--devcontainer` to run it sandboxed without
-  inflating disk usage per project (one shared base image; see [devcontainers.md](devcontainers.md)).
+  plan file is the only memory between passes. It runs sandboxed by default, without inflating disk usage
+  per project (one shared base image; see [devcontainers.md](devcontainers.md)); `--no-devcontainer`
+  opts out explicitly.
 
 See [`references/ralph-loop.md`](../../references/ralph-loop.md) for the underlying mechanics.
 
@@ -103,7 +115,9 @@ an alias of `build`). `build`/`review`/`preflight` refuse to run without an `IMP
 | `--threshold N` | 95 | Satisfaction target the build converges to. |
 | `--scenarios DIR` | `scenarios/` or `.wgm/scenarios/` | Where holdout scenarios live. |
 | `--stratified` | off | Validate scenarios by ascending tier (1→2→3). |
-| `--container auto\|podman\|docker` | auto | Auto-selects available Podman, then Docker; explicit unavailable engines fail before the run. |
+| `--container auto\|podman\|docker` | auto | Auto-selects available Podman, then Docker; explicit unavailable engines fail before the run. (Scenario app container — distinct from the agent sandbox.) |
+| `--no-devcontainer` / `--devcontainer` | sandbox on | Opt out (host run, labelled `sandbox: OFF`) / force (no engine → exit 2). |
+| `--devcontainer-image TAG` | shared base image | Project image with your toolchain (see [devcontainers.md](devcontainers.md#decision-order-first-match-wins)). |
 | `--frugal-agent "CMD"` | — | Cheap model for routine iterations. |
 | `--escalate-after N` | 2 | No-progress iterations before escalating to `--agent`. |
 | `--downgrade-after N` | 5 | Progressing iterations before downgrading to frugal. |
@@ -142,7 +156,9 @@ capability probing and the no-progress safety guard are on by default:
 | `--notify "CMD"` | — | Run `CMD` on lifecycle events with `$WGM_EVENT` (`start`/`retry`/`error`/`complete`) and `$WGM_ITER` set. |
 
 `--notify` is shell-evaluated like `--agent`, so set it only to a command you trust; its own failure
-never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`.
+never fails the loop. Example completion ping: `--notify 'notify-send "wgm $WGM_EVENT @ $WGM_ITER"'`. By default `--notify` (like `--cost-cmd`)
+runs inside the sandbox container, where host desktop integration such as `notify-send` is unavailable: use a webhook or a
+container-compatible notifier, or opt out explicitly with `--no-devcontainer` for host integrations.
 
 The runtime limit is not a global deadline: it does not interrupt a capability probe, active agent,
 retry/backoff, project gate, or hook. Use `--agent-timeout-seconds` for each agent invocation's
@@ -176,7 +192,8 @@ successful agent exit is not enough. `--dry-run` explicitly does **not** run thi
 |---|---|
 | `start_timestamp` · `end_timestamp` · `iter` · `mode` · `agent` | when the turn started/ended, which iteration, the mode, and frugal/main |
 | `duration_s` · `plan_changed` · `result` | wall-clock seconds, whether the plan advanced (1/0), `ok`/`fail`/`stall` |
-| `cost` · `parent` | token/cost figure from `--cost-cmd`, and parent task when set |
+| `cost` · `parent` | token/cost figure from `--cost-cmd`, and parent task when set (`none` otherwise) |
+| `sandbox` | trailing column: `container:<ENGINE>` (agent ran in a container), `off:<REASON>` (unsandboxed, with the reason), or `inside` (already running in a wgm devcontainer). An older ledger's header gets `\tsandbox` appended in place; its older rows stay shorter — read a missing value as unknown |
 
 A host-agnostic loop can't read a black-box agent's token usage, so plug your own: `--cost-cmd "CMD"`
 runs after each iteration (with `$WGM_ITER` set) and its stdout fills the `cost` column — best-effort,
@@ -256,7 +273,8 @@ not bundle a token dashboard. It only gives you the hook and the ledger so an op
 ## Project gates (wgm.yml)
 
 A `wgm.yml` (or `.wgm/gates.yml`) at your project root defines **project-wide gates** — commands the
-host runner executes after every build iteration. They are a quality *floor* independent of any
+runner executes after every build iteration — by default inside the sandbox container (each as `bash -c "$gate"`), on the host only
+when the run is unsandboxed (`--no-devcontainer`). They are a quality *floor* independent of any
 single task's own check. `loop.sh` auto-detects the file (override with `--gates FILE`), runs each
 command, and names a failing command before the iteration can be recorded as successful.
 
@@ -277,11 +295,14 @@ Gates are **shell commands** — use only a file you trust. A starter lives in
 [`assets/wgm.example.yml`](../../assets/wgm.example.yml). The prompt still receives the list as
 context, but the host runner is the source of truth for the exit status.
 
-## Swarm — parallel worktrees
+## Swarm — parallel jj workspaces (or Git worktrees)
 
 For independent slices, fan the loop out with `scripts/swarm.sh`: it runs several `loop.sh` build
 streams **in parallel**, each in a separate directory and Git branch, then you review and merge the
-branches. Git worktrees are the default; try `--backend jj` for colocated Jujutsu workspaces.
+branches. The default backend is colocated **jj workspaces** when the repository is already a colocated jj
+repository and jj 0.46.0+ with Git `worktree add --orphan` are available; otherwise swarm prints one notice
+and uses **Git worktrees**. Each lane's loop runs in its own container; the host creates the workspaces and
+integrates. One sandbox decision is made before any lane exists and handed to all lanes — a refusal creates none.
 
 ```bash
 # one stream per line; each line is that stream's scope
@@ -298,10 +319,11 @@ printf 'add the auth module\nadd the export endpoint\n' > .wgm/tasks.txt
 | `-n, --count N` | N identical streams |
 | `--max-iterations N` | per-stream build cap (0 = until each self-stops) |
 | `--prefix NAME` | branch/worktree name prefix (default `wgm/swarm`) |
-| `--backend git\|jj` | Git worktrees (default), or opt-in colocated jj workspaces |
+| `--backend git\|jj` | default `jj` when colocated + tooling present, else `git` with a notice; explicit `jj` fails hard without its prerequisites |
+| `--devcontainer` / `--no-devcontainer` / `--devcontainer-image TAG` | force / opt out of / choose the image for every lane's sandbox |
 | `--gates FILE` | forward the selected project-gate file to every lane |
 | `--cleanup` | remove only verified successful, clean lanes; retain failed/dirty lanes and all branches |
-| `--dry-run` | print the plan; create nothing |
+| `--dry-run` | print the plan and sandbox decision; create nothing, prompt nothing, launch nothing |
 
 ### Planning a swarm well
 - **Partition file ownership AND symbol/API intent, not just features.** Worktree isolation only
@@ -333,11 +355,13 @@ built-in cap or queue, so choose a safe task count and run remaining tasks in la
 optional `--gates FILE` is passed to every lane. Partition the work yourself — this is not an
 auto-splitter.
 
-For `--backend jj`, install jj 0.46.0+, explicitly colocate it with the Git checkout, keep the parent
-clean, and ignore `.wgm` runtime paths and any in-project lane directory. The loop still commits
-with Git; `jj new` can detach the lane's Git HEAD and must not run while the loop owns it. This is an
-opt-in exploration, not a measured speedup or a native-jj commit runner. See the [jj setup, safety,
-and recovery steps](../reference/cli-swarm.md#try-the-jj-backend).
+For the jj backend, install jj 0.46.0+, explicitly colocate it with the Git checkout (swarm never runs
+`jj git init`), keep the parent clean, and ignore `.wgm` runtime paths and any in-project lane directory.
+The loop still commits with Git (inside the lane's container); `jj new` can detach the lane's Git HEAD and
+must not run while the loop owns it. It is not a measured speedup or a native-jj commit runner. Sibling
+lanes share one git store with no quiescence protocol yet. See the [jj setup, safety,
+and recovery steps](../reference/cli-swarm.md#try-the-jj-backend) and the
+[backend outcome table](../reference/cli-swarm.md#backend-prerequisite-outcomes).
 
 **Successful, verified streams can feed the Hive Growth Loop.** After all streams finish,
 `swarm.sh` folds their `.wgm/memories.md` into the invoking worktree, tagged by origin branch, then

@@ -10,8 +10,10 @@ detail page you need.
   troubleshooting — not the agent that follows the protocol.
 - **What wgm is:** an [Agent Skill](https://agentskills.io) (a `SKILL.md` folder) that turns a rough
   request into working software through a grilled plan and a test-validated build loop.
-- **The operator journey:** install once → invoke `/wgm` (or drive `scripts/loop.sh`) → reach for a
-  container only when a scenario needs a live service → consult troubleshooting when a gate fails.
+- **The operator journey:** install once → invoke `/wgm` (or drive `scripts/loop.sh`) → the loop runs
+  the **agent** (plus gates, commits and callbacks) in a container by default while its machinery stays on the host
+  (`--container` is the separate scenario-validation feature, only when a scenario needs a live service) → consult
+  troubleshooting when a gate fails.
 - **The one mental model:** wgm steers on **backpressure** — a deterministic pass/fail check. Your
   job is to sit *on* the loop (add validation checks, set thresholds), not *in* it.
 - **Least you need to start:** run the installer, then invoke `/wgm` with your request. Everything
@@ -42,9 +44,9 @@ first validated build in eight steps. Come back here for depth.
 |---|---|---|
 | [installation.md](installation.md) | Install on Linux / macOS / Windows / WSL; user vs project scope | Setting wgm up the first time |
 | [playbook.md](playbook.md) | The per-build SOP, a per-gate PASS/FAIL cheat sheet, reading a docs-audit report | You want the checklist form |
-| [running-the-loop.md](running-the-loop.md) | `loop.sh` + the **swarm** (parallel worktrees), limits, retry/circuit-breaker, the metrics ledger, thresholds, model escalation | Driving a large, parallel, or autonomous build |
+| [running-the-loop.md](running-the-loop.md) | `loop.sh` + the **swarm** (jj workspaces by default, Git worktrees as fallback), limits, retry/circuit-breaker, the metrics ledger, thresholds, model escalation | Driving a large, parallel, or autonomous build |
 | [containers.md](containers.md) | Podman / OCI validation environment | A scenario needs the app actually running |
-| [devcontainers.md](devcontainers.md) | Sandboxing the loop *itself*, disk-consciously | Running an autonomous loop you want isolated |
+| [devcontainers.md](devcontainers.md) | The default agent sandbox (agent, gates, commits, callbacks in a container; loop machinery on the host), disk-consciously | Understanding, configuring or opting out of the default sandbox |
 | [troubleshooting.md](troubleshooting.md) | Symptom, cause, and resolution by stage | Something doesn't work |
 
 **Looking up an exact flag?** That lives in the [reference](../reference/README.md) —

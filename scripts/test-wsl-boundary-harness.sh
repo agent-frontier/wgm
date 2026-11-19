@@ -333,6 +333,10 @@ case "${FAKE_MODE:-all-ok}" in
     crlf "result endpoint=$asset kind=http status=200 outcome=ok detail=bytes=80"
     [[ -n "$ws" ]] && crlf "result endpoint=$ws kind=websocket status=101 outcome=ok detail=echo=wgm-probe"
     ;;
+  exit-fast)
+    # A genuine, immediate exit with the bare status FAKE_EXIT_RC (not a timeout kill).
+    exit "${FAKE_EXIT_RC:-15}"
+    ;;
   silent)
     # Windows origin, but no observation at all: the orchestrator must call this UNKNOWN.
     :
@@ -517,6 +521,45 @@ if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
       pass "G1 the startup allowance is what bounds the wedged probe (3x1s network + 2s allowance = 5s)"
     else
       fail "G1 the wedged probe was not bounded by the named allowance: $OUT"
+    fi
+
+    # F8b/F8c uutils coreutils 0.10 reports the bare signal number (15 / 9) instead of GNU's
+    # 143 / 137 for `timeout --preserve-status -k`. A stub `timeout` reproduces that encoding.
+    mkdir -p "$TMP/uutils"
+    cat >"$TMP/uutils/timeout" <<'TOEOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then echo "timeout (uutils coreutils) 0.10.0"; exit 0; fi
+[[ "$1" == "--preserve-status" && "$2" == "-k" ]] || exit 125
+t="$4"; shift 4
+setsid "$@" &
+pid=$!
+( sleep "$t"; kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+killer=$!
+wait "$pid" 2>/dev/null; crc=$?
+if kill "$killer" 2>/dev/null; then exit "$crc"; fi   # cmd finished first: pass its status through
+exit "${STUB_TIMEOUT_RC:-15}"
+TOEOF
+    chmod +x "$TMP/uutils/timeout"
+    for urc in 15 9; do
+      SIM_EXTRA_ENV=("WGM_WSL_PWSH_STARTUP_ALLOWANCE=2" "PATH=$TMP/uutils:$TMP/shim:$PATH" "STUB_TIMEOUT_RC=$urc")
+      sim_boundary hang --timeout 1
+      SIM_EXTRA_ENV=()
+      if [[ "$RC" -ne 0 ]] && grep -q "TIMED OUT (rc=$urc)" <<<"$OUT" \
+         && grep -q "NOT evidence that the process was non-Windows" <<<"$OUT" \
+         && ! grep -q "did not originate on Windows" <<<"$OUT"; then
+        pass "F8-uutils-$urc a wedged probe is a timeout when timeout exits with bare $urc"
+      else
+        fail "F8-uutils-$urc a wedged probe was misdiagnosed (rc=$RC): $OUT"
+      fi
+    done
+    # F8d a fast probe that genuinely exits 15 is not a timeout, even with the uutils stub.
+    SIM_EXTRA_ENV=("WGM_WSL_PWSH_STARTUP_ALLOWANCE=2" "PATH=$TMP/uutils:$TMP/shim:$PATH" "FAKE_EXIT_RC=15")
+    sim_boundary exit-fast --timeout 1
+    SIM_EXTRA_ENV=()
+    if ! grep -q "TIMED OUT" <<<"$OUT"; then
+      pass "F8d a fast genuine exit 15 is not reported as a timeout"
+    else
+      fail "F8d a fast exit 15 was misread as a timeout: $OUT"
     fi
 
     # G2 the default allowance is explicit, named, and added to the network budget rather than

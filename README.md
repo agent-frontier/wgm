@@ -286,9 +286,10 @@ flowchart LR
 - **Gene transfusion** — seed the build from an exemplar codebase (`references/gene-transfusion.md`).
 - **OCI validation** — run scenarios against the app in a **Podman**-first (Docker-fallback)
   container (`references/validation-env.md`).
-- **Local devcontainer sandbox** — run the loop *itself* isolated in a disk-conscious local
-  devcontainer (one shared image across every project, never a per-project build) via
-  `loop.sh --devcontainer` (`references/devcontainers.md`).
+- **Sandboxed by default** — `loop.sh` runs every agent and gate command in a disk-conscious local
+  container (Podman-first, one shared image across every project) while wgm's own machinery stays on the
+  host; `--no-devcontainer` opts out and `--devcontainer` forces it (`references/devcontainers.md`). It
+  protects your home directory, credentials and other projects — not this repository's history.
 
 ## Documentation
 
@@ -321,13 +322,15 @@ export WGM_FRUGAL_AGENT='claude -p'   # cheap model; escalates to $WGM_AGENT on 
 ./scripts/loop.sh extract --source ../exemplar  # gene transfusion from an exemplar repo
 ./scripts/loop.sh build only          # exactly one iteration
 ./scripts/loop.sh build --dry-run     # preview the prompt/command; run nothing
-./scripts/loop.sh build --devcontainer  # run the whole loop sandboxed (one shared image; see below)
+./scripts/loop.sh build --no-devcontainer  # explicit host run — the sandbox is on by default (see below)
 # …or pass the agent argv after `--` (invoked without eval — safest):
 ./scripts/loop.sh build -- claude -p
 ```
 
-**Parallel swarm:** `scripts/swarm.sh` defaults to Git worktrees and one reviewable branch per stream.
-We encourage exploring `--backend jj` for colocated Jujutsu workspaces; Git still owns the commits,
+**Parallel swarm:** `scripts/swarm.sh` defaults to `--backend jj` (colocated Jujutsu workspaces) when the
+repository is already a colocated jj repository and jj 0.46.0+ with Git `worktree add --orphan` exist;
+otherwise it prints one notice and uses Git worktrees (an explicit `--backend jj` fails instead). One
+reviewable branch per stream, and each lane's loop runs in its own container. Git still owns the commits,
 and wgm never converts a checkout automatically. No speedup is claimed without measurement. This
 is parallelism across *tasks*, distinct from the **role swarm** of subagents. See the [jj setup and
 recovery guide](docs/reference/cli-swarm.md#try-the-jj-backend) and [Git vs jj decision record](docs/plans/2026-10-29_JJ_WORKSPACES_EVALUATION.md).
@@ -350,9 +353,13 @@ recovery guide](docs/reference/cli-swarm.md#try-the-jj-backend) and [Git vs jj d
   (`--max-consecutive-failures`) instead of dying on the first hiccup.
 - **Measure the run:** `--metrics FILE` logs a per-iteration TSV (duration, progress, result), with a
   pluggable `--cost-cmd` for token/cost — for data-driven runs.
-- **Sandbox the loop itself:** `--devcontainer` re-execs the whole invocation inside a disk-conscious
-  local devcontainer via `scripts/devcontainer.sh` — one shared, prebuilt image reused across every
-  project (never a per-project build). See [docs/operator/devcontainers.md](docs/operator/devcontainers.md).
+- **Sandbox is the default:** agent, gate, `--notify` and `--cost-cmd` commands run in a throwaway container
+  via `scripts/devcontainer.sh` — one shared, prebuilt image reused across every project; the loop, guards,
+  git bookkeeping and telemetry stay on the host. Agent credentials are per-run copies approved once and
+  recorded outside the repository. With no Podman/Docker an interactive run asks once and a headless run
+  fails closed (exit 2). `--no-devcontainer` opts out (labelled `sandbox: OFF`); `--dry-run` is
+  non-mutating. See [docs/operator/devcontainers.md](docs/operator/devcontainers.md) and
+  [troubleshooting](docs/operator/troubleshooting.md#sandbox-default-devcontainer).
 - **Works from any project:** the loop ships with the installed skill and acts on your current
   directory — run `~/.agents/skills/wgm/scripts/loop.sh` (or your install path) from your project's
   root. The `./scripts/loop.sh` examples above assume you're inside this repo.
@@ -370,7 +377,7 @@ wgm/
 ├── compatibility/    # harnesses.json — the per-harness capability/evidence record (gated by scripts/check-harnesses.sh) · agent-adapters.json — the canonical-role -> host-agent-format mapping
 ├── adapters/         # host translations of the role subagents, derived from .github/agents/ by scripts/sync-agent-adapters.sh (claude/agents/ today)
 ├── assets/           # spec · scenario · IMPLEMENTATION_PLAN · AGENTS · constitution · context · memories · genes · docs-audit-report · adr · morning-report · sprint-status · evals · plugin-template · wgm.example.yml · wgm-hive.template.yml · state.toon · devcontainer/ templates
-├── scripts/          # loop.sh (Ralph loop) · swarm.sh (Git worktrees / opt-in jj workspaces) · audit.sh (portable docs-audit dispatcher) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · check-harnesses.sh (harness contract) · sync-agent-adapters.sh (role adapters) · install.sh · install.ps1
+├── scripts/          # loop.sh (Ralph loop, sandboxed by default) · swarm.sh (jj workspaces by default, Git worktrees fallback) · sandbox.sh (sandbox preflight/decision) · audit.sh (portable docs-audit dispatcher) · harvest-hive.sh (hive courier) · devcontainer.sh (local sandbox) · check-trailers.sh (commit governance) · check-doc-sync.sh (doc drift) · check-harnesses.sh (harness contract) · sync-agent-adapters.sh (role adapters) · install.sh · install.ps1
 ├── companions/       # teach-me (learn a repo) · quiz-me (be tested on it) · rugged (stress-test a design) — installed as sibling skills
 ├── .github/agents/   # the twelve role-specialized subagents (the swarm), incl. the docs-audit swarm + wgm-hermes — canonical source for every host adapter
 └── docs/             # get-started/ · operator/ · companions/ · agent/ · reference/ · style-guide · plans/ · audit/

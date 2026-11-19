@@ -14,7 +14,7 @@ make validate
 ```
 
 Local validation requires jj 0.46.0+ and Git with `worktree add --orphan` (normally Git 2.42+)
-for the real-workspace harness; jj and that capability are optional for the default Git swarm. Local validation and CI share the bash harness inventory in
+for the real-workspace harness; jj and that capability are optional for running a swarm: without them `swarm.sh` falls back to Git worktrees with a visible notice. Local validation and CI share the bash harness inventory in
 `Makefile`'s `test` recipe, including audit and devcontainer harnesses. The docs gate checks literal CI run-command coverage, not general
 workflow control flow; real devcontainer cases visibly skip only if neither Podman nor Docker is
 installed. For doc-sync, `--warn` makes findings advisory, not inspection errors: bad/non-commit
@@ -93,9 +93,9 @@ the lifecycle rather than degrading it.
 | [Overview](operator/README.md) | The operator journey and where to start |
 | [Playbook](operator/playbook.md) | The per-build SOP, a per-gate PASS/FAIL cheat sheet, reading a docs-audit report |
 | [Installation](operator/installation.md) | Linux, macOS, Windows, WSL; user versus project scope |
-| [Run the loop](operator/running-the-loop.md) | `loop.sh` and the worktree swarm, limits, retries, thresholds, escalation |
+| [Run the loop](operator/running-the-loop.md) | `loop.sh` (sandboxed by default) and the swarm (jj workspaces by default, Git worktrees as fallback), limits, retries, thresholds, escalation |
 | [Containers](operator/containers.md) | Podman and OCI validation for scenarios needing a live service |
-| [Devcontainers](operator/devcontainers.md) | Sandboxing the loop *itself*, disk-consciously |
+| [Devcontainers](operator/devcontainers.md) | The default sandbox: guarantee and residual risk, mounts, credentials, the approval record, opting out |
 | [Troubleshooting](operator/troubleshooting.md) | Symptom, cause, and resolution by stage |
 
 ## Concepts: how wgm thinks

@@ -21,6 +21,11 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; FAILED=1; }
 
 TMP="$(mktemp -d)"
 trap 'cd /; rm -rf "$TMP"' EXIT
+# Isolation before ANY tool call: a throwaway HOME / XDG_CONFIG_HOME so a loop run can never read or write the
+# operator's real config or sandbox record; only XDG_DATA_HOME stays real (rootless engine storage).
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/cfg"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME"
 
 cd "$TMP"
 git init -q
@@ -659,6 +664,45 @@ else
   fail "monotonic plan-progress guard did not reject clobbered done count (rc=$RC): $OUT"
 fi
 git checkout -q -- IMPLEMENTATION_PLAN.md
+
+# 20) sandbox surface (the container behaviour itself is covered by test-sandbox.sh). Each assertion
+# protects one operator-visible contract of the default-on sandbox without launching a container.
+run --help
+if [[ "$RC" -eq 0 ]] && grep -q -- '--no-devcontainer' <<<"$OUT" && grep -q -- '--devcontainer-image' <<<"$OUT" && grep -q 'ON BY DEFAULT' <<<"$OUT"; then
+  pass "--help documents the default-on sandbox, --no-devcontainer and --devcontainer-image"
+else
+  fail "--help does not document the sandbox flags (rc=$RC)"
+fi
+
+# an explicit opt-out is labelled in the log and in the metrics `sandbox` column
+rm -rf .wgm/metrics.tsv; git checkout -q -- IMPLEMENTATION_PLAN.md
+run build 1 --no-devcontainer --max-retries 0 -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 ]] && grep -q 'sandbox: OFF — unsandboxed (operator-flag)' <<<"$OUT" \
+   && head -1 .wgm/metrics.tsv | grep -q $'\tsandbox$' && tail -1 .wgm/metrics.tsv | grep -q $'\toff:operator-flag$'; then
+  pass "--no-devcontainer is labelled 'sandbox: OFF' in the log and off:<reason> in the metrics column"
+else
+  fail "opt-out label missing (rc=$RC): $OUT"
+fi
+rm -rf .wgm/metrics.tsv; git checkout -q -- IMPLEMENTATION_PLAN.md 2>/dev/null || true
+
+# an older ledger (no sandbox column) gains it in place; its old rows are left untouched
+mkdir -p .wgm
+printf 'start_timestamp\tend_timestamp\titer\tmode\tagent\tduration_s\tplan_changed\tresult\tcost\tparent\nold\told\t1\tbuild\tmain\t1\t0\tok\t\tnone\n' > .wgm/old-metrics.tsv
+run build 1 --max-retries 0 --metrics .wgm/old-metrics.tsv -- "${AGENT_PROGRESS[@]}"
+if [[ "$RC" -eq 0 ]] && [[ "$(head -1 .wgm/old-metrics.tsv)" == *$'\tparent\tsandbox' ]] && [[ "$(sed -n 2p .wgm/old-metrics.tsv)" == $'old\told\t1\tbuild\tmain\t1\t0\tok\t\tnone' ]]; then
+  pass "an existing metrics ledger is migrated in place with a trailing sandbox header column"
+else
+  fail "metrics header migration failed (rc=$RC): $(cat .wgm/old-metrics.tsv)"
+fi
+rm -f .wgm/old-metrics.tsv; git checkout -q -- IMPLEMENTATION_PLAN.md 2>/dev/null || true
+
+# --dry-run reports conflicting choices as an unresolved prerequisite instead of launching anything
+run build --dry-run --devcontainer --no-devcontainer -- true
+if [[ "$RC" -eq 0 ]] && grep -q 'sandbox: unresolved' <<<"$OUT" && grep -q 'conflicting sandbox choices' <<<"$OUT"; then
+  pass "dry-run reports conflicting sandbox choices as unresolved without side effects"
+else
+  fail "dry-run did not report the conflict (rc=$RC): $OUT"
+fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "loop harness: GREEN"
